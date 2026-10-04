@@ -660,6 +660,15 @@ class PickleballGame extends ChangeNotifier {
     // Update ball physics with effectiveDt (bullet time)
     ballController.update(effectiveDt);
 
+    // Ground faults must become dead balls before any player or bot can swing.
+    // Otherwise a same-frame return can reset bounceCount and erase a valid
+    // second-bounce call.
+    final immediatePointResult = scoreController.checkPoint(ball, court);
+    if (immediatePointResult != PointResult.none) {
+      _handlePointResult(immediatePointResult);
+      return;
+    }
+
     // ── Special Ultimate Ball Trajectory Logic ──────────────────
     if (ball.isUltimate && ball.isInPlay) {
       ball.ultimateAnimTimer += effectiveDt;

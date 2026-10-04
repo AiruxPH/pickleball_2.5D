@@ -2,6 +2,12 @@
 
 ## 2026-10-05
 
+### 2026-10-05 - Same-frame double-bounce adjudication
+
+- Moved ground-fault scoring immediately after ball physics so a player or bot cannot hit on the second-bounce frame and reset the bounce state before adjudication.
+- Kept the later scoring pass for net collisions and faults generated during player/controller updates.
+- Added regressions for both a nearby AI return and a queued human swing on the second bounce.
+
 ### 2026-10-05 - Official doubles server and receiver rotation
 
 - Extended doubles scoring state to track the active teammate, both teams' court sides, and the current server's physical service court.

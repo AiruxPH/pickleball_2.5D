@@ -860,6 +860,65 @@ void main() {
       expect(game.scoreController.isPlayerServing, isFalse);
     });
 
+    test('Second bounce is adjudicated before a nearby AI can return it', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings()..difficulty = AIDifficulty.hard,
+      );
+      game.state = GameState.rally;
+      game.ai.position = Vec3(0, 0, -40);
+      game.ball
+        ..state = BallState.inFlight
+        ..position = Vec3(0, PhysicsConstants.ballRadius, -40)
+        ..velocity = Vec3(0, -8, 0)
+        ..isServe = false
+        ..rallyHitCount = 3
+        ..bounceCount = 1
+        ..hasBounced = true
+        ..lastHitByPlayer = true
+        ..playerSideBounce = false;
+
+      game.update(0.016);
+
+      expect(game.state, GameState.pointScored);
+      expect(game.ball.state, BallState.dead);
+      expect(game.ball.bounceCount, 2);
+      expect(game.ball.rallyHitCount, 3,
+          reason: 'AI must not erase the second bounce with a same-frame hit');
+      expect(game.player.score, 1);
+      expect(game.lastMessage, contains('DOUBLE BOUNCE'));
+    });
+
+    test('Second bounce is adjudicated before a queued player swing', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+      );
+      game.state = GameState.rally;
+      game.player.position = Vec3(0, 0, 40);
+      game.ball
+        ..state = BallState.inFlight
+        ..position = Vec3(0, PhysicsConstants.ballRadius, 40)
+        ..velocity = Vec3(0, -8, 0)
+        ..isServe = false
+        ..rallyHitCount = 3
+        ..bounceCount = 1
+        ..hasBounced = true
+        ..lastHitByPlayer = false
+        ..playerSideBounce = true;
+      game.setHitPressed(true);
+
+      game.update(0.016);
+
+      expect(game.state, GameState.pointScored);
+      expect(game.ball.state, BallState.dead);
+      expect(game.ball.bounceCount, 2);
+      expect(game.ball.rallyHitCount, 3,
+          reason: 'Player must not erase the second bounce with a queued hit');
+      expect(game.scoreController.isPlayerServing, isFalse);
+      expect(game.lastMessage, contains('DOUBLE BOUNCE'));
+    });
+
     test('Game-winning point remains overturnable during NVZ momentum', () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
