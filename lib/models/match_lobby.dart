@@ -79,6 +79,8 @@ class MatchLobby extends ChangeNotifier {
 
   LobbyFormat get format => _format;
   List<LobbyPlayerSlot> get slots => List.unmodifiable(_slots);
+  int get playerCount => humanSlots.length;
+  int get maxPlayers => _slots.length;
   Iterable<LobbyPlayerSlot> get humanSlots =>
       _slots.where((slot) => slot.type == LobbySlotType.human);
   bool get canStart => humanSlots.isNotEmpty && humanSlots.every((s) => s.isReady);

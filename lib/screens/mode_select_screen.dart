@@ -39,8 +39,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         Icons.group_rounded, TilePalette.purple),
     _ModeOption('BOT VS BOT', 'Watch two agents compete autonomously',
         Icons.smart_toy_rounded, TilePalette.green),
-    _ModeOption('LOCAL MULTIPLAYER', 'Two players on one shared screen',
-        Icons.people_alt_rounded, TilePalette.red),
+    _ModeOption('LAN MULTIPLAYER', 'Device vs device over Wi-Fi / Local Network',
+        Icons.wifi_rounded, TilePalette.red),
   ];
 
   @override

@@ -61,7 +61,10 @@ void main() {
     });
 
     test('ally may poach only when clearly closer than its teammate', () {
-      final ball = Pickleball()..position = Vec3(15, 8, 35);
+      final ball = Pickleball()
+        ..position = Vec3(15, 8, 35)
+        ..isServe = false
+        ..rallyHitCount = 1;
       final human = Player(
         startPosition: Vec3(16, 0, 70),
         isHuman: true,

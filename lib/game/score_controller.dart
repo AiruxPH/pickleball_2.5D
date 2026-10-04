@@ -316,6 +316,23 @@ class ScoreController {
     _lastRallySnapshot = null;
     lastFaultDetail = '';
   }
+
+  int get playerScore => player.score;
+  int get aiScore => ai.score;
+
+  void applySyncState({
+    required int playerScore,
+    required int aiScore,
+    required bool isPlayerServing,
+    required int serverNumber,
+    required bool servingPrimary,
+  }) {
+    player.score = playerScore;
+    ai.score = aiScore;
+    this.isPlayerServing = isPlayerServing;
+    _serverNumber = serverNumber;
+    _servingPrimary = servingPrimary;
+  }
 }
 
 class _ScoringSnapshot {

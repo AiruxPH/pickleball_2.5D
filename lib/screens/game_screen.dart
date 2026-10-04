@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../services/lan/lan_multiplayer_service.dart';
+import '../services/lan/lan_state_snapshot.dart';
 import '../game/bot_agent.dart';
 import '../game/camera_controller.dart';
 import '../game/game_loop.dart';
@@ -67,6 +70,11 @@ class _GameScreenState extends State<GameScreen>
   bool _isCareer = false;
   bool _isBotVsBot = false;
   bool _isLocalMultiplayer = false;
+  bool _isLanMultiplayer = false;
+  String? _lanRole;
+  StreamSubscription? _lanCommandSub;
+  StreamSubscription? _lanStateSyncSub;
+  int _lastLanSyncMs = 0;
   Map<String, dynamic> _rematchArguments = <String, dynamic>{};
   final FocusNode _focusNode = FocusNode();
   AudioService? _audioService;
@@ -105,7 +113,10 @@ class _GameScreenState extends State<GameScreen>
     _isCareer = args?['isCareer'] == true;
     final modeArg = args?['mode'] as String?;
     _isBotVsBot = args?['botVsBot'] == true || modeArg == 'bot-vs-bot';
-    _isLocalMultiplayer = args?['localMultiplayer'] == true;
+    _isLanMultiplayer = args?['lanMultiplayer'] == true;
+    _lanRole = args?['lanRole'] as String?;
+    _isLocalMultiplayer =
+        args?['localMultiplayer'] == true || _isLanMultiplayer;
     final drillType = args?['drillType'] as String?;
     final gameMode = modeArg == 'doubles' ? GameMode.doubles : GameMode.singles;
 
@@ -134,9 +145,41 @@ class _GameScreenState extends State<GameScreen>
       difficultyOverride: diffOverride,
       audioService: _audioService,
     );
-    _commands = MatchCommandController(game: _game!);
+    _commands = MatchCommandController(
+      game: _game!,
+      playerSlot: 0,
+      onDispatched: (cmd) {
+        if (_isLanMultiplayer && _lanRole == 'client') {
+          LanMultiplayerService.instance.sendMatchCommand(cmd);
+        }
+      },
+    );
     if (_isLocalMultiplayer) {
-      _opponentCommands = MatchCommandController(game: _game!, playerSlot: 1);
+      _opponentCommands = MatchCommandController(
+        game: _game!,
+        playerSlot: 1,
+        onDispatched: (cmd) {
+          if (_isLanMultiplayer && _lanRole == 'client') {
+            LanMultiplayerService.instance.sendMatchCommand(cmd);
+          }
+        },
+      );
+    }
+    if (_isLanMultiplayer) {
+      if (_lanRole == 'host') {
+        _lanCommandSub = LanMultiplayerService.instance.onCommandReceived
+            .listen((cmd) {
+          _opponentCommands?.dispatch(cmd);
+        });
+      } else if (_lanRole == 'client') {
+        _lanStateSyncSub = LanMultiplayerService.instance.onStateSyncReceived
+            .listen((snapshot) {
+          if (_game != null) {
+            snapshot.applyToGame(_game!);
+          }
+        });
+        _game!.cameraController.setView(CameraView.baseline);
+      }
     }
     if (_isBotVsBot) {
       _playerBot = BotAgent(
@@ -179,6 +222,16 @@ class _GameScreenState extends State<GameScreen>
     _matchDuration += clampedDt;
     _playerBot?.update(clampedDt);
     _game?.update(clampedDt);
+
+    if (_isLanMultiplayer && _lanRole == 'host' && _game != null) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - _lastLanSyncMs >= 25) {
+        _lastLanSyncMs = now;
+        LanMultiplayerService.instance.sendStateSync(
+          LanStateSnapshot.fromGame(_game!),
+        );
+      }
+    }
 
     // Track rally length & score changes
     final game = _game;
@@ -268,6 +321,8 @@ class _GameScreenState extends State<GameScreen>
 
   @override
   void dispose() {
+    _lanCommandSub?.cancel();
+    _lanStateSyncSub?.cancel();
     _audioService?.stopMatchMusic();
     _ticker?.stop();
     _ticker?.dispose();
@@ -283,7 +338,11 @@ class _GameScreenState extends State<GameScreen>
   // ── Input handlers ─────────────────────────────────────────
   MatchCommandController? get _activeTouchCommands {
     final game = _game;
-    if (!_isLocalMultiplayer || game == null) return _commands;
+    if (game == null) return _commands;
+    if (_isLanMultiplayer) {
+      return _lanRole == 'client' ? _opponentCommands : _commands;
+    }
+    if (!_isLocalMultiplayer) return _commands;
     if (game.state == GameState.waitingForServe) {
       return game.isOpponentHumanServing ? _opponentCommands : _commands;
     }
@@ -315,6 +374,40 @@ class _GameScreenState extends State<GameScreen>
     }
 
     if (event is KeyDownEvent) {
+      if (_isLanMultiplayer && _lanRole == 'client') {
+        if (event.logicalKey == LogicalKeyboardKey.space ||
+            event.logicalKey == LogicalKeyboardKey.enter) {
+          if (_game!.state == GameState.waitingForServe &&
+              _game!.isOpponentHumanServing) {
+            _opponentCommands?.serve();
+          } else {
+            _opponentCommands?.shot(ShotType.normal);
+          }
+        } else if (event.logicalKey == LogicalKeyboardKey.keyJ ||
+            event.logicalKey == LogicalKeyboardKey.keyM) {
+          _opponentCommands?.shot(ShotType.normal);
+        } else if (event.logicalKey == LogicalKeyboardKey.keyK ||
+            event.logicalKey == LogicalKeyboardKey.keyN) {
+          _opponentCommands?.shot(ShotType.power);
+        } else if (event.logicalKey == LogicalKeyboardKey.keyL ||
+            event.logicalKey == LogicalKeyboardKey.keyB) {
+          _opponentCommands?.shot(ShotType.lob);
+        } else if (event.logicalKey == LogicalKeyboardKey.keyU ||
+            event.logicalKey == LogicalKeyboardKey.keyV) {
+          _opponentCommands?.shot(ShotType.drop);
+        } else if (event.logicalKey == LogicalKeyboardKey.escape ||
+            event.logicalKey == LogicalKeyboardKey.keyP) {
+          setState(() {
+            if (_game!.isPaused) {
+              _game!.resume();
+            } else {
+              _game!.pause();
+            }
+          });
+        }
+        return;
+      }
+
       if (event.logicalKey == LogicalKeyboardKey.space) {
         if (_game!.state == GameState.waitingForServe &&
             identical(_game!.activeServer, _game!.player)) {
@@ -331,6 +424,7 @@ class _GameScreenState extends State<GameScreen>
       } else if (event.logicalKey == LogicalKeyboardKey.keyU) {
         _commands!.shot(ShotType.drop);
       } else if (_isLocalMultiplayer &&
+          !_isLanMultiplayer &&
           event.logicalKey == LogicalKeyboardKey.enter) {
         if (_game!.state == GameState.waitingForServe &&
             _game!.isOpponentHumanServing) {
@@ -339,15 +433,19 @@ class _GameScreenState extends State<GameScreen>
           _opponentCommands!.shot(ShotType.normal);
         }
       } else if (_isLocalMultiplayer &&
+          !_isLanMultiplayer &&
           event.logicalKey == LogicalKeyboardKey.keyM) {
         _opponentCommands!.shot(ShotType.normal);
       } else if (_isLocalMultiplayer &&
+          !_isLanMultiplayer &&
           event.logicalKey == LogicalKeyboardKey.keyN) {
         _opponentCommands!.shot(ShotType.power);
       } else if (_isLocalMultiplayer &&
+          !_isLanMultiplayer &&
           event.logicalKey == LogicalKeyboardKey.keyB) {
         _opponentCommands!.shot(ShotType.lob);
       } else if (_isLocalMultiplayer &&
+          !_isLanMultiplayer &&
           event.logicalKey == LogicalKeyboardKey.keyV) {
         _opponentCommands!.shot(ShotType.drop);
       } else if (!_isLocalMultiplayer &&
@@ -372,22 +470,43 @@ class _GameScreenState extends State<GameScreen>
       }
     }
 
-    // Continuous movement keys. Local mode keeps both command streams
-    // independent so two keyboard players can move simultaneously.
+    // Continuous movement keys
     final keys = HardwareKeyboard.instance.logicalKeysPressed;
+    if (_isLanMultiplayer && _lanRole == 'client') {
+      double p2x = 0, p2y = 0;
+      if (keys.contains(LogicalKeyboardKey.keyA) ||
+          keys.contains(LogicalKeyboardKey.arrowLeft)) {
+        p2x -= 1;
+      }
+      if (keys.contains(LogicalKeyboardKey.keyD) ||
+          keys.contains(LogicalKeyboardKey.arrowRight)) {
+        p2x += 1;
+      }
+      if (keys.contains(LogicalKeyboardKey.keyW) ||
+          keys.contains(LogicalKeyboardKey.arrowUp)) {
+        p2y -= 1;
+      }
+      if (keys.contains(LogicalKeyboardKey.keyS) ||
+          keys.contains(LogicalKeyboardKey.arrowDown)) {
+        p2y += 1;
+      }
+      _opponentCommands?.move(p2x, p2y);
+      return;
+    }
+
     double p1x = 0, p1y = 0;
     if (keys.contains(LogicalKeyboardKey.keyA)) p1x -= 1;
     if (keys.contains(LogicalKeyboardKey.keyD)) p1x += 1;
     if (keys.contains(LogicalKeyboardKey.keyW)) p1y -= 1;
     if (keys.contains(LogicalKeyboardKey.keyS)) p1y += 1;
-    if (!_isLocalMultiplayer) {
+    if (!_isLocalMultiplayer || (_isLanMultiplayer && _lanRole == 'host')) {
       if (keys.contains(LogicalKeyboardKey.arrowLeft)) p1x -= 1;
       if (keys.contains(LogicalKeyboardKey.arrowRight)) p1x += 1;
       if (keys.contains(LogicalKeyboardKey.arrowUp)) p1y -= 1;
       if (keys.contains(LogicalKeyboardKey.arrowDown)) p1y += 1;
     }
     _commands!.move(p1x, p1y);
-    if (_isLocalMultiplayer) {
+    if (_isLocalMultiplayer && !_isLanMultiplayer) {
       double p2x = 0, p2y = 0;
       if (keys.contains(LogicalKeyboardKey.arrowLeft)) p2x -= 1;
       if (keys.contains(LogicalKeyboardKey.arrowRight)) p2x += 1;
@@ -565,13 +684,19 @@ class _GameScreenState extends State<GameScreen>
                   modeName: _isPractice
                       ? 'PRACTICE'
                       : (_isLocalMultiplayer
-                          ? 'LOCAL ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}'
+                          ? (_isLanMultiplayer
+                              ? 'LAN ${_lanRole == 'host' ? 'HOST' : 'CLIENT'} ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}'
+                              : 'LOCAL ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}')
                           : (_isBotVsBot
                           ? 'BOT VS BOT'
                           : (game.gameMode == GameMode.doubles
                               ? 'DOUBLES'
                               : 'SINGLES'))),
-                  opponentName: _isLocalMultiplayer ? 'PLAYER 2' : 'LORINE',
+                  opponentName: _isLocalMultiplayer
+                      ? (_isLanMultiplayer
+                          ? (_lanRole == 'host' ? 'CLIENT' : 'HOST')
+                          : 'PLAYER 2')
+                      : 'LORINE',
                   footer: _isBotVsBot || _isLocalMultiplayer
                       ? null
                       : _buildPlayerStatusCard(game),
@@ -617,7 +742,8 @@ class _GameScreenState extends State<GameScreen>
                 child: ValueListenableBuilder<int>(
                   valueListenable: _tickNotifier,
                   builder: (_, __, ___) {
-                    final playerTwo = _activeTouchCommands == _opponentCommands;
+                    final isClient = _isLanMultiplayer && _lanRole == 'client';
+                    final playerTwo = isClient || _activeTouchCommands == _opponentCommands;
                     return Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
@@ -631,7 +757,11 @@ class _GameScreenState extends State<GameScreen>
                         ),
                       ),
                       child: Text(
-                        '${playerTwo ? 'P2' : 'P1'} TOUCH CONTROL',
+                        _isLanMultiplayer
+                            ? (isClient
+                                ? 'CLIENT (P2) • LAN MATCH'
+                                : 'HOST (P1) • LAN MATCH')
+                            : '${playerTwo ? 'P2' : 'P1'} TOUCH CONTROL',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,

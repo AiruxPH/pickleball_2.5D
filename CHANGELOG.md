@@ -2,6 +2,72 @@
 
 ## 2026-10-05
 
+### 2026-10-05 04:03:00+08:00
+- **Reason of Change:** User requested to force landscape orientation across the entire application (no more portrait orientation permitted).
+- **Implementation:**
+  1. [main.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/main.dart):
+     - Updated `SystemChrome.setPreferredOrientations` to exclusively allow `DeviceOrientation.landscapeLeft` and `DeviceOrientation.landscapeRight`, completely removing `portraitUp` and `portraitDown`.
+  2. [AndroidManifest.xml](file:///c:/Users/CLienT/Desktop/app/my_app/android/app/src/main/AndroidManifest.xml):
+     - Set `android:screenOrientation="sensorLandscape"` on the primary `MainActivity` element to ensure Android hardware/OS level locking into landscape.
+  3. [Info.plist](file:///c:/Users/CLienT/Desktop/app/my_app/ios/Runner/Info.plist):
+     - Removed `UIInterfaceOrientationPortrait` and `UIInterfaceOrientationPortraitUpsideDown` from both `UISupportedInterfaceOrientations` and `UISupportedInterfaceOrientations~ipad`, restricting iOS orientation support solely to `UIInterfaceOrientationLandscapeLeft` and `UIInterfaceOrientationLandscapeRight`.
+- **Verification:** Ran `flutter analyze lib/main.dart` with 0 issues found.
+
+### 2026-10-05 03:59:00+08:00
+- **Reason of Change:** User requested a streamlined Room ID / Room Code system (`e.g. PK-4821`) instead of confusing raw IP addresses or `localhost (Browser Tab):7777` for multiplayer device-to-device and cross-tab pairing.
+- **Implementation & Architecture (Rule 2 Modular Files):**
+  1. [lan_room_code.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_room_code.dart):
+     - Generates clean, gamer-friendly 4-digit codes (e.g. `PK-4821`).
+     - Implements Base36 reversible IPv4 encoding/decoding: compresses 4-byte LAN IPs into 6-character tokens (e.g. `192.168.1.45` <-> `PK-1P4MKD`), allowing direct server addressing on Wi-Fi without users having to type IP addresses.
+  2. [lan_room_info.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_room_info.dart):
+     - Data model storing active room metadata (`roomCode`, `format`, `hostAddress`, `port`, `createdAt`).
+  3. Discovery Beacon Subsystem ([lan_discovery_service.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_discovery_service.dart)):
+     - [lan_discovery_web.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_discovery_web.dart): Web-compatible local room discovery using `localStorage` heartbeats and cross-tab synchronization.
+     - [lan_discovery_io.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_discovery_io.dart): Native mobile/desktop UDP broadcast beacons on port 7778 for zero-configuration LAN discovery.
+     - [lan_discovery_stub.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_discovery_stub.dart): Platform fallback stub.
+  4. UI Enhancements:
+     - [lan_room_code_card.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_room_code_card.dart): Prominent, cyber-athletic room code card with one-touch `COPY CODE` button, visual copy feedback, and collapsible technical details.
+     - [lan_nearby_rooms_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_nearby_rooms_view.dart): Real-time list of detected nearby games on the local network/browser with one-tap `JOIN` action.
+     - [lan_action_button.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_action_button.dart): High-contrast, stylized angular action button conforming to Rule 2.
+     - [lan_join_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_join_view.dart): Upgraded join view featuring uppercase room code input, discovery list integration, and fallback direct IP toggle.
+     - [local_lobby_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/local_lobby_screen.dart): Tab navigation updated to `CREATE ROOM` and `JOIN ROOM`.
+  5. Test Coverage ([lan_multiplayer_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/lan_multiplayer_test.dart)):
+     - Added automated unit tests for `LanRoomCode` generation, Base36 IPv4 encoding/decoding roundtrip, and `LanRoomInfo` JSON serialization.
+- **Verification:**
+  - `flutter analyze lib/services/lan/ lib/widgets/lan/ lib/screens/local_lobby_screen.dart test/lan_multiplayer_test.dart`: 0 issues found.
+  - All 19 tests in the test suite passed cleanly.
+
+### 2026-10-05 03:48:00+08:00
+- **Reason of Change:** Resolved all linter warnings, deprecated API usages, and unused imports reported in IDE diagnostics (`@[current_problems]`).
+- **Cause of Errors / Warnings & Fixes:**
+  1. [lan_transport_web.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_transport_web.dart):
+     - **Cause:** Final variable `isHostSide` was not initialized in the named constructor `WebLanConnection.fromWebSocket`. Redundant non-null assertion `!` operators were present on variables with non-nullable types (`socket`, `channel`). Deprecated `dart:html` usage warning.
+     - **Fix:** Added `isHostSide = false` initializer in `WebLanConnection.fromWebSocket`, removed redundant `!` operators, and added `deprecated_member_use` and `avoid_web_libraries_in_flutter` ignore flags for web transport fallback.
+  2. [local_lobby_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/local_lobby_screen.dart), [lan_host_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_host_view.dart), [lan_join_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_join_view.dart), [lan_slot_tile.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_slot_tile.dart):
+     - **Cause:** Unused `import '../utils/constants.dart';` and `import '../../utils/constants.dart';` after modular refactoring.
+     - **Fix:** Removed the unused import directives from all four files.
+  3. [lan_multiplayer_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/lan_multiplayer_test.dart):
+     - **Cause:** Unused import `package:pickleball_3d/models/court.dart`, non-const `LanStateSnapshot` test constructor, and subsequent redundant `const` keywords inside arguments of a `const` constructor (`unnecessary_const`).
+     - **Fix:** Removed unused court import, marked `LanStateSnapshot` as `const`, and stripped inner redundant `const` keywords.
+- **Verification:** Ran `flutter analyze lib/screens/local_lobby_screen.dart lib/widgets/lan/ lib/services/lan/ test/lan_multiplayer_test.dart` ("No issues found!") and `flutter test test/lan_multiplayer_test.dart` (7/7 tests passed).
+
+### 2026-10-05 03:45:00+08:00
+- **Reason of Change:** User requested true Device-vs-Device / LAN multiplayer over Wi-Fi/Local Network instead of shared-screen single-device play.
+- **Implementation & Architecture:**
+  - Designed and built a modular LAN multiplayer subsystem conforming to Rule 2 (standalone file per component):
+    1. [lan_message.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_message.dart): Structured binary/JSON messaging protocol (`lobbySync`, `lobbyAction`, `startMatch`, `matchCommand`, `stateSync`, `ping`, `pong`).
+    2. [lan_transport.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_transport.dart): Abstract interface with conditional compilation:
+       - [lan_transport_io.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_transport_io.dart): Native `dart:io` WebSocket server (`HttpServer.bind` on IPv4) + client (`WebSocket.connect`) with local IP detection via `NetworkInterface.list()`.
+       - [lan_transport_web.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_transport_web.dart): Web-compatible WebSocket client and cross-tab `BroadcastChannel` for multi-tab testing.
+       - [lan_transport_stub.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_transport_stub.dart): Platform fallback stub.
+    3. [lan_state_snapshot.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_state_snapshot.dart): State snapshot synchronizing ball trajectory, player positions, velocities, animation states, and official scores at 40Hz.
+    4. [lan_multiplayer_service.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_multiplayer_service.dart): High-level state machine handling host lifecycle, client connections, lobby synchronization, and match command routing.
+    5. [lan_slot_tile.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_slot_tile.dart), [lan_host_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_host_view.dart), [lan_join_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_join_view.dart): Dedicated angular/cyber-athletic lobby interface with Host/Join tabs, IP address display, copy button, format selector, and readiness indicators.
+    6. [local_lobby_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/local_lobby_screen.dart): Updated screen entry routing directly to LAN Host/Join flow.
+    7. [mode_select_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/mode_select_screen.dart): Renamed option to "LAN MULTIPLAYER • Device vs device over Wi-Fi / Local Network".
+    8. [game_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/game_screen.dart): Authoritative simulation on Host with state snapshot broadcasting; Client runs replica, streams local `MatchCommand`s, and receives authoritative state.
+    9. Added comprehensive unit test coverage in [lan_multiplayer_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/lan_multiplayer_test.dart) (all 7 tests passing; all 17 suite tests passing).
+
 ### 2026-10-05 03:12:00+08:00
 - **Reason of Change:** Fix compilation error in `local_lobby_screen.dart` and linter issues in `pickleball_game.dart`, `game_over_rematch_test.dart`, and `shot_targeting_test.dart`.
 - **Cause of Errors / Warnings & Fixes:**

@@ -35,6 +35,34 @@ class MatchCommand {
   final double? x;
   final double? y;
   final ShotType? shotType;
+
+  Map<String, dynamic> toJson() => {
+        'type': type.name,
+        if (x != null) 'x': x,
+        if (y != null) 'y': y,
+        if (shotType != null) 'shotType': shotType!.name,
+      };
+
+  factory MatchCommand.fromJson(Map<String, dynamic> json) {
+    final typeName = json['type'] as String?;
+    final type = MatchCommandType.values.firstWhere(
+      (e) => e.name == typeName,
+      orElse: () => MatchCommandType.movement,
+    );
+    final shotName = json['shotType'] as String?;
+    final shotType = shotName != null
+        ? ShotType.values.firstWhere(
+            (e) => e.name == shotName,
+            orElse: () => ShotType.normal,
+          )
+        : null;
+    return MatchCommand._(
+      type: type,
+      x: (json['x'] as num?)?.toDouble(),
+      y: (json['y'] as num?)?.toDouble(),
+      shotType: shotType,
+    );
+  }
 }
 
 typedef MatchCommandObserver = void Function(MatchCommand command);

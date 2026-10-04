@@ -5,7 +5,7 @@ import '../utils/constants.dart';
 
 /// Shared safeguards that keep returns directed back into the playable court.
 class ShotTargeting {
-  static const double _sidelineThresholdRatio = 0.55;
+  static const double _sidelineThresholdRatio = 0.40;
   static const double _minimumInwardDirection = 0.25;
 
   static bool _isNearSideline(double contactX) {

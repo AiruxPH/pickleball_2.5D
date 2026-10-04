@@ -23,10 +23,8 @@ import 'models/game_settings.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Enable all orientations for responsive mobile & desktop gameplay
+  // Force landscape orientation (no portrait)
   await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
