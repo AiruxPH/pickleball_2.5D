@@ -252,3 +252,10 @@
 - Preserved the existing opponent `AIController` and scoring/physics paths so autonomous matches exercise the same gameplay rules as regular matches.
 - Added BotAgent behavior tests and mode-selection navigation coverage.
 - Follow-up: restored predicted horizontal ball velocities to mutable locals because the landing simulation applies per-step drag to both values.
+
+### 2026-10-05 - Spectator camera angles
+- Expanded the camera controller with player-follow, baseline, sideline, and tactical overhead views while preserving the original player-follow behavior for regular matches.
+- Added smooth position, target, and field-of-view transitions so switching broadcast angles does not snap or disorient the spectator.
+- Added a spectator-only camera control with an accessible current-angle label and a `C` keyboard shortcut.
+- Initialized bot-vs-bot matches in the baseline broadcast view without changing regular gameplay cameras.
+- Added camera-controller regression tests for spectator cycling, sideline placement, spectator FOV, and preservation of the gameplay-selected FOV.

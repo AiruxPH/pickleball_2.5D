@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../game/bot_agent.dart';
+import '../game/camera_controller.dart';
 import '../game/game_loop.dart';
 import '../game/match_command_controller.dart';
 import '../game/pickleball_game.dart';
@@ -130,6 +131,7 @@ class _GameScreenState extends State<GameScreen>
         commands: _commands!,
         difficulty: diffOverride ?? settings.difficulty,
       );
+      _game!.cameraController.setView(CameraView.baseline);
     }
     if (isLandscape) {
       _game!.camera.fov = 48.0;
@@ -268,6 +270,9 @@ class _GameScreenState extends State<GameScreen>
     if (_game == null) return;
     if (_isBotVsBot) {
       if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.keyC) {
+        _cycleSpectatorCamera();
+      } else if (event is KeyDownEvent &&
           (event.logicalKey == LogicalKeyboardKey.escape ||
               event.logicalKey == LogicalKeyboardKey.keyP)) {
         setState(() {
@@ -338,6 +343,15 @@ class _GameScreenState extends State<GameScreen>
     } else if (event is KeyUpEvent) {
       _commands!.stopMoving();
     }
+  }
+
+  void _cycleSpectatorCamera() {
+    final game = _game;
+    if (game == null || !_isBotVsBot) return;
+    setState(() {
+      game.cameraController.cycleSpectatorView();
+    });
+    HapticFeedback.selectionClick();
   }
 
   void _onSwipeStart(DragStartDetails d) {
@@ -484,6 +498,16 @@ class _GameScreenState extends State<GameScreen>
               onTap: () => setState(() => game.pause()),
             ),
           ),
+
+          if (_isBotVsBot)
+            Positioned(
+              top: isLandscape ? 8 : UISizes.hudPadding,
+              right: isLandscape ? 64 : 62,
+              child: _SpectatorCameraButton(
+                label: game.cameraController.view.label,
+                onTap: _cycleSpectatorCamera,
+              ),
+            ),
 
           // ── Virtual Joystick (bottom left) ────────────────
           if (!_isBotVsBot)
@@ -1205,6 +1229,63 @@ class _GameScreenState extends State<GameScreen>
                     letterSpacing: 0.8,
                     fontWeight: FontWeight.w800,
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SpectatorCameraButton extends StatelessWidget {
+  const _SpectatorCameraButton({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Change spectator camera. Current view: $label',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xE60F172A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0x5548CAE4)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x55000000),
+                blurRadius: 10,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.videocam_rounded,
+                size: 17,
+                color: Color(0xFF67E8F9),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFFE2E8F0),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
                 ),
               ),
             ],
