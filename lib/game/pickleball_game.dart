@@ -1175,7 +1175,7 @@ class PickleballGame extends ChangeNotifier {
       final assistedForwardZ =
           math.max(1.0, aimDirZ.abs() * forwardSpeed * 0.88);
       final timeToNet = ball.position.z / assistedForwardZ;
-      final targetNetHeight = CourtDimensions.netHeight +
+      const targetNetHeight = CourtDimensions.netHeight +
           PhysicsConstants.ballRadius +
           4.0;
       final minimumUpSpeed = (targetNetHeight -

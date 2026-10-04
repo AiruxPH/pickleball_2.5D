@@ -2,6 +2,27 @@
 
 ## 2026-10-05
 
+### 2026-10-05 03:12:00+08:00
+- **Reason of Change:** Fix compilation error in `local_lobby_screen.dart` and linter issues in `pickleball_game.dart`, `game_over_rematch_test.dart`, and `shot_targeting_test.dart`.
+- **Cause of Errors / Warnings & Fixes:**
+  1. `lib/screens/local_lobby_screen.dart`:
+     - **Cause:** `MenuMetrics` is defined in `lib/widgets/menu_backdrop.dart`, which was not directly imported in `local_lobby_screen.dart` or exported by `menu_ui.dart`. This caused compile error `Undefined name 'MenuMetrics'`.
+     - **Fix:** Added `import '../widgets/menu_backdrop.dart';`.
+  2. `lib/game/pickleball_game.dart`:
+     - **Cause:** `targetNetHeight` was declared as `final` but initialized with compile-time constants (`CourtDimensions.netHeight`, `PhysicsConstants.ballRadius`, `4.0`), triggering `prefer_const_declarations`.
+     - **Fix:** Changed `final` to `const`.
+  3. `test/game_over_rematch_test.dart`:
+     - **Cause:** `RouteSettings` constructor and its map literal arguments in test setup could be evaluated at compile time, triggering `prefer_const_constructors` and `prefer_const_literals_to_create_immutables`.
+     - **Fix:** Added `const` to `RouteSettings(...)`.
+  4. `test/shot_targeting_test.dart`:
+     - **Cause:** Redundant `import 'dart:ui';` directive as elements are already exported by `package:flutter_test/flutter_test.dart`, triggering `unnecessary_import`.
+     - **Fix:** Removed `import 'dart:ui';`.
+- **Files Modified:**
+  - [local_lobby_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/local_lobby_screen.dart)
+  - [pickleball_game.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/pickleball_game.dart)
+  - [game_over_rematch_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/game_over_rematch_test.dart)
+  - [shot_targeting_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/shot_targeting_test.dart)
+
 ### 2026-10-05 - Local multiplayer lobby and online-ready match commands
 
 - Added a Local Multiplayer entry to mode selection and a dedicated shared-screen lobby with singles/doubles format selection, two human ready states, and AI partner slots for doubles.

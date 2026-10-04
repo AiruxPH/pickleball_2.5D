@@ -27,7 +27,7 @@ void main() {
             if (settings.name == '/game-over') {
               return MaterialPageRoute<void>(
                 builder: (_) => const GameOverScreen(),
-                settings: RouteSettings(
+                settings: const RouteSettings(
                   name: '/game-over',
                   arguments: <String, Object>{
                     'playerScore': 3,

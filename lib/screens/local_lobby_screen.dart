@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/match_lobby.dart';
+import '../widgets/menu_backdrop.dart';
 import '../widgets/menu_ui.dart';
 
 class LocalLobbyScreen extends StatefulWidget {
