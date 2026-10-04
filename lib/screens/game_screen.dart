@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../game/pickleball_game.dart';
 import '../game/game_loop.dart';
+import '../game/match_command_controller.dart';
 import '../models/game_settings.dart';
 import '../models/ultimate_skill.dart';
 import '../utils/constants.dart';
@@ -35,6 +36,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen>
     with SingleTickerProviderStateMixin {
   PickleballGame? _game;
+  MatchCommandController? _commands;
   Ticker? _ticker;
   Duration _lastTime = Duration.zero;
   bool _gameInitialized = false;
@@ -117,6 +119,7 @@ class _GameScreenState extends State<GameScreen>
       difficultyOverride: diffOverride,
       audioService: _audioService,
     );
+    _commands = MatchCommandController(game: _game!);
     if (isLandscape) {
       _game!.camera.fov = 48.0;
     }
@@ -246,8 +249,8 @@ class _GameScreenState extends State<GameScreen>
   }
 
   // ── Input handlers ─────────────────────────────────────────
-  void _onJoystickMove(double x, double y) => _game?.setJoystick(x, y);
-  void _onJoystickRelease() => _game?.setJoystick(0, 0);
+  void _onJoystickMove(double x, double y) => _commands?.move(x, y);
+  void _onJoystickRelease() => _commands?.stopMoving();
 
   void _handleKeyEvent(KeyEvent event) {
     if (_game == null) return;
@@ -257,23 +260,23 @@ class _GameScreenState extends State<GameScreen>
           event.logicalKey == LogicalKeyboardKey.keyJ) {
         if (_game!.state == GameState.waitingForServe &&
             _game!.scoreController.isPlayerServing) {
-          _game!.setServePressed(true);
+          _commands!.serve();
         } else {
-          _game!.setHitPressed(true);
+          _commands!.shot(ShotType.normal);
         }
       } else if (event.logicalKey == LogicalKeyboardKey.keyK) {
-        _game!.setPowerPressed(true);
+        _commands!.shot(ShotType.power);
       } else if (event.logicalKey == LogicalKeyboardKey.keyL) {
-        _game!.setLobPressed(true);
+        _commands!.shot(ShotType.lob);
       } else if (event.logicalKey == LogicalKeyboardKey.keyU) {
-        _game!.setDropPressed(true);
+        _commands!.shot(ShotType.drop);
       } else if (event.logicalKey == LogicalKeyboardKey.enter) {
-        _game!.setServePressed(true);
+        _commands!.serve();
       } else if (event.logicalKey == LogicalKeyboardKey.keyQ ||
           event.logicalKey == LogicalKeyboardKey.keyE) {
         if (_game!.ultimateCharge >= 1.0) {
           setState(() {
-            _game!.toggleArmUltimate();
+            _commands!.toggleUltimate();
           });
         }
       } else if (event.logicalKey == LogicalKeyboardKey.escape ||
@@ -305,9 +308,9 @@ class _GameScreenState extends State<GameScreen>
       jy += 1.0;
     }
     if (jx != 0 || jy != 0) {
-      _game!.setJoystick(jx, jy);
+      _commands!.move(jx, jy);
     } else if (event is KeyUpEvent) {
-      _game!.setJoystick(0, 0);
+      _commands!.stopMoving();
     }
   }
 
@@ -319,13 +322,13 @@ class _GameScreenState extends State<GameScreen>
     if (_swipeStart == null) return;
     final delta = d.localPosition - _swipeStart!;
     if (delta.distance > 20) {
-      _game?.setSwipe(delta / delta.distance);
+      _commands?.aim(delta);
     }
   }
 
   void _onSwipeEnd(DragEndDetails d) {
     _swipeStart = null;
-    _game?.setSwipe(null);
+    _commands?.clearAim();
   }
 
   @override
@@ -724,7 +727,7 @@ class _GameScreenState extends State<GameScreen>
             size: hitBtnSize,
             color: const Color(0xFF0284C7),
             glowColor: const Color(0x770284C7),
-            onTap: () => game.setServePressed(true),
+            onTap: () => _commands?.serve(),
           ),
         ],
       );
@@ -745,7 +748,7 @@ class _GameScreenState extends State<GameScreen>
               size: smallBtnSize,
               color: const Color(0xFF06B6D4),
               glowColor: const Color(0x4406B6D4),
-              onTap: () => game.setDropPressed(true),
+              onTap: () => _commands?.shot(ShotType.drop),
             ),
             SizedBox(width: btnSpacing),
             GameButton(
@@ -754,7 +757,7 @@ class _GameScreenState extends State<GameScreen>
               size: smallBtnSize,
               color: const Color(0xFF8B5CF6),
               glowColor: const Color(0x448B5CF6),
-              onTap: () => game.setLobPressed(true),
+              onTap: () => _commands?.shot(ShotType.lob),
             ),
             SizedBox(width: btnSpacing),
             GameButton(
@@ -763,7 +766,7 @@ class _GameScreenState extends State<GameScreen>
               size: powerBtnSize,
               color: AppColors.power,
               glowColor: AppColors.powerGlow,
-              onTap: () => game.setPowerPressed(true),
+              onTap: () => _commands?.shot(ShotType.power),
             ),
           ],
         ),
@@ -782,7 +785,7 @@ class _GameScreenState extends State<GameScreen>
               size: hitBtnSize,
               color: AppColors.primary,
               glowColor: AppColors.primaryGlow,
-              onTap: () => game.setHitPressed(true),
+              onTap: () => _commands?.shot(ShotType.normal),
             ),
           ],
         ),
@@ -797,6 +800,7 @@ class _GameScreenState extends State<GameScreen>
       size: size,
       ultimateNotifier: _ultimateNotifier,
       onOpenSelector: () => _showUltimateSelectorModal(context, game),
+      onToggleArm: () => _commands?.toggleUltimate(),
       onArmToggled: () => setState(() {}),
     );
   }
@@ -1184,6 +1188,7 @@ class _UltimateButtonWidget extends StatefulWidget {
   final double size;
   final ValueNotifier<double> ultimateNotifier;
   final VoidCallback onOpenSelector;
+  final VoidCallback onToggleArm;
   final VoidCallback onArmToggled;
 
   const _UltimateButtonWidget({
@@ -1191,6 +1196,7 @@ class _UltimateButtonWidget extends StatefulWidget {
     required this.size,
     required this.ultimateNotifier,
     required this.onOpenSelector,
+    required this.onToggleArm,
     required this.onArmToggled,
   });
 
@@ -1244,7 +1250,7 @@ class _UltimateButtonWidgetState extends State<_UltimateButtonWidget>
               } catch (_) {}
               if (isReady) {
                 HapticFeedback.heavyImpact();
-                widget.game.toggleArmUltimate();
+                widget.onToggleArm();
                 widget.onArmToggled();
               } else {
                 HapticFeedback.lightImpact();
@@ -1400,4 +1406,3 @@ class _UltimateButtonWidgetState extends State<_UltimateButtonWidget>
     );
   }
 }
-

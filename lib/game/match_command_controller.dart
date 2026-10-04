@@ -1,0 +1,126 @@
+import 'dart:ui';
+
+import '../utils/constants.dart';
+import 'pickleball_game.dart';
+
+/// A source-neutral command that can come from touch controls, a keyboard,
+/// a bot, replay playback, or a multiplayer transport.
+enum MatchCommandType { movement, aim, serve, shot, toggleUltimate }
+
+class MatchCommand {
+  const MatchCommand._({
+    required this.type,
+    this.x,
+    this.y,
+    this.shotType,
+  });
+
+  const MatchCommand.movement(double x, double y)
+      : this._(type: MatchCommandType.movement, x: x, y: y);
+
+  const MatchCommand.aim(double x, double y)
+      : this._(type: MatchCommandType.aim, x: x, y: y);
+
+  const MatchCommand.clearAim() : this._(type: MatchCommandType.aim);
+
+  const MatchCommand.serve() : this._(type: MatchCommandType.serve);
+
+  const MatchCommand.shot(ShotType shotType)
+      : this._(type: MatchCommandType.shot, shotType: shotType);
+
+  const MatchCommand.toggleUltimate()
+      : this._(type: MatchCommandType.toggleUltimate);
+
+  final MatchCommandType type;
+  final double? x;
+  final double? y;
+  final ShotType? shotType;
+}
+
+typedef MatchCommandObserver = void Function(MatchCommand command);
+
+/// The single input gateway for a match.
+///
+/// Keeping input translation outside [PickleballGame] lets future bot,
+/// replay, local multiplayer, and online sources issue the same commands as
+/// the current UI without gaining direct access to physics or scoring state.
+class MatchCommandController {
+  MatchCommandController({required this.game, this.onDispatched});
+
+  final PickleballGame game;
+  final MatchCommandObserver? onDispatched;
+
+  void dispatch(MatchCommand command) {
+    switch (command.type) {
+      case MatchCommandType.movement:
+        game.setJoystick(
+          _safeAxis(command.x),
+          _safeAxis(command.y),
+        );
+        break;
+      case MatchCommandType.aim:
+        final x = command.x;
+        final y = command.y;
+        if (x == null || y == null || !x.isFinite || !y.isFinite) {
+          game.setSwipe(null);
+        } else {
+          final direction = Offset(x, y);
+          game.setSwipe(
+            direction.distance == 0 ? null : direction / direction.distance,
+          );
+        }
+        break;
+      case MatchCommandType.serve:
+        game.setServePressed(true);
+        break;
+      case MatchCommandType.shot:
+        _dispatchShot(command.shotType ?? ShotType.normal);
+        break;
+      case MatchCommandType.toggleUltimate:
+        game.toggleArmUltimate();
+        break;
+    }
+    onDispatched?.call(command);
+  }
+
+  void move(double x, double y) => dispatch(MatchCommand.movement(x, y));
+
+  void stopMoving() => dispatch(const MatchCommand.movement(0, 0));
+
+  void aim(Offset direction) =>
+      dispatch(MatchCommand.aim(direction.dx, direction.dy));
+
+  void clearAim() => dispatch(const MatchCommand.clearAim());
+
+  void serve() => dispatch(const MatchCommand.serve());
+
+  void shot(ShotType type) => dispatch(MatchCommand.shot(type));
+
+  void toggleUltimate() => dispatch(const MatchCommand.toggleUltimate());
+
+  double _safeAxis(double? value) {
+    if (value == null || !value.isFinite) return 0;
+    return value.clamp(-1.0, 1.0).toDouble();
+  }
+
+  void _dispatchShot(ShotType type) {
+    switch (type) {
+      case ShotType.normal:
+        game.setHitPressed(true);
+        break;
+      case ShotType.power:
+      case ShotType.smash:
+        game.setPowerPressed(true);
+        break;
+      case ShotType.lob:
+        game.setLobPressed(true);
+        break;
+      case ShotType.drop:
+        game.setDropPressed(true);
+        break;
+      case ShotType.ultimate:
+        game.setUltimatePressed(true);
+        break;
+    }
+  }
+}

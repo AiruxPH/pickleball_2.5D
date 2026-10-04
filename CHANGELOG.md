@@ -237,3 +237,10 @@
 - Kept the held ball outside the baseline before contact by reducing its forward paddle offset for both player and AI servers.
 - Added regression coverage for cross-court target legality, baseline-clear trajectory origin, parabolic elevation, target endpoint accuracy, and preview-to-launch velocity parity.
 - Follow-up: changed the constant legal-service-box near boundary to a `const` declaration, resolving the `prefer_const_declarations` analyzer lint.
+
+### 2026-10-05 - Shared match command gateway
+- Added a source-neutral `MatchCommandController` for movement, aiming, serving, shot selection, and ultimate activation.
+- Routed touch, swipe, and keyboard gameplay controls through the same command path while leaving physics and scoring behavior unchanged.
+- Sanitized movement axes and normalized aim commands so future bot, replay, local multiplayer, and online sources cannot inject malformed control values.
+- Added an optional command observer as the seam for later replay recording and multiplayer transport work.
+- Added focused tests for movement validation, aim normalization/clearing, and serve/shot dispatch.
