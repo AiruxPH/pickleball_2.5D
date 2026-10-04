@@ -273,7 +273,9 @@ class _PlayerCardState extends State<_PlayerCard>
                     ],
                   ),
                   child: Text(
-                    'S${widget.serverNumber ?? 1}',
+                    widget.serverNumber == null
+                        ? 'SERVE'
+                        : 'S${widget.serverNumber}',
                     style: const TextStyle(
                       color: Color(0xFF0F172A),
                       fontSize: 6.0,

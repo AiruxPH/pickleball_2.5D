@@ -262,6 +262,7 @@ class PickleballGame extends ChangeNotifier {
       ai: ai,
       isPracticeMode: isPracticeMode,
       drillType: drillType,
+      gameMode: gameMode,
     );
 
     // Reset initial positions and prepare serve
@@ -333,6 +334,7 @@ class PickleballGame extends ChangeNotifier {
 
   // ── Position players for regulation serve ──────────────────────
   void _setupServePositions() {
+    scoreController.lastFaultDetail = '';
     final serverRight = scoreController.serverShouldBeOnRight;
     const serveZ =
         CourtDimensions.halfLength + CourtDimensions.serveBaselineOffset;
@@ -663,7 +665,7 @@ class PickleballGame extends ChangeNotifier {
       scoreController.lastFaultDetail = player.isTouchingKitchenLine()
           ? 'KITCHEN LINE TOUCH VIOLATION!'
           : 'NVZ MOMENTUM FAULT!';
-      _handlePointResult(PointResult.kitchenFault);
+      _handlePointResult(PointResult.kitchenFault, playerFaulted: true);
       return;
     }
 
@@ -671,7 +673,7 @@ class PickleballGame extends ChangeNotifier {
     if (ai.kitchenMomentumFlag && ai.isInKitchen(includeFootMargin: true)) {
       ai.kitchenMomentumFlag = false;
       scoreController.lastFaultDetail = 'OPPONENT NVZ MOMENTUM FAULT!';
-      _handlePointResult(PointResult.kitchenFault);
+      _handlePointResult(PointResult.kitchenFault, playerFaulted: false);
       return;
     }
 
@@ -777,7 +779,7 @@ class PickleballGame extends ChangeNotifier {
   void _executePlayerHit(ShotType shotType) {
     // ── Rule Check 1: Two-Bounce Rule ──────────────────────────
     if (ball.rallyHitCount < 2 && !ball.hasBounced) {
-      _handlePointResult(PointResult.twoBounceFault);
+      _handlePointResult(PointResult.twoBounceFault, playerFaulted: true);
       return;
     }
 
@@ -791,13 +793,13 @@ class PickleballGame extends ChangeNotifier {
         scoreController.lastFaultDetail = player.isTouchingKitchenLine()
             ? 'KITCHEN LINE TOUCH VIOLATION!'
             : 'KITCHEN VOLLEY FAULT!';
-        _handlePointResult(PointResult.kitchenFault);
+        _handlePointResult(PointResult.kitchenFault, playerFaulted: true);
         return;
       }
 
       if (!player.hasEstablishedOutsideKitchen) {
         scoreController.lastFaultDetail = 'NVZ FAULT: FEET NOT ESTABLISHED OUTSIDE!';
-        _handlePointResult(PointResult.kitchenFault);
+        _handlePointResult(PointResult.kitchenFault, playerFaulted: true);
         return;
       }
 
@@ -984,78 +986,71 @@ class PickleballGame extends ChangeNotifier {
   }
 
   // ── State: Point scored ─────────────────────────────────────────
-  void _handlePointResult(PointResult result) {
+  void _handlePointResult(
+    PointResult result, {
+    bool? playerFaulted,
+  }) {
+    bool awardPlayerRally() {
+      final scored = scoreController.awardPlayerPoint();
+      playerScoreAnim = !isPracticeMode && scored;
+      aiScoreAnim = false;
+      return scored;
+    }
+
+    bool awardAIRally() {
+      final scored = scoreController.awardAIPoint();
+      aiScoreAnim = !isPracticeMode && scored;
+      playerScoreAnim = false;
+      return scored;
+    }
+
+    String rallyMessage(bool scored, String fallback) {
+      if (isPracticeMode) return fallback;
+      if (scoreController.lastFaultDetail.isNotEmpty) {
+        return scored
+            ? scoreController.lastFaultDetail
+            : '${scoreController.lastFaultDetail}  •  SIDE OUT';
+      }
+      return scored ? fallback : 'SIDE OUT!';
+    }
+
     String msg = '';
     switch (result) {
       case PointResult.playerPoint:
-        scoreController.awardPlayerPoint();
-        playerScoreAnim = !isPracticeMode;
-        msg = isPracticeMode ? 'GREAT SHOT!' : 'POINT!';
+        final scored = awardPlayerRally();
+        msg = rallyMessage(scored, isPracticeMode ? 'GREAT SHOT!' : 'POINT!');
         if (!isPracticeMode) addUltimateCharge(0.25);
         break;
       case PointResult.aiPoint:
-        scoreController.awardAIPoint();
-        aiScoreAnim = !isPracticeMode;
-        msg = scoreController.lastFaultDetail.isNotEmpty
-            ? scoreController.lastFaultDetail
-            : 'FAULT!';
+        final scored = awardAIRally();
+        msg = rallyMessage(scored, 'POINT!');
         break;
       case PointResult.netFault:
-        if (ball.lastHitByPlayer) {
-          scoreController.awardAIPoint();
-          aiScoreAnim = !isPracticeMode;
-        } else {
-          scoreController.awardPlayerPoint();
-          playerScoreAnim = !isPracticeMode;
-        }
-        msg = 'NET FAULT!';
-        break;
       case PointResult.serviceFault:
-        if (ball.lastHitByPlayer) {
-          scoreController.awardAIPoint();
-          aiScoreAnim = !isPracticeMode;
-        } else {
-          scoreController.awardPlayerPoint();
-          playerScoreAnim = !isPracticeMode;
-        }
-        msg = scoreController.lastFaultDetail.isNotEmpty
-            ? scoreController.lastFaultDetail
+        final faultByPlayer = ball.lastHitByPlayer;
+        final scored = faultByPlayer ? awardAIRally() : awardPlayerRally();
+        final fallback = result == PointResult.netFault
+            ? 'NET FAULT!'
             : 'SERVICE FAULT!';
+        msg = rallyMessage(scored, fallback);
         break;
       case PointResult.kitchenFault:
-        if (ball.lastHitByPlayer) {
-          scoreController.awardAIPoint();
-          aiScoreAnim = !isPracticeMode;
-        } else {
-          scoreController.awardPlayerPoint();
-          playerScoreAnim = !isPracticeMode;
-        }
-        msg = scoreController.lastFaultDetail.isNotEmpty
-            ? scoreController.lastFaultDetail
-            : 'KITCHEN VIOLATION!';
-        break;
       case PointResult.twoBounceFault:
-        if (ball.lastHitByPlayer) {
-          scoreController.awardAIPoint();
-          aiScoreAnim = !isPracticeMode;
-        } else {
-          scoreController.awardPlayerPoint();
-          playerScoreAnim = !isPracticeMode;
-        }
-        msg = 'TWO-BOUNCE FAULT!';
+        final faultByPlayer = playerFaulted ?? ball.lastHitByPlayer;
+        final scored = faultByPlayer ? awardAIRally() : awardPlayerRally();
+        final fallback = result == PointResult.kitchenFault
+            ? 'KITCHEN VIOLATION!'
+            : 'TWO-BOUNCE FAULT!';
+        msg = rallyMessage(scored, fallback);
         break;
       case PointResult.doubleBounceFault:
-        if (ball.playerSideBounce) {
-          scoreController.awardAIPoint();
-          aiScoreAnim = !isPracticeMode;
-        } else {
-          scoreController.awardPlayerPoint();
-          playerScoreAnim = !isPracticeMode;
-        }
-        msg = 'DOUBLE BOUNCE!';
+        final scored = ball.playerSideBounce
+            ? awardAIRally()
+            : awardPlayerRally();
+        msg = rallyMessage(scored, 'DOUBLE BOUNCE!');
         break;
       case PointResult.none:
-        break;
+        return;
     }
 
     lastMessage = msg;
@@ -1083,14 +1078,10 @@ class PickleballGame extends ChangeNotifier {
       aiPartner?.kitchenMomentumFlag = false;
     }
 
-    // Check game over (first to 11 points, win by 2)
-    if (scoreController.isGameOver) {
-      state = GameState.gameOver;
-      stateTimer = 0;
-    } else {
-      state = GameState.pointScored;
-      stateTimer = 0;
-    }
+    // Always enter dead-ball adjudication first. A game-winning volley can
+    // still be overturned if the striker's momentum carries into the NVZ.
+    state = GameState.pointScored;
+    stateTimer = 0;
   }
 
   // ── State: Point scored (delay then reset) ─────────────────────
@@ -1111,20 +1102,35 @@ class PickleballGame extends ChangeNotifier {
     // makes you step into or touch the Kitchen afterward. This applies even if the rally has already ended.
     if (player.kitchenMomentumFlag && player.isInKitchen(includeFootMargin: true)) {
       player.kitchenMomentumFlag = false;
+      final previousPlayerScore = player.score;
+      final previousAIScore = ai.score;
       scoreController.overturnPointForKitchenFault(playerFaulted: true);
       lastMessage = 'NVZ MOMENTUM FAULT (POINT OVERTURNED)!';
       messageTimer = 2.5;
-      playerScoreAnim = false;
-      aiScoreAnim = !isPracticeMode;
+      playerScoreAnim = player.score > previousPlayerScore;
+      aiScoreAnim = ai.score > previousAIScore;
       audioService?.playNetHit();
     } else if (ai.kitchenMomentumFlag && ai.isInKitchen(includeFootMargin: true)) {
       ai.kitchenMomentumFlag = false;
+      final previousPlayerScore = player.score;
+      final previousAIScore = ai.score;
       scoreController.overturnPointForKitchenFault(playerFaulted: false);
       lastMessage = 'OPPONENT NVZ MOMENTUM FAULT (POINT AWARDED)!';
       messageTimer = 2.5;
-      aiScoreAnim = false;
-      playerScoreAnim = !isPracticeMode;
+      playerScoreAnim = player.score > previousPlayerScore;
+      aiScoreAnim = ai.score > previousAIScore;
       audioService?.playBounce();
+    }
+
+    // Do not finalize a winning score until any active volley momentum has
+    // either resolved safely or produced an NVZ fault.
+    final momentumPending =
+        player.kitchenMomentumFlag || ai.kitchenMomentumFlag;
+    if (scoreController.isGameOver &&
+        (!momentumPending || stateTimer >= 0.75)) {
+      state = GameState.gameOver;
+      stateTimer = 0;
+      return;
     }
 
     final resetDelay = isPracticeMode ? 1.0 : 2.0;

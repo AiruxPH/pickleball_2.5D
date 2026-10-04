@@ -41,8 +41,8 @@ class CameraController {
   Vec3 _smoothTarget;
   CameraView view = CameraView.playerFollow;
   double _freeRoamYaw = 0;
-  double _freeRoamPitch = 0.48;
-  double _freeRoamDistance = 132;
+  double _freeRoamPitch = 0.52;
+  double _freeRoamDistance = 170;
   Vec3 _freeRoamTarget = Vec3(0, 5, 0);
 
   void setView(CameraView nextView) {
@@ -51,6 +51,7 @@ class CameraController {
 
   double get freeRoamPitch => _freeRoamPitch;
   double get freeRoamDistance => _freeRoamDistance;
+  double get freeRoamYaw => _freeRoamYaw;
 
   void adjustFreeRoam({
     double orbitDx = 0,
@@ -58,19 +59,22 @@ class CameraController {
     double zoomFactor = 1,
   }) {
     if (view != CameraView.freeRoam) return;
-    _freeRoamYaw -= orbitDx * 0.008;
+    // The renderer uses camera-facing 2.5D character art and fixed court
+    // layers. Avoid unsupported edge-on angles where those layers collapse.
+    _freeRoamYaw =
+        (_freeRoamYaw - orbitDx * 0.008).clamp(-1.0, 1.0);
     _freeRoamPitch =
-        (_freeRoamPitch - orbitDy * 0.006).clamp(0.20, 1.22);
+        (_freeRoamPitch - orbitDy * 0.006).clamp(0.26, 1.12);
     if (zoomFactor.isFinite && zoomFactor > 0) {
       _freeRoamDistance =
-          (_freeRoamDistance / zoomFactor).clamp(68.0, 210.0);
+          (_freeRoamDistance / zoomFactor).clamp(110.0, 260.0);
     }
   }
 
   void resetFreeRoam() {
     _freeRoamYaw = 0;
-    _freeRoamPitch = 0.48;
-    _freeRoamDistance = 132;
+    _freeRoamPitch = 0.52;
+    _freeRoamDistance = 170;
     _freeRoamTarget = Vec3(0, 5, 0);
   }
 
@@ -135,31 +139,33 @@ class CameraController {
         );
       case CameraView.baseline:
         return _CameraPose(
-          position: Vec3(0, 54, 132),
+          position: Vec3(0, 68, 160),
           target: Vec3(
             ball.position.x * 0.18,
             (ball.position.y * 0.18).clamp(4.0, 14.0),
             ball.position.z * 0.18 - 6,
           ),
-          fov: 48,
+          fov: 55,
         );
       case CameraView.sideline:
         return _CameraPose(
-          position: Vec3(118, 58, 12),
+          // Three-quarter broadcast view: a true 90-degree side view exposes
+          // edge-on artifacts in the game's layered 2.5D renderer.
+          position: Vec3(105, 75, 105),
           target: Vec3(
-            ball.position.x * 0.15,
-            (ball.position.y * 0.16).clamp(3.0, 13.0),
-            ball.position.z * 0.22,
+            ball.position.x * 0.10,
+            (ball.position.y * 0.12).clamp(3.0, 11.0),
+            ball.position.z * 0.12 - 3,
           ),
-          fov: 54,
+          fov: 58,
         );
       case CameraView.overhead:
         return _CameraPose(
           // The Z offset avoids a world-up singularity while retaining a
           // tactical full-court view.
-          position: Vec3(0, 158, 28),
+          position: Vec3(0, 225, 55),
           target: Vec3(ball.position.x * 0.1, 0, ball.position.z * 0.08 - 5),
-          fov: 58,
+          fov: 64,
         );
       case CameraView.freeRoam:
         final horizontal = math.cos(_freeRoamPitch) * _freeRoamDistance;

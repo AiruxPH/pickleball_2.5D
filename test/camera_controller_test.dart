@@ -39,7 +39,8 @@ void main() {
       controller.update(1, 1);
 
       expect(camera.position.x, greaterThan(100));
-      expect(camera.fov, closeTo(54, 0.5));
+      expect(camera.position.z, greaterThan(100));
+      expect(camera.fov, closeTo(58, 0.5));
     });
 
     test('player follow preserves viewport-selected FOV', () {
@@ -57,12 +58,23 @@ void main() {
         zoomFactor: 100,
       );
 
-      expect(controller.freeRoamPitch, 0.20);
-      expect(controller.freeRoamDistance, 68);
+      expect(controller.freeRoamYaw, -1);
+      expect(controller.freeRoamPitch, 0.26);
+      expect(controller.freeRoamDistance, 110);
 
       controller.adjustFreeRoam(orbitDy: -10000, zoomFactor: 0.001);
-      expect(controller.freeRoamPitch, 1.22);
-      expect(controller.freeRoamDistance, 210);
+      expect(controller.freeRoamPitch, 1.12);
+      expect(controller.freeRoamDistance, 260);
+    });
+
+    test('baseline and overhead presets keep the full court farther away', () {
+      controller.setView(CameraView.baseline);
+      controller.update(1, 1);
+      expect(camera.position.z, greaterThan(150));
+
+      controller.setView(CameraView.overhead);
+      controller.update(1, 1);
+      expect(camera.position.y, greaterThan(210));
     });
   });
 }

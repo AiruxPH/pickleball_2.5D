@@ -266,3 +266,21 @@
 - Added an on-screen free-roam gesture hint that appears only while the mode is active.
 - Kept spectator gestures isolated from gameplay commands so camera interaction cannot steer either bot.
 - Extended camera regression tests with free-roam cycling and safety-bound validation.
+
+### 2026-10-05 - Spectator camera framing and rematch fixes
+- Replaced the unsupported edge-on sideline camera with a three-quarter broadcast angle suited to the layered 2.5D renderer.
+- Constrained free-roam yaw away from artifact-prone side-on views and increased its minimum/default camera distance.
+- Pulled the baseline and overhead presets farther from the court and widened their fields of view so the full playing area remains comfortably framed.
+- Preserved the originating match arguments through the game-over screen so `PLAY AGAIN` and `TRY AGAIN` retain bot-vs-bot mode and its selected difficulty.
+- Expanded camera regression coverage for safe yaw limits and the revised baseline, sideline, and overhead framing.
+- Added a game-over navigation regression test proving that retrying an autonomous match keeps bot-vs-bot mode and difficulty.
+
+### 2026-10-05 - Scoring and fault adjudication corrections
+- Corrected singles to begin with server 1; retained the official 0-0-2 opening exception only for doubles.
+- Added doubles server rotation so server 1 losing a rally transfers service to server 2 before sideout.
+- Changed rally award methods to report whether a real point was scored, preventing sideouts from triggering false score animations.
+- Added explicit fault ownership for player/AI kitchen violations and player two-bounce violations so the faulting side can never receive the rally.
+- Reworked late NVZ momentum overturns to restore a full pre-rally scoring snapshot and resolve the corrected winner, including service state and server number.
+- Delayed game-over finalization while volley momentum remains unresolved, allowing a game-winning point to be legally overturned.
+- Cleared stale fault details between rallies and replaced singles `S1` labeling with a neutral `SERVE` indicator.
+- Added regression coverage for singles/doubles service state, kitchen and two-bounce fault ownership, sideout scoring, and final-point NVZ overturns.

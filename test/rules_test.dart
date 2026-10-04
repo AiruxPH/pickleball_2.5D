@@ -596,18 +596,18 @@ void main() {
         isPracticeMode: false,
       );
 
-      // Rulebook: game starts 0-0-2
-      expect(scoreCtrl.serverNumber, 2);
+      // Singles has one server; 0-0-2 is a doubles-only announcement.
+      expect(scoreCtrl.serverNumber, 1);
       expect(scoreCtrl.isPlayerServing, isTrue);
 
       // Serving team (player) wins rally -> score increases, keeps serve
-      scoreCtrl.awardPlayerPoint();
+      expect(scoreCtrl.awardPlayerPoint(), isTrue);
       expect(player.score, 1);
       expect(ai.score, 0);
       expect(scoreCtrl.isPlayerServing, isTrue);
 
       // Opponent (AI - receiving team) wins next rally -> sideout! AI serves, but AI score remains 0
-      scoreCtrl.awardAIPoint();
+      expect(scoreCtrl.awardAIPoint(), isFalse);
       expect(ai.score, 0, reason: 'Receiving team does not score a point on sideout');
       expect(scoreCtrl.isPlayerServing, isFalse, reason: 'Serve passes to AI (sideout)');
       expect(scoreCtrl.serverNumber, 1, reason: 'After sideout, new serving team starts with server 1');
@@ -615,6 +615,59 @@ void main() {
       // AI serving wins rally -> AI scores a point
       scoreCtrl.awardAIPoint();
       expect(ai.score, 1, reason: 'Serving team scores when winning a rally');
+    });
+
+    test('Doubles rotates server 1 to server 2 before a sideout', () {
+      final player = Player(startPosition: Vec3(16, 0, 60), isHuman: true);
+      final ai = Player(startPosition: Vec3(-16, 0, -60), isHuman: false);
+      final scoreCtrl = ScoreController(
+        player: player,
+        ai: ai,
+        isPracticeMode: false,
+        gameMode: GameMode.doubles,
+      );
+
+      expect(scoreCtrl.serverNumber, 2, reason: 'Doubles opens at 0-0-2');
+
+      // Opening server 2 loses, so the serve crosses to the opponent team.
+      expect(scoreCtrl.awardAIPoint(), isFalse);
+      expect(scoreCtrl.isPlayerServing, isFalse);
+      expect(scoreCtrl.serverNumber, 1);
+
+      // Opponent server 1 loses: teammate becomes server 2, no sideout yet.
+      expect(scoreCtrl.awardPlayerPoint(), isFalse);
+      expect(scoreCtrl.isPlayerServing, isFalse);
+      expect(scoreCtrl.serverNumber, 2);
+
+      // Opponent server 2 loses: now the player team receives the serve.
+      expect(scoreCtrl.awardPlayerPoint(), isFalse);
+      expect(scoreCtrl.isPlayerServing, isTrue);
+      expect(scoreCtrl.serverNumber, 1);
+      expect(player.score, 0);
+      expect(ai.score, 0);
+    });
+
+    test('Late receiver fault restores serve and awards serving team', () {
+      final player = Player(startPosition: Vec3(16, 0, 60), isHuman: true);
+      final ai = Player(startPosition: Vec3(-16, 0, -60), isHuman: false)
+        ..score = 5;
+      final scoreCtrl = ScoreController(
+        player: player,
+        ai: ai,
+        isPracticeMode: false,
+      )..isPlayerServing = false;
+
+      // Player appears to win as receiver, producing a provisional sideout.
+      expect(scoreCtrl.awardPlayerPoint(), isFalse);
+      expect(scoreCtrl.isPlayerServing, isTrue);
+
+      // A late player NVZ fault means the AI actually won while serving.
+      scoreCtrl.overturnPointForKitchenFault(playerFaulted: true);
+
+      expect(ai.score, 6);
+      expect(player.score, 0);
+      expect(scoreCtrl.isPlayerServing, isFalse);
+      expect(scoreCtrl.serverNumber, 1);
     });
 
     test('Kitchen Momentum Rule: momentum flag faults when entering NVZ after a volley', () {
@@ -701,6 +754,70 @@ void main() {
 
       expect(game.lastMessage, contains('KITCHEN'));
       expect(game.scoreController.lastFaultDetail, contains('KITCHEN'));
+      expect(game.player.score, 0,
+          reason: 'The player who committed the fault cannot score');
+      expect(game.ai.score, 0,
+          reason: 'The receiving team earns a sideout, not a point');
+      expect(game.scoreController.isPlayerServing, isFalse,
+          reason: 'Player fault transfers the serve to the opponent');
+    });
+
+    test('Player two-bounce violation awards the rally to the opponent', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+      );
+      game.state = GameState.rally;
+      game.ball
+        ..state = BallState.inFlight
+        ..rallyHitCount = 1
+        ..hasBounced = false
+        ..lastHitByPlayer = false
+        ..position = Vec3(0, 15, 40);
+      game.player.position = Vec3(0, 0, 42);
+
+      game.setHitPressed(true);
+      game.update(0.016);
+
+      expect(game.lastMessage, contains('TWO-BOUNCE'));
+      expect(game.player.score, 0);
+      expect(game.ai.score, 0);
+      expect(game.scoreController.isPlayerServing, isFalse);
+    });
+
+    test('Game-winning point remains overturnable during NVZ momentum', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+      );
+      game.player.score = 10;
+      game.ai.score = 9;
+      game.scoreController.isPlayerServing = true;
+      game.state = GameState.rally;
+      game.player
+        ..position = Vec3(0, 0, 34)
+        ..velocity = Vec3(0, 0, -20)
+        ..hasEstablishedOutsideKitchen = true
+        ..kitchenMomentumFlag = true;
+      game.ball
+        ..state = BallState.inFlight
+        ..lastHitByPlayer = true
+        ..hasBounced = true
+        ..bounceCount = 2
+        ..playerSideBounce = false;
+
+      game.update(0.016);
+      expect(game.player.score, 11);
+      expect(game.state, GameState.pointScored,
+          reason: 'Final score waits for momentum adjudication');
+
+      game.player.position.z = 25;
+      game.update(0.016);
+
+      expect(game.player.score, 10);
+      expect(game.state, isNot(GameState.gameOver));
+      expect(game.scoreController.isPlayerServing, isFalse,
+          reason: 'Overturned serving point becomes a sideout');
     });
 
     test('Fault: Volleying while foot touches the Kitchen line is a violation', () {

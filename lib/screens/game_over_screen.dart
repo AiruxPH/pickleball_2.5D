@@ -41,6 +41,7 @@ class _GameOverScreenState extends State<GameOverScreen>
   late bool _playerWon;
   late int _playerScore;
   late int _aiScore;
+  Map<String, dynamic> _rematchArguments = <String, dynamic>{};
 
   @override
   void initState() {
@@ -73,6 +74,10 @@ class _GameOverScreenState extends State<GameOverScreen>
     _playerScore = (args?['playerScore'] as int?) ?? 0;
     _aiScore = (args?['aiScore'] as int?) ?? 0;
     _playerWon = (args?['playerWon'] as bool?) ?? false;
+    final rematchArguments = args?['rematchArguments'];
+    _rematchArguments = rematchArguments is Map
+        ? Map<String, dynamic>.from(rematchArguments)
+        : <String, dynamic>{};
 
     // Setup score animations
     _playerScoreAnim = IntTween(begin: 0, end: _playerScore).animate(
@@ -674,7 +679,11 @@ class _GameOverScreenState extends State<GameOverScreen>
       children: [
         MenuButton(
           label: _playerWon ? 'PLAY AGAIN' : 'TRY AGAIN',
-          onTap: () => Navigator.pushReplacementNamed(context, '/game'),
+          onTap: () => Navigator.pushReplacementNamed(
+            context,
+            '/game',
+            arguments: _rematchArguments,
+          ),
           isPrimary: true,
         ),
         const SizedBox(height: 14),

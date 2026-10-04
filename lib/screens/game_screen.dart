@@ -65,6 +65,7 @@ class _GameScreenState extends State<GameScreen>
   bool _isTournament = false;
   bool _isCareer = false;
   bool _isBotVsBot = false;
+  Map<String, dynamic> _rematchArguments = <String, dynamic>{};
   final FocusNode _focusNode = FocusNode();
   AudioService? _audioService;
 
@@ -94,6 +95,9 @@ class _GameScreenState extends State<GameScreen>
     CharacterSpriteManager.instance.init();
     final settings = context.read<GameSettings>();
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
+    _rematchArguments = args == null
+        ? <String, dynamic>{}
+        : Map<String, dynamic>.from(args);
     _isPractice = args?['practice'] == true;
     _isTournament = args?['isTournament'] == true;
     _isCareer = args?['isCareer'] == true;
@@ -246,6 +250,7 @@ class _GameScreenState extends State<GameScreen>
         'isTournament': _isTournament,
         'isCareer': _isCareer,
         'wasDown09': _wasDown09,
+        'rematchArguments': _rematchArguments,
       });
     });
   }
@@ -508,7 +513,9 @@ class _GameScreenState extends State<GameScreen>
                   playerScoreAnim: game.playerScoreAnim,
                   aiScoreAnim: game.aiScoreAnim,
                   isServing: game.scoreController.isPlayerServing,
-                  serverNumber: game.scoreController.serverNumber,
+                  serverNumber: game.gameMode == GameMode.doubles
+                      ? game.scoreController.serverNumber
+                      : null,
                   isPractice: _isPractice,
                   modeName: _isPractice
                       ? 'PRACTICE'
