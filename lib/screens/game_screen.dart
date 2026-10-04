@@ -192,11 +192,15 @@ class _GameScreenState extends State<GameScreen>
       }
 
       // Check for score update to notify Scoreboard (no full-screen rebuild)
-      final scoreHash = game.player.score * 1000 +
-          game.ai.score * 10 +
-          (game.scoreController.isPlayerServing ? 1 : 0) +
-          (game.playerScoreAnim ? 2 : 0) +
-          (game.aiScoreAnim ? 4 : 0);
+      final scoreHash = Object.hash(
+        game.player.score,
+        game.ai.score,
+        game.scoreController.isPlayerServing,
+        game.scoreController.serverNumber,
+        game.scoreController.servingPrimary,
+        game.playerScoreAnim,
+        game.aiScoreAnim,
+      );
       if (scoreHash != _lastScoreHash) {
         _lastScoreHash = scoreHash;
         _scoreNotifier.value++;
@@ -297,7 +301,7 @@ class _GameScreenState extends State<GameScreen>
       if (event.logicalKey == LogicalKeyboardKey.space ||
           event.logicalKey == LogicalKeyboardKey.keyJ) {
         if (_game!.state == GameState.waitingForServe &&
-            _game!.scoreController.isPlayerServing) {
+            _game!.isHumanServing) {
           _commands!.serve();
         } else {
           _commands!.shot(ShotType.normal);
@@ -476,7 +480,7 @@ class _GameScreenState extends State<GameScreen>
                 builder: (_, state, ___) {
                   if (!_isBotVsBot &&
                       state == GameState.waitingForServe &&
-                      game.scoreController.isPlayerServing) {
+                      game.isHumanServing) {
                     return _buildServePrompt(game, isLandscape: isLandscape);
                   }
                   return const SizedBox.shrink();
@@ -792,7 +796,7 @@ class _GameScreenState extends State<GameScreen>
   Widget _buildActionButtons(PickleballGame game,
       {required bool isLandscape, double screenHeight = 400}) {
     final isServing = game.state == GameState.waitingForServe &&
-        game.scoreController.isPlayerServing;
+        game.isHumanServing;
 
     // In landscape, derive button sizes from screen height so they scale
     // proportionally across all mobile device sizes (phones ~320-420px tall)

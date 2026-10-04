@@ -72,7 +72,7 @@ class BotAgent {
     final targetX = serverOnRight ? 16.0 : -16.0;
     _moveToward(targetX, game.player.position.z);
 
-    if (!game.scoreController.isPlayerServing) return;
+    if (!game.isHumanServing) return;
 
     _serveTimer += dt;
     final delay = 0.55 + reactionTime;

@@ -647,6 +647,81 @@ void main() {
       expect(ai.score, 0);
     });
 
+    test('Doubles tracks server identity and court side through rotation', () {
+      final player = Player(startPosition: Vec3(16, 0, 60), isHuman: true);
+      final ai = Player(startPosition: Vec3(-16, 0, -60), isHuman: false);
+      final scoreCtrl = ScoreController(
+        player: player,
+        ai: ai,
+        isPracticeMode: false,
+        gameMode: GameMode.doubles,
+      );
+
+      expect(scoreCtrl.serverNumber, 2);
+      expect(scoreCtrl.servingPrimary, isTrue);
+      expect(scoreCtrl.serverShouldBeOnRight, isTrue);
+
+      // The opening server scores and swaps to the left service court.
+      expect(scoreCtrl.awardPlayerPoint(), isTrue);
+      expect(scoreCtrl.playerPrimaryOnRight, isFalse);
+      expect(scoreCtrl.servingPrimary, isTrue);
+      expect(scoreCtrl.serverShouldBeOnRight, isFalse);
+
+      // Opening server 2 loses: sideout to opponent server 1.
+      expect(scoreCtrl.awardAIPoint(), isFalse);
+      expect(scoreCtrl.isPlayerServing, isFalse);
+      expect(scoreCtrl.serverNumber, 1);
+      expect(scoreCtrl.servingPrimary, isTrue);
+      expect(scoreCtrl.serverShouldBeOnRight, isTrue);
+
+      // Server 1 loses. Partner becomes server 2 without swapping sides.
+      expect(scoreCtrl.awardPlayerPoint(), isFalse);
+      expect(scoreCtrl.serverNumber, 2);
+      expect(scoreCtrl.servingPrimary, isFalse);
+      expect(scoreCtrl.serverShouldBeOnRight, isFalse);
+
+      // Server 2 scores, keeps the serve, and swaps to the right court.
+      expect(scoreCtrl.awardAIPoint(), isTrue);
+      expect(ai.score, 1);
+      expect(scoreCtrl.aiPrimaryOnRight, isFalse);
+      expect(scoreCtrl.servingPrimary, isFalse);
+      expect(scoreCtrl.serverShouldBeOnRight, isTrue);
+    });
+
+    test('Doubles ally automatically serves when it owns server 2', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+        gameMode: GameMode.doubles,
+      );
+
+      // Opening player server 2 loses, then both opponent servers lose.
+      game.scoreController.awardAIPoint();
+      game.scoreController.awardPlayerPoint();
+      game.scoreController.awardPlayerPoint();
+      // Player server 1 loses, transferring service to the ally as server 2.
+      game.scoreController.awardAIPoint();
+
+      expect(game.scoreController.isPlayerServing, isTrue);
+      expect(game.scoreController.serverNumber, 2);
+      expect(game.scoreController.servingPrimary, isFalse);
+      expect(identical(game.activeServer, game.playerPartner), isTrue);
+      expect(game.isHumanServing, isFalse);
+
+      game.state = GameState.pointScored;
+      game.update(2.1);
+      expect(game.state, GameState.waitingForServe);
+      expect(game.playerPartner!.position.z,
+          greaterThan(CourtDimensions.halfLength));
+
+      game.update(2.0);
+
+      expect(game.state, GameState.rally);
+      expect(game.ball.lastHitByPlayer, isTrue);
+      expect(game.ball.velocity.z, lessThan(0));
+      expect(game.playerPartner!.animState, PlayerAnimState.serve);
+    });
+
     test('Late receiver fault restores serve and awards serving team', () {
       final player = Player(startPosition: Vec3(16, 0, 60), isHuman: true);
       final ai = Player(startPosition: Vec3(-16, 0, -60), isHuman: false)

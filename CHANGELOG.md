@@ -2,6 +2,18 @@
 
 ## 2026-10-05
 
+### 2026-10-05 - Official doubles server and receiver rotation
+
+- Extended doubles scoring state to track the active teammate, both teams' court sides, and the current server's physical service court.
+- Serving teams now swap teammate positions only after scoring; changing from server 1 to server 2 keeps positions intact, and side-outs select the correct first server for the team's score.
+- The active server can now be the human, near-side ally, primary opponent, or opponent partner; bot-owned serves execute automatically from the correct baseline and side.
+- Positioned the designated diagonal receiver and non-receiving teammate from persistent doubles formation state.
+- Restricted the serve return to the designated diagonal receiver, disabling normal poaching until after the required return and adjudicating a human wrong-receiver contact as a fault.
+- Updated serve prompts, controls, trajectory previews, bot commands, and scoreboard refreshes to distinguish the human serving from the human team serving.
+- Included server identity and both teams' formations in late-fault scoring snapshots so overturned rallies restore the complete pre-rally rotation.
+- Extended live and post-rally NVZ momentum adjudication to both doubles partners.
+- Added regression tests for `0-0-2`, server identity transfer, side swapping, and automated ally service.
+
 ### 2026-10-05 - Doubles formation and safe return targeting
 
 - Added teammate-aware ball ownership to doubles AI so partners hold their assigned lane, yield balls their teammate can reach, and only poach when clearly closer.

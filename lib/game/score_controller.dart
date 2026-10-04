@@ -12,6 +12,7 @@ enum PointResult {
   kitchenFault,
   twoBounceFault,
   doubleBounceFault,
+  wrongReceiverFault,
 }
 
 /// Official side-out scoring and rally adjudication state.
@@ -40,16 +41,27 @@ class ScoreController {
 
   bool isPlayerServing = true;
   int _serverNumber = 1;
+  bool _servingPrimary = true;
+  bool _playerPrimaryOnRight = true;
+  bool _aiPrimaryOnRight = true;
   String lastFaultDetail = '';
   int practiceServeCount = 0;
   _ScoringSnapshot? _lastRallySnapshot;
 
   int get serverNumber => _serverNumber;
+  bool get servingPrimary => _servingPrimary;
+  bool get playerPrimaryOnRight => _playerPrimaryOnRight;
+  bool get aiPrimaryOnRight => _aiPrimaryOnRight;
 
   bool get serverShouldBeOnRight {
     if (isPracticeMode) return practiceServeCount % 2 == 0;
-    final serverScore = isPlayerServing ? player.score : ai.score;
-    return serverScore.isEven;
+    if (gameMode != GameMode.doubles) {
+      final serverScore = isPlayerServing ? player.score : ai.score;
+      return serverScore.isEven;
+    }
+    final primaryOnRight =
+        isPlayerServing ? _playerPrimaryOnRight : _aiPrimaryOnRight;
+    return _servingPrimary ? primaryOnRight : !primaryOnRight;
   }
 
   bool get isGameOver {
@@ -165,11 +177,13 @@ class ScoreController {
       player.score++;
       isPlayerServing = true;
       _serverNumber = 1;
+      _rotatePlayerTeamAfterScore();
       return true;
     }
 
     if (isPlayerServing) {
       player.score++;
+      _rotatePlayerTeamAfterScore();
       return true;
     }
     _advanceAfterServingTeamLoses();
@@ -191,11 +205,13 @@ class ScoreController {
       ai.score++;
       isPlayerServing = false;
       _serverNumber = 1;
+      _rotateAITeamAfterScore();
       return true;
     }
 
     if (!isPlayerServing) {
       ai.score++;
+      _rotateAITeamAfterScore();
       return true;
     }
     _advanceAfterServingTeamLoses();
@@ -205,10 +221,36 @@ class ScoreController {
   void _advanceAfterServingTeamLoses() {
     if (gameMode == GameMode.doubles && _serverNumber == 1) {
       _serverNumber = 2;
+      _servingPrimary = !_servingPrimary;
       return;
     }
     isPlayerServing = !isPlayerServing;
     _serverNumber = 1;
+    _selectFirstServerForCurrentTeam();
+  }
+
+  void _rotatePlayerTeamAfterScore() {
+    if (gameMode == GameMode.doubles) {
+      _playerPrimaryOnRight = !_playerPrimaryOnRight;
+    }
+  }
+
+  void _rotateAITeamAfterScore() {
+    if (gameMode == GameMode.doubles) {
+      _aiPrimaryOnRight = !_aiPrimaryOnRight;
+    }
+  }
+
+  void _selectFirstServerForCurrentTeam() {
+    if (gameMode != GameMode.doubles) {
+      _servingPrimary = true;
+      return;
+    }
+    final score = isPlayerServing ? player.score : ai.score;
+    final primaryOnRight =
+        isPlayerServing ? _playerPrimaryOnRight : _aiPrimaryOnRight;
+    final firstServerShouldBeOnRight = score.isEven;
+    _servingPrimary = primaryOnRight == firstServerShouldBeOnRight;
   }
 
   void handleServiceFault() {
@@ -231,6 +273,9 @@ class ScoreController {
       ai.score = snapshot.aiScore;
       isPlayerServing = snapshot.isPlayerServing;
       _serverNumber = snapshot.serverNumber;
+      _servingPrimary = snapshot.servingPrimary;
+      _playerPrimaryOnRight = snapshot.playerPrimaryOnRight;
+      _aiPrimaryOnRight = snapshot.aiPrimaryOnRight;
     }
 
     if (playerFaulted) {
@@ -248,6 +293,9 @@ class ScoreController {
       aiScore: ai.score,
       isPlayerServing: isPlayerServing,
       serverNumber: _serverNumber,
+      servingPrimary: _servingPrimary,
+      playerPrimaryOnRight: _playerPrimaryOnRight,
+      aiPrimaryOnRight: _aiPrimaryOnRight,
     );
   }
 
@@ -260,6 +308,9 @@ class ScoreController {
     _serverNumber = isPracticeMode && drillType == 'return_drill'
         ? 1
         : (gameMode == GameMode.doubles ? 2 : 1);
+    _servingPrimary = true;
+    _playerPrimaryOnRight = true;
+    _aiPrimaryOnRight = true;
     _lastRallySnapshot = null;
     lastFaultDetail = '';
   }
@@ -271,10 +322,16 @@ class _ScoringSnapshot {
     required this.aiScore,
     required this.isPlayerServing,
     required this.serverNumber,
+    required this.servingPrimary,
+    required this.playerPrimaryOnRight,
+    required this.aiPrimaryOnRight,
   });
 
   final int playerScore;
   final int aiScore;
   final bool isPlayerServing;
   final int serverNumber;
+  final bool servingPrimary;
+  final bool playerPrimaryOnRight;
+  final bool aiPrimaryOnRight;
 }

@@ -163,6 +163,14 @@ class AIController {
         ? (ai.isPartner ? 16.0 : -16.0)
         : (ai.isPartner ? -16.0 : 16.0);
     final ballX = ball.position.x;
+    final assignedLane = ballX * homeX >= 0;
+
+    // The serve must be returned by the designated diagonal receiver. Normal
+    // rally poaching is allowed only after that required return.
+    if (ball.isServe || ball.rallyHitCount == 0) {
+      return assignedLane;
+    }
+
     final ownDistance = dist2D(
       ai.position.x,
       ai.position.z,
@@ -180,7 +188,6 @@ class AIController {
       return ownDistance <= teammateDistance;
     }
 
-    final assignedLane = ballX * homeX >= 0;
     if (assignedLane) {
       return ownDistance <= teammateDistance + 12.0;
     }

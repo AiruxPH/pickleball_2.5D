@@ -86,6 +86,33 @@ void main() {
       expect(controller.shouldCoverIncomingBall(), isTrue);
     });
 
+    test('ally cannot poach a serve assigned to the diagonal receiver', () {
+      final ball = Pickleball()
+        ..position = Vec3(15, 8, 35)
+        ..isServe = true
+        ..rallyHitCount = 0;
+      final human = Player(
+        startPosition: Vec3(16, 0, 70),
+        isHuman: true,
+        assignedRightSide: true,
+      );
+      final ally = Player(
+        startPosition: Vec3(5, 0, 35),
+        isHuman: false,
+        isPartner: true,
+        assignedRightSide: false,
+      );
+      final controller = AIController(
+        ai: ally,
+        ball: ball,
+        court: Court(),
+        settings: GameSettings(),
+        teammate: human,
+      );
+
+      expect(controller.shouldCoverIncomingBall(), isFalse);
+    });
+
     test('near-side ally returns the ball toward the far court', () {
       final settings = GameSettings()..difficulty = AIDifficulty.hard;
       final ball = Pickleball()

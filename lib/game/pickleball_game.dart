@@ -82,6 +82,30 @@ class PickleballGame extends ChangeNotifier {
   late PhysicsController physicsController;
   late ScoreController scoreController;
 
+  Player get activeServer {
+    if (scoreController.isPlayerServing) {
+      return gameMode == GameMode.doubles && !scoreController.servingPrimary
+          ? playerPartner!
+          : player;
+    }
+    return gameMode == GameMode.doubles && !scoreController.servingPrimary
+        ? aiPartner!
+        : ai;
+  }
+
+  Player get activeReceiver {
+    final serverRight = scoreController.serverShouldBeOnRight;
+    if (scoreController.isPlayerServing) {
+      if (gameMode != GameMode.doubles) return ai;
+      return ai.assignedRightSide == serverRight ? ai : aiPartner!;
+    }
+    if (gameMode != GameMode.doubles) return player;
+    return player.assignedRightSide == serverRight ? player : playerPartner!;
+  }
+
+  bool get isHumanServing =>
+      scoreController.isPlayerServing && activeServer.isHuman;
+
   // ── Camera ───────────────────────────────────────────────────
   late PerspectiveCamera camera;
   Size screenSize;
@@ -345,83 +369,105 @@ class PickleballGame extends ChangeNotifier {
     const serveZ =
         CourtDimensions.halfLength + CourtDimensions.serveBaselineOffset;
 
-    // Keep both teams in complementary lanes as the serving score changes.
-    player.assignedRightSide = serverRight;
-    playerPartner?.assignedRightSide = !serverRight;
-    ai.assignedRightSide = serverRight;
-    aiPartner?.assignedRightSide = !serverRight;
+    // Preserve each teammate's official side across side-outs. Only a point
+    // won by the serving team swaps that team's two court positions.
+    if (gameMode == GameMode.doubles) {
+      player.assignedRightSide = scoreController.playerPrimaryOnRight;
+      playerPartner?.assignedRightSide =
+          !scoreController.playerPrimaryOnRight;
+      ai.assignedRightSide = scoreController.aiPrimaryOnRight;
+      aiPartner?.assignedRightSide = !scoreController.aiPrimaryOnRight;
+    } else {
+      player.assignedRightSide = serverRight;
+      ai.assignedRightSide = serverRight;
+    }
     aiController.resetForRally();
     partnerController?.resetForRally();
     aiPartnerController?.resetForRally();
 
     if (scoreController.isPlayerServing) {
-      player.resetPosition(
-        customX: serverRight ? 16.0 : -16.0,
+      final server = activeServer;
+      final teammate = identical(server, player) ? playerPartner : player;
+      server.resetPosition(
+        customX: _formationX(server, nearSide: true),
         customZ: serveZ,
+      );
+      teammate?.resetPosition(
+        customX: _formationX(teammate, nearSide: true),
+        customZ: CourtDimensions.playerStartZ * 0.7,
       );
       ball.resetForPlayerServe(fromRight: serverRight);
 
-      if (playerPartner != null) {
-        playerPartner!.resetPosition(
-          customX: serverRight ? -16.0 : 16.0,
-          customZ: CourtDimensions.playerStartZ * 0.7,
-        );
-      }
-      ai.resetPosition(
-        customX: serverRight ? -16.0 : 16.0,
+      final receiver = activeReceiver;
+      final receiverPartner = identical(receiver, ai) ? aiPartner : ai;
+      receiver.resetPosition(
+        customX: _formationX(receiver, nearSide: false),
         customZ: CourtDimensions.aiStartZ - 10,
       );
-      aiPartner?.resetPosition(
-        customX: serverRight ? 16.0 : -16.0,
+      receiverPartner?.resetPosition(
+        customX: _formationX(receiverPartner, nearSide: false),
         customZ: CourtDimensions.aiStartZ * 0.7,
       );
     } else {
-      ai.resetPosition(
-        customX: serverRight ? -16.0 : 16.0,
+      final server = activeServer;
+      final teammate = identical(server, ai) ? aiPartner : ai;
+      server.resetPosition(
+        customX: _formationX(server, nearSide: false),
         customZ: -serveZ,
+      );
+      teammate?.resetPosition(
+        customX: _formationX(teammate, nearSide: false),
+        customZ: CourtDimensions.aiStartZ * 0.7,
       );
       ball.resetForAIServe(fromRight: serverRight);
 
-      if (aiPartner != null) {
-        aiPartner!.resetPosition(
-          customX: serverRight ? 16.0 : -16.0,
-          customZ: CourtDimensions.aiStartZ * 0.7,
-        );
-      }
-      player.resetPosition(
-        customX: serverRight ? 16.0 : -16.0,
+      final receiver = activeReceiver;
+      final receiverPartner =
+          identical(receiver, player) ? playerPartner : player;
+      receiver.resetPosition(
+        customX: _formationX(receiver, nearSide: true),
         customZ: CourtDimensions.playerStartZ + 10,
       );
-      playerPartner?.resetPosition(
-        customX: serverRight ? -16.0 : 16.0,
+      receiverPartner?.resetPosition(
+        customX: _formationX(receiverPartner, nearSide: true),
         customZ: CourtDimensions.playerStartZ * 0.7,
       );
     }
     _aiServeDelay = 1.1 + math.Random().nextDouble() * 0.6;
   }
 
+  double _formationX(Player member, {required bool nearSide}) {
+    if (nearSide) return member.assignedRightSide ? 16.0 : -16.0;
+    return member.assignedRightSide ? -16.0 : 16.0;
+  }
+
   // ── State: Waiting for serve ───────────────────────────────────
   void _updateWaitingForServe(double dt) {
-    if (scoreController.isPlayerServing) {
+    if (isHumanServing) {
       _updatePlayerServePosition(dt);
     } else {
-      // The receiver remains free to move on the near side of the court.
+      // The human remains free to move while receiving or while their partner
+      // is the active server.
       playerController.updateMovement(dt, joystickX, joystickY);
       player.clampToCourt();
     }
 
     // Position ball above server
+    final server = activeServer;
     if (scoreController.isPlayerServing) {
       ball.position = Vec3(
-        player.position.x,
+        server.position.x,
         PhysicsConstants.serveBallHeight,
-        player.position.z - 2,
+        server.position.z - 2,
       );
+      if (!isHumanServing && stateTimer > _aiServeDelay) {
+        _partnerServe();
+      }
     } else {
       ball.position = Vec3(
-        ai.position.x,
+        server.position.x,
         PhysicsConstants.serveBallHeight,
-        ai.position.z + 2,
+        server.position.z + 2,
       );
       // AI starts serving after a short natural delay
       if (stateTimer > _aiServeDelay) {
@@ -430,7 +476,7 @@ class PickleballGame extends ChangeNotifier {
     }
 
     // Player presses serve
-    if (servePressed && scoreController.isPlayerServing) {
+    if (servePressed && isHumanServing) {
       servePressed = false;
       _playerServe();
     }
@@ -463,9 +509,9 @@ class PickleballGame extends ChangeNotifier {
     final targetX = serverRight ? -16.0 : 16.0;
     const targetZ = -55.0; // Deep in AI service box past the kitchen line (-28)
     final start = Vec3(
-      player.position.x,
+      activeServer.position.x,
       PhysicsConstants.serveBallHeight,
-      player.position.z - 2,
+      activeServer.position.z - 2,
     );
     const vy = 32.0;
     const g = PhysicsConstants.gravity;
@@ -562,8 +608,9 @@ class PickleballGame extends ChangeNotifier {
     final y0 = ball.position.y;
     final tFlight = (vy + math.sqrt(vy * vy + 2 * g * y0)) / g;
 
-    final vz = (targetZ - ai.position.z) / tFlight;
-    final vx = (targetX - ai.position.x) / tFlight;
+    final server = activeServer;
+    final vz = (targetZ - server.position.z) / tFlight;
+    final vx = (targetX - server.position.x) / tFlight;
 
     ball.velocity = Vec3(vx, vy, vz);
     ball.state = BallState.inFlight;
@@ -580,8 +627,30 @@ class PickleballGame extends ChangeNotifier {
     audioService?.playHit(isPower: false);
     vfx.spawnHitSparks(ball.position, AppColors.ballColor,
         power: 0.2, dirZ: 1.0);
-    ai.animState = PlayerAnimState.serve;
-    ai.animTimer = 0;
+    server.animState = PlayerAnimState.serve;
+    server.animTimer = 0;
+  }
+
+  void _partnerServe() {
+    final trajectory = getPlayerServeTrajectory();
+    final server = activeServer;
+    ball.position = trajectory.points.first.copy();
+    ball.velocity = trajectory.launchVelocity.copy();
+    ball.state = BallState.inFlight;
+    ball.lastHitByPlayer = true;
+    ball.bounceCount = 0;
+    ball.hasBounced = false;
+    ball.rallyHitCount = 0;
+    ball.isServe = true;
+    ball.serverOnRight = trajectory.serverOnRight;
+    ball.shotType = ShotType.normal;
+
+    state = GameState.rally;
+    stateTimer = 0;
+    audioService?.playHit(isPower: false);
+    vfx.spawnHitSparks(ball.position, AppColors.ballColor, power: 0.2);
+    server.animState = PlayerAnimState.serve;
+    server.animTimer = 0;
   }
 
   // ── State: Rally ───────────────────────────────────────────────
@@ -668,18 +737,33 @@ class PickleballGame extends ChangeNotifier {
 
     // USA Pickleball NVZ Momentum Rule:
     // If player executed a volley and momentum carries them into NVZ or onto NVZ line
-    if (player.kitchenMomentumFlag && player.isInKitchen(includeFootMargin: true)) {
-      player.kitchenMomentumFlag = false;
-      scoreController.lastFaultDetail = player.isTouchingKitchenLine()
-          ? 'KITCHEN LINE TOUCH VIOLATION!'
-          : 'NVZ MOMENTUM FAULT!';
+    final playerTeamMomentumOffender =
+        player.kitchenMomentumFlag && player.isInKitchen(includeFootMargin: true)
+            ? player
+            : (playerPartner?.kitchenMomentumFlag == true &&
+                    playerPartner!.isInKitchen(includeFootMargin: true)
+                ? playerPartner
+                : null);
+    if (playerTeamMomentumOffender != null) {
+      playerTeamMomentumOffender.kitchenMomentumFlag = false;
+      scoreController.lastFaultDetail =
+          playerTeamMomentumOffender.isTouchingKitchenLine()
+              ? 'KITCHEN LINE TOUCH VIOLATION!'
+              : 'NVZ MOMENTUM FAULT!';
       _handlePointResult(PointResult.kitchenFault, playerFaulted: true);
       return;
     }
 
     // Check AI kitchen momentum violation
-    if (ai.kitchenMomentumFlag && ai.isInKitchen(includeFootMargin: true)) {
-      ai.kitchenMomentumFlag = false;
+    final aiTeamMomentumOffender =
+        ai.kitchenMomentumFlag && ai.isInKitchen(includeFootMargin: true)
+            ? ai
+            : (aiPartner?.kitchenMomentumFlag == true &&
+                    aiPartner!.isInKitchen(includeFootMargin: true)
+                ? aiPartner
+                : null);
+    if (aiTeamMomentumOffender != null) {
+      aiTeamMomentumOffender.kitchenMomentumFlag = false;
       scoreController.lastFaultDetail = 'OPPONENT NVZ MOMENTUM FAULT!';
       _handlePointResult(PointResult.kitchenFault, playerFaulted: false);
       return;
@@ -785,6 +869,17 @@ class PickleballGame extends ChangeNotifier {
   }
 
   void _executePlayerHit(ShotType shotType) {
+    if (gameMode == GameMode.doubles &&
+        ball.rallyHitCount == 0 &&
+        !identical(activeReceiver, player)) {
+      scoreController.lastFaultDetail = 'WRONG RECEIVER FAULT!';
+      _handlePointResult(
+        PointResult.wrongReceiverFault,
+        playerFaulted: true,
+      );
+      return;
+    }
+
     // ── Rule Check 1: Two-Bounce Rule ──────────────────────────
     if (ball.rallyHitCount < 2 && !ball.hasBounced) {
       _handlePointResult(PointResult.twoBounceFault, playerFaulted: true);
@@ -1041,11 +1136,14 @@ class PickleballGame extends ChangeNotifier {
         break;
       case PointResult.kitchenFault:
       case PointResult.twoBounceFault:
+      case PointResult.wrongReceiverFault:
         final faultByPlayer = playerFaulted ?? ball.lastHitByPlayer;
         final scored = faultByPlayer ? awardAIRally() : awardPlayerRally();
         final fallback = result == PointResult.kitchenFault
             ? 'KITCHEN VIOLATION!'
-            : 'TWO-BOUNCE FAULT!';
+            : (result == PointResult.wrongReceiverFault
+                ? 'WRONG RECEIVER!'
+                : 'TWO-BOUNCE FAULT!');
         msg = rallyMessage(scored, fallback);
         break;
       case PointResult.doubleBounceFault:
@@ -1100,13 +1198,29 @@ class PickleballGame extends ChangeNotifier {
     );
     player.clampToCourt();
     player.updateKitchenStatus(dt);
+    playerPartner?.updateKitchenStatus(dt);
     ai.updateKitchenStatus(dt);
+    aiPartner?.updateKitchenStatus(dt);
 
     // USA Pickleball Rule 9.B: Momentum carrying into NVZ AFTER rally ended is a fault!
     // Even if you hit the ball while standing outside, it is still a fault if your momentum
     // makes you step into or touch the Kitchen afterward. This applies even if the rally has already ended.
-    if (player.kitchenMomentumFlag && player.isInKitchen(includeFootMargin: true)) {
-      player.kitchenMomentumFlag = false;
+    final playerTeamMomentumOffender =
+        player.kitchenMomentumFlag && player.isInKitchen(includeFootMargin: true)
+            ? player
+            : (playerPartner?.kitchenMomentumFlag == true &&
+                    playerPartner!.isInKitchen(includeFootMargin: true)
+                ? playerPartner
+                : null);
+    final aiTeamMomentumOffender =
+        ai.kitchenMomentumFlag && ai.isInKitchen(includeFootMargin: true)
+            ? ai
+            : (aiPartner?.kitchenMomentumFlag == true &&
+                    aiPartner!.isInKitchen(includeFootMargin: true)
+                ? aiPartner
+                : null);
+    if (playerTeamMomentumOffender != null) {
+      playerTeamMomentumOffender.kitchenMomentumFlag = false;
       final previousPlayerScore = player.score;
       final previousAIScore = ai.score;
       scoreController.overturnPointForKitchenFault(playerFaulted: true);
@@ -1115,8 +1229,8 @@ class PickleballGame extends ChangeNotifier {
       playerScoreAnim = player.score > previousPlayerScore;
       aiScoreAnim = ai.score > previousAIScore;
       audioService?.playNetHit();
-    } else if (ai.kitchenMomentumFlag && ai.isInKitchen(includeFootMargin: true)) {
-      ai.kitchenMomentumFlag = false;
+    } else if (aiTeamMomentumOffender != null) {
+      aiTeamMomentumOffender.kitchenMomentumFlag = false;
       final previousPlayerScore = player.score;
       final previousAIScore = ai.score;
       scoreController.overturnPointForKitchenFault(playerFaulted: false);
@@ -1129,8 +1243,10 @@ class PickleballGame extends ChangeNotifier {
 
     // Do not finalize a winning score until any active volley momentum has
     // either resolved safely or produced an NVZ fault.
-    final momentumPending =
-        player.kitchenMomentumFlag || ai.kitchenMomentumFlag;
+    final momentumPending = player.kitchenMomentumFlag ||
+        (playerPartner?.kitchenMomentumFlag ?? false) ||
+        ai.kitchenMomentumFlag ||
+        (aiPartner?.kitchenMomentumFlag ?? false);
     if (scoreController.isGameOver &&
         (!momentumPending || stateTimer >= 0.75)) {
       state = GameState.gameOver;

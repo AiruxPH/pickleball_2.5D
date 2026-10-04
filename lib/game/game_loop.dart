@@ -327,7 +327,7 @@ class CourtPainter extends CustomPainter {
 
   void _drawServeGuide(Canvas canvas, PerspectiveCamera cam) {
     if (game.state != GameState.waitingForServe ||
-        !game.scoreController.isPlayerServing) {
+        !game.isHumanServing) {
       return;
     }
 
