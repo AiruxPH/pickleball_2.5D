@@ -41,8 +41,8 @@ class Pickleball {
   bool isUltimate;
   UltimateType? ultimateType;
   double ultimateAnimTimer;
-  List<Vec3> ghostClones1;
-  List<Vec3> ghostClones2;
+  final List<Vec3> ghostClones1;
+  final List<Vec3> ghostClones2;
   Vec3? iceZoneCenter;
   double iceZoneRadius;
   double iceZoneTimer;
@@ -128,6 +128,29 @@ class Pickleball {
   }
 
   // ── Reset helpers ──────────────────────────────────────────
+  /// Reuses the two Ghost Phantom positions instead of allocating new lists
+  /// and vectors on every simulation tick.
+  void updateGhostClones(double wave) {
+    if (ghostClones1.isEmpty) {
+      ghostClones1.add(Vec3(0, 0, 0));
+    }
+    if (ghostClones2.isEmpty) {
+      ghostClones2.add(Vec3(0, 0, 0));
+    }
+
+    final first = ghostClones1.first;
+    first
+      ..x = position.x + wave
+      ..y = position.y + 1.2
+      ..z = position.z;
+
+    final second = ghostClones2.first;
+    second
+      ..x = position.x - wave
+      ..y = position.y - 1.2
+      ..z = position.z;
+  }
+
   void _resetCommon() {
     velocity = Vec3(0, 0, 0);
     prevPosition = position.copy();

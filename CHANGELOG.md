@@ -2,6 +2,22 @@
 
 ## 2026-10-05
 
+### 2026-10-05 - Doubles formation and safe return targeting
+
+- Added teammate-aware ball ownership to doubles AI so partners hold their assigned lane, yield balls their teammate can reach, and only poach when clearly closer.
+- Connected both near-side and far-side doubles bots to teammate and opponent references for coordinated positioning and tactical targeting.
+- Synchronized complementary teammate lane assignments at every serve and reset bot rally intent so stale movement does not leak into the next point.
+- Corrected near-side ally shot depth so every tactical branch returns toward the far court instead of occasionally hitting back toward its own baseline.
+- Added shared shot-targeting safeguards that redirect wide sideline contacts toward center or the opposite half for both human and AI returns.
+- Added regression coverage for sideline return direction, lane ownership, and controlled doubles poaching.
+
+### 2026-10-05 - Special-skill frame allocation reduction
+
+- Reused Ghost Phantom clone lists and position objects instead of rebuilding them every simulation tick, and made the list references final to prevent accidental replacement.
+- Removed per-frame temporary rendering allocations from Ghost Phantom, Frostbite, and the ultimate border.
+- Added cheaper special-effect rendering for medium graphics while preserving high-quality gradients.
+- Added a regression test that verifies Ghost Phantom keeps stable list and vector identities between updates.
+
 ### 2026-10-05 00:13:00+08:00
 - **Reason of Change:** User reported two simultaneous BGM tracks playing — one persistent and one screen-bound. Also a Chrome warning: "The AudioContext was not allowed to start."
 - **Cause:** Two separate bugs compounding each other:

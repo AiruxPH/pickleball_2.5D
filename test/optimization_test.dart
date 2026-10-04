@@ -86,6 +86,30 @@ void main() {
       expect(ball.trail.length, equals(6));
     });
 
+    test('Ghost Phantom reuses clone storage between simulation ticks', () {
+      final ball = Pickleball()..position = Vec3(4, 6, 8);
+
+      ball.updateGhostClones(3);
+      final firstList = ball.ghostClones1;
+      final secondList = ball.ghostClones2;
+      final firstClone = firstList.first;
+      final secondClone = secondList.first;
+
+      ball.position = Vec3(10, 12, 14);
+      ball.updateGhostClones(2);
+
+      expect(identical(ball.ghostClones1, firstList), isTrue);
+      expect(identical(ball.ghostClones2, secondList), isTrue);
+      expect(identical(ball.ghostClones1.first, firstClone), isTrue);
+      expect(identical(ball.ghostClones2.first, secondClone), isTrue);
+      expect(firstClone.x, equals(12));
+      expect(firstClone.y, equals(13.2));
+      expect(firstClone.z, equals(14));
+      expect(secondClone.x, equals(8));
+      expect(secondClone.y, equals(10.8));
+      expect(secondClone.z, equals(14));
+    });
+
     test('BallController trims trail according to settings', () {
       final lowSettings = GameSettings();
       lowSettings.graphicsQuality = GraphicsQuality.low;

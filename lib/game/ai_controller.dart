@@ -5,6 +5,7 @@ import '../models/court.dart';
 import '../models/game_settings.dart';
 import '../utils/constants.dart';
 import '../utils/game_math.dart';
+import 'shot_targeting.dart';
 
 /// ─────────────────────────────────────────────────────────────
 /// AIController — State-machine based AI opponent
@@ -34,6 +35,7 @@ class AIController {
   final bool isPracticeMode;
   final String? drillType;
   final Player? humanPlayer;
+  final Player? teammate;
   final void Function(bool isPower)? onHit;
 
   AIState _state = AIState.idle;
@@ -52,6 +54,7 @@ class AIController {
     this.isPracticeMode = false,
     this.drillType,
     this.humanPlayer,
+    this.teammate,
     this.onHit,
   });
 
@@ -108,9 +111,17 @@ class AIController {
 
     // Only act when ball is on this player's side or coming toward it
     final isPartner = ai.isPartner;
-    final ballComing = isPartner
+    final arrivingOnTeamSide = isPartner
         ? (ball.position.z > 0 || ball.velocity.z > 2.0)
         : (ball.position.z < 0 || ball.velocity.z < -2.0);
+    final ballComing = arrivingOnTeamSide && shouldCoverIncomingBall();
+
+    // Release a teammate-owned ball immediately instead of crossing lanes.
+    if (arrivingOnTeamSide && !ballComing && _state != AIState.idle) {
+      _state = AIState.idle;
+      _hasPredictedTarget = false;
+      _reactionTimer = 0;
+    }
 
     switch (_state) {
       case AIState.idle:
@@ -140,6 +151,52 @@ class AIController {
 
     // Update AI animation
     _updateAnimation(dt);
+  }
+
+  /// Keeps doubles players in their assigned lane, with a limited poach when
+  /// they are clearly closer than their teammate. Singles always owns the ball.
+  bool shouldCoverIncomingBall() {
+    final partner = teammate;
+    if (partner == null) return true;
+
+    final homeX = ai.assignedRightSide
+        ? (ai.isPartner ? 16.0 : -16.0)
+        : (ai.isPartner ? -16.0 : 16.0);
+    final ballX = ball.position.x;
+    final ownDistance = dist2D(
+      ai.position.x,
+      ai.position.z,
+      ball.position.x,
+      ball.position.z,
+    );
+    final teammateDistance = dist2D(
+      partner.position.x,
+      partner.position.z,
+      ball.position.x,
+      ball.position.z,
+    );
+
+    if (ballX.abs() < 4.0) {
+      return ownDistance <= teammateDistance;
+    }
+
+    final assignedLane = ballX * homeX >= 0;
+    if (assignedLane) {
+      return ownDistance <= teammateDistance + 12.0;
+    }
+    return ownDistance + 12.0 < teammateDistance;
+  }
+
+  /// Clears rally-specific intent so an approach from the previous point does
+  /// not carry into the next serve formation.
+  void resetForRally() {
+    _state = AIState.idle;
+    _reactionTimer = 0;
+    _hasPredictedTarget = false;
+    ai.velocity
+      ..x = 0
+      ..y = 0
+      ..z = 0;
   }
 
   // ── Idle: wait for reaction time ───────────────────────────────
@@ -460,8 +517,13 @@ class AIController {
 
     // Clamp aimX safely within legal court sidelines (unless deliberate wide unforced error)
     if (!isUnforcedError) {
+      aimX = ShotTargeting.constrainReturnTargetX(aimX, ball.position.x);
       aimX = aimX.clamp(-CourtDimensions.halfWidth + 2.5, CourtDimensions.halfWidth - 2.5);
     }
+
+    // Tactical branches describe depth as a positive distance. Convert that
+    // depth to the opponent's half for the team actually making the shot.
+    targetZ = isPartner ? -targetZ.abs() : targetZ.abs();
 
     // Accurate directional velocity computation toward (aimX, targetZ)
     final deltaX = aimX - ball.position.x;

@@ -79,6 +79,18 @@ class CourtPainter extends CustomPainter {
   static final Paint _ultimateEffectPaint = Paint();
   static final Paint _ultimateEffectStrokePaint = Paint()
     ..style = PaintingStyle.stroke;
+  static final Paint _frostZonePaint = Paint();
+  static final Paint _frostRingPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.6;
+  static final Paint _frostSpikePaint = Paint()..strokeWidth = 0.4;
+  static final Paint _ghostClonePaint = Paint();
+  static final Paint _ghostRingPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.2;
+  static final Paint _ultimateVignettePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 6.0;
   static final Paint _serveGuidePaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round
@@ -2381,41 +2393,43 @@ class CourtPainter extends CustomPainter {
     final radius = game.ball.iceZoneRadius + 8.0;
     final alpha = (game.ball.iceZoneTimer / 3.5).clamp(0.0, 1.0);
 
-    // Frozen sheet
-    canvas.drawCircle(
-      c,
-      radius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            const Color(0xFFE0F7FA).withAlpha((150 * alpha).toInt()),
-            const Color(0xFF00E5FF).withAlpha((95 * alpha).toInt()),
-            const Color(0xFF0284C7).withAlpha(0),
-          ],
-          stops: const [0.0, 0.6, 1.0],
-        ).createShader(Rect.fromCircle(center: c, radius: radius)),
-    );
+    // Frozen sheet. Medium quality uses a flat translucent fill to avoid
+    // rebuilding a radial shader throughout the zone's lifetime.
+    final reducedEffects = game.settings.useReducedUltimateEffects;
+    _frostZonePaint
+      ..shader = reducedEffects
+          ? null
+          : RadialGradient(
+              colors: [
+                const Color(0xFFE0F7FA).withAlpha((150 * alpha).toInt()),
+                const Color(0xFF00E5FF).withAlpha((95 * alpha).toInt()),
+                const Color(0xFF0284C7).withAlpha(0),
+              ],
+              stops: const [0.0, 0.6, 1.0],
+            ).createShader(Rect.fromCircle(center: c, radius: radius))
+      ..color = const Color(0xFF38BDF8).withAlpha((75 * alpha).toInt());
+    canvas.drawCircle(c, radius, _frostZonePaint);
 
     // Frost crystal ring border
     canvas.drawCircle(
       c,
       radius * 0.92,
-      Paint()
-        ..color = const Color(0xFFE0F7FA).withAlpha((180 * alpha).toInt())
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.6,
+      _frostRingPaint
+        ..color = const Color(0xFFE0F7FA).withAlpha((180 * alpha).toInt()),
     );
 
     // Snowflake crystal spikes around perimeter
-    final spikePaint = Paint()
-      ..color = const Color(0xFFFFFFFF).withAlpha((210 * alpha).toInt())
-      ..strokeWidth = 0.4;
-    for (int i = 0; i < 8; i++) {
-      final ang = i * math.pi / 4 + animTime * 0.5;
+    _frostSpikePaint.color =
+        const Color(0xFFFFFFFF).withAlpha((210 * alpha).toInt());
+    final spikeCount = reducedEffects ? 4 : 8;
+    for (int i = 0; i < spikeCount; i++) {
+      final ang = i * math.pi * 2 / spikeCount + animTime * 0.5;
       final px = c.dx + math.cos(ang) * radius * 0.92;
       final pz = c.dy + math.sin(ang) * radius * 0.92;
-      canvas.drawLine(Offset(px - 1.4, pz), Offset(px + 1.4, pz), spikePaint);
-      canvas.drawLine(Offset(px, pz - 1.4), Offset(px, pz + 1.4), spikePaint);
+      canvas.drawLine(
+          Offset(px - 1.4, pz), Offset(px + 1.4, pz), _frostSpikePaint);
+      canvas.drawLine(
+          Offset(px, pz - 1.4), Offset(px, pz + 1.4), _frostSpikePaint);
     }
   }
 
@@ -2423,9 +2437,14 @@ class CourtPainter extends CustomPainter {
     final ball = game.ball;
     if (!ball.isInPlay) return;
 
-    final allClones = [...ball.ghostClones1, ...ball.ghostClones2];
-    for (int i = 0; i < allClones.length; i++) {
-      final clonePos = allClones[i];
+    _drawGhostCloneList(canvas, cam, ball.ghostClones1);
+    _drawGhostCloneList(canvas, cam, ball.ghostClones2);
+  }
+
+  void _drawGhostCloneList(
+      Canvas canvas, PerspectiveCamera cam, List<Vec3> clones) {
+    final reducedEffects = game.settings.useReducedUltimateEffects;
+    for (final clonePos in clones) {
       final screenPos = cam.project(clonePos);
       if (screenPos == null) continue;
 
@@ -2433,27 +2452,28 @@ class CourtPainter extends CustomPainter {
       final radius = PhysicsConstants.ballRadius * 2.2 * scale;
 
       // Holographic ethereal clone
-      final clonePaint = Paint()
-        ..shader = const RadialGradient(
-          colors: [
-            Color(0xEEF0ABFC),
-            Color(0x88A855F7),
-            Color(0x006B21A8),
-          ],
-          stops: [0.0, 0.6, 1.0],
-        ).createShader(
-            Rect.fromCircle(center: screenPos, radius: radius * 1.5));
+      _ghostClonePaint
+        ..shader = reducedEffects
+            ? null
+            : const RadialGradient(
+                colors: [
+                  Color(0xEEF0ABFC),
+                  Color(0x88A855F7),
+                  Color(0x006B21A8),
+                ],
+                stops: [0.0, 0.6, 1.0],
+              ).createShader(
+                Rect.fromCircle(center: screenPos, radius: radius * 1.5),
+              )
+        ..color = const Color(0x99A855F7);
 
-      canvas.drawCircle(screenPos, radius, clonePaint);
+      canvas.drawCircle(screenPos, radius, _ghostClonePaint);
 
       // Neon ripple ring
       canvas.drawCircle(
         screenPos,
         radius * 1.3,
-        Paint()
-          ..color = const Color(0xAAEC4899)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2,
+        _ghostRingPaint..color = const Color(0xAAEC4899),
       );
     }
   }
@@ -2480,7 +2500,7 @@ class CourtPainter extends CustomPainter {
     }
 
     // Radiant outer border glow
-    final borderPaint = Paint()
+    final borderPaint = _ultimateVignettePaint
       ..shader = LinearGradient(
         colors: [
           ultSkill.primaryColor.withAlpha(borderAlpha),
@@ -2489,7 +2509,6 @@ class CourtPainter extends CustomPainter {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.stroke
       ..strokeWidth = 6.0;
 
     canvas.drawRRect(

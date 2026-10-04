@@ -15,6 +15,7 @@ import '../game/ai_controller.dart';
 import '../game/camera_controller.dart';
 import '../game/physics_controller.dart';
 import '../game/vfx.dart';
+import '../game/shot_targeting.dart';
 import '../services/audio_service.dart';
 
 /// ─────────────────────────────────────────────────────────────
@@ -221,6 +222,7 @@ class PickleballGame extends ChangeNotifier {
       isPracticeMode: isPracticeMode,
       drillType: drillType,
       humanPlayer: player,
+      teammate: aiPartner,
       onHit: _onAIHit,
     );
 
@@ -233,6 +235,8 @@ class PickleballGame extends ChangeNotifier {
         difficultyOverride: difficultyOverride,
         isPracticeMode: isPracticeMode,
         drillType: drillType,
+        humanPlayer: ai,
+        teammate: player,
         onHit: _onAIHit,
       );
       aiPartnerController = AIController(
@@ -243,6 +247,8 @@ class PickleballGame extends ChangeNotifier {
         difficultyOverride: difficultyOverride,
         isPracticeMode: isPracticeMode,
         drillType: drillType,
+        humanPlayer: player,
+        teammate: ai,
         onHit: _onAIHit,
       );
     }
@@ -339,8 +345,16 @@ class PickleballGame extends ChangeNotifier {
     const serveZ =
         CourtDimensions.halfLength + CourtDimensions.serveBaselineOffset;
 
+    // Keep both teams in complementary lanes as the serving score changes.
+    player.assignedRightSide = serverRight;
+    playerPartner?.assignedRightSide = !serverRight;
+    ai.assignedRightSide = serverRight;
+    aiPartner?.assignedRightSide = !serverRight;
+    aiController.resetForRally();
+    partnerController?.resetForRally();
+    aiPartnerController?.resetForRally();
+
     if (scoreController.isPlayerServing) {
-      player.assignedRightSide = serverRight;
       player.resetPosition(
         customX: serverRight ? 16.0 : -16.0,
         customZ: serveZ,
@@ -362,7 +376,6 @@ class PickleballGame extends ChangeNotifier {
         customZ: CourtDimensions.aiStartZ * 0.7,
       );
     } else {
-      ai.assignedRightSide = serverRight;
       ai.resetPosition(
         customX: serverRight ? -16.0 : 16.0,
         customZ: -serveZ,
@@ -585,12 +598,7 @@ class PickleballGame extends ChangeNotifier {
       // 1. Ghost Phantom: 3-clone illusion & mid-air vortex swerve
       if (ball.ultimateType == UltimateType.ghostPhantom) {
         final wave = math.sin(ball.ultimateAnimTimer * 18.0) * 11.0;
-        ball.ghostClones1 = [
-          Vec3(ball.position.x + wave, ball.position.y + 1.2, ball.position.z)
-        ];
-        ball.ghostClones2 = [
-          Vec3(ball.position.x - wave, ball.position.y - 1.2, ball.position.z)
-        ];
+        ball.updateGhostClones(wave);
 
         // Lateral vortex swerve right around the net
         if (ball.position.z > -15 && ball.position.z < 20) {
@@ -978,11 +986,8 @@ class PickleballGame extends ChangeNotifier {
   }
 
   Offset _getAimDirection() {
-    if (swipeDirection != null) {
-      return swipeDirection!;
-    }
-    // Default: aim based on joystick X
-    return Offset(joystickX * 0.6, -1).normalize();
+    final proposed = swipeDirection ?? Offset(joystickX * 0.6, -1);
+    return ShotTargeting.constrainReturnDirection(proposed, ball.position.x);
   }
 
   // ── State: Point scored ─────────────────────────────────────────
