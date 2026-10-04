@@ -1,0 +1,49 @@
+{
+  "cellWidth": 224,
+  "cellHeight": 216,
+  "anchorX": 112,
+  "anchorY": 202,
+  "bodyHeight": 150.0,
+  "rows": {
+    "idle": {
+      "row": 0,
+      "frames": 4
+    },
+    "walk": {
+      "row": 1,
+      "frames": 4
+    },
+    "run": {
+      "row": 2,
+      "frames": 4
+    },
+    "jog": {
+      "row": 3,
+      "frames": 4
+    },
+    "backpedal": {
+      "row": 4,
+      "frames": 4
+    },
+    "forehand": {
+      "row": 5,
+      "frames": 4
+    },
+    "backhand": {
+      "row": 6,
+      "frames": 4
+    },
+    "celebrate": {
+      "row": 7,
+      "frames": 4
+    },
+    "hit_left": {
+      "row": 8,
+      "frames": 5
+    },
+    "hit_right": {
+      "row": 9,
+      "frames": 5
+    }
+  }
+}

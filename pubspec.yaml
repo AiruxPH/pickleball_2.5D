@@ -1,0 +1,81 @@
+name: pickleball_3d
+description: "A 3D Pickleball mobile game built with Flutter and Flame engine."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.4.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Game engine - stable, maintained, 60 FPS game loop
+  flame: ^1.18.0
+
+  # Audio integration for Flame
+  flame_audio: ^2.10.0
+  audioplayers: ^6.1.0
+
+  # State management
+  provider: ^6.1.2
+
+  # Persistent settings
+  shared_preferences: ^2.3.2
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+  # Interactive GLB presentation for shop equipment
+  model_viewer_plus: 1.9.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+  image: ^4.10.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/audio/
+    - assets/images/
+    - assets/images/characters/
+    - assets/images/menu/
+    - assets/images/courts/
+    - assets/models/
+
+
+  fonts:
+    - family: Orbitron
+      fonts:
+        - asset: assets/fonts/Orbitron-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Orbitron-Bold.ttf
+          weight: 700
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "assets/images/app_icon_adaptive_back.png"
+  adaptive_icon_foreground: "assets/images/app_icon_adaptive_fore.png"
+  web:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+    background_color: "#0c1829"
+    theme_color: "#00c4cc"
+  windows:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+    icon_size: 48
+  macos:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+  linux:
+    generate: true
+    image_path: "assets/images/app_icon.png"

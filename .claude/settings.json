@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -v \"/\\\\.git/\")",
+      "Bash(python -)",
+      "WebFetch(domain:play.google.com)",
+      "Bash(grep -rhoE \"'[A-Z][A-Z !★⚡🏆\\\\-]{6,}'\" lib/screens lib/widgets)",
+      "Bash(grep -rhoE \"\\(Text\\\\\\(\\\\s*'[^']{3,60}'\\)\" lib/screens/main_menu_screen.dart lib/screens/mode_select_screen.dart)",
+      "Bash(sort -t: -k2 -rn)",
+      "Bash(grep -v \"^\\\\s*//\")",
+      "Bash(grep -rnoE \"'[^'$]*\\(ULTIMATE|Ultimate|ATHLETE|Athlete|SIGNATURE|Signature|RECRUIT|Recruit|ELITE|Elite|LEGENDARY|Legendary|SUPREME|Supreme|CHAMPIONSHIP|Championship|PRO SHOP|ARENA|Arena|MASTER|Master|EPIC|Epic|★|✨|🔥|⚡|🏆|🪙|💎\\)[^'$]*'\" lib)",
+      "Bash(sed -i \"s/'• Relaxed pace & centered returns — great for rallies'/'Slow and friendly. Good for learning and long rallies.'/; s/'• Balanced club player with moderate speed & shot variety'/'A solid club player. Mixes up shots at a steady pace.'/; s/'• Championship pro — aggressive corner drives, smashes & dinks'/'Tough. Hits to the corners and punishes weak shots.'/\" lib/screens/settings_screen.dart)",
+      "Bash(sed -i \"s/prize: '+500 🪙'/prize: '+500 coins'/; s/prize: '+1,500 🪙'/prize: '+1,500 coins'/; s/prize: '+5,000 🪙'/prize: '+5,000 coins'/\" lib/screens/tournament_screen.dart)",
+      "Bash(grep -v \"^\\\\S*:\\\\s*//\")",
+      "Bash(grep -v \"///\")",
+      "Bash(node -e ' *)",
+      "Bash(sed -i \"s/Text\\('+\\\\${result.coinsEarned} 🪙',/Text\\('+\\\\${result.coinsEarned} coins',/\" lib/screens/career_screen.dart)",
+      "Bash(sed -i \"s/'⭐ RISING STAR • AMATEUR PRO'/'NEW PLAYER'/\" lib/widgets/player_profile_dialog.dart)",
+      "Bash(sed -i \"s/text: '★ \\\\${theme.displayName} ★',/text: theme.displayName,/\" lib/game/game_loop.dart)",
+      "Read(//c/Users/admin/AppData/**)",
+      "Bash(sed -i \"s/boxShadow: \\\\[BoxShadow\\(color: color.withAlpha\\(40\\), blurRadius: 20\\)\\\\],//\" lib/screens/career_screen.dart)",
+      "Bash(node \"C:/Users/admin/AppData/Local/Temp/claude/c--Users-admin-Desktop-my-app/82d4a8af-052c-406c-940b-c4faa9ea26a2/scratchpad/bal.js\" lib/utils/constants.dart lib/models/ultimate_skill.dart lib/models/shop_items.dart lib/services/audio_service.dart lib/screens/main_menu_screen.dart lib/screens/splash_screen.dart lib/screens/game_over_screen.dart lib/screens/career_screen.dart lib/screens/shop_screen.dart lib/screens/game_screen.dart lib/screens/mode_select_screen.dart lib/screens/tournament_screen.dart lib/screens/leaderboard_screen.dart lib/screens/settings_screen.dart lib/widgets/player_profile_dialog.dart lib/widgets/scoreboard.dart lib/widgets/pause_menu.dart lib/game/game_loop.dart test/rules_test.dart test/shop_test.dart test/mode_select_screen_test.dart)"
+    ]
+  }
+}

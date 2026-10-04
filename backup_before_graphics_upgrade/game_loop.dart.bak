@@ -1,0 +1,1854 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import '../game/pickleball_game.dart';
+import '../models/game_settings.dart';
+import '../models/pickleball.dart';
+import '../models/player.dart';
+import '../models/ultimate_skill.dart';
+import 'character_renderer.dart';
+import '../utils/constants.dart';
+import '../utils/game_math.dart';
+
+/// ─────────────────────────────────────────────────────────────
+/// CourtPainter — High-End Professional Tournament 3D Court Renderer
+///
+/// Inspired by official PPA Tour championships and broadcast graphics.
+/// Renders:
+///   1. Arena stadium atmosphere (grandstands, realistic crowd, floodlights)
+///   2. 3D perimeter digital LED barrier boards
+///   3. Dual-tone tournament court (apron, Pacific Blue surface, Teal kitchen)
+///   4. Regulation net with authentic center strap and 34" droop
+///   5. Pro athletic player characters with realistic sportswear & paddles
+///   6. Tournament optic yellow ball with dynamic lighting & speed trail
+///   7. Broadcast-style in-game notification banners
+/// ─────────────────────────────────────────────────────────────
+
+class CourtPainter extends CustomPainter {
+  final PickleballGame game;
+  final double? animTimeOverride;
+
+  double get animTime => animTimeOverride ?? game.animTime;
+
+  CourtPainter({
+    required this.game,
+    this.animTimeOverride,
+    super.repaint,
+  });
+
+  // ── High-performance cached Picture for static stadium crowd & background ──
+  static ui.Picture? _cachedEnvPicture;
+  static Size? _cachedEnvSize;
+  static CourtTheme? _cachedEnvTheme;
+
+  // ── Cached Paint objects (allocated once, reused every frame) ──
+  static final Paint _railingFillPaint = Paint()..color = const Color(0x660F172A);
+  static final Paint _railingLinePaint = Paint()
+    ..color = const Color(0x8894A3B8)
+    ..strokeWidth = 1.5;
+  static final Paint _meshPaint = Paint()
+    ..color = const Color(0x77FFFFFF)
+    ..strokeWidth = 0.8
+    ..style = PaintingStyle.stroke;
+  static final Paint _topCableBackPaint = Paint()
+    ..color = const Color(0x40000000)
+    ..strokeWidth = 3.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _topCablePaint = Paint()
+    ..color = const Color(0xFFF8FAFC)
+    ..strokeWidth = 2.8
+    ..style = PaintingStyle.stroke;
+  static final Paint _strapPaint = Paint()
+    ..color = const Color(0xFFFFFFFF)
+    ..strokeWidth = 3.0
+    ..strokeCap = StrokeCap.square;
+  static final Paint _strapBucklePaint = Paint()..color = const Color(0xFF475569);
+  static final Paint _postShadowPaint = Paint()
+    ..color = const Color(0xFF0F172A)
+    ..strokeWidth = 5.0
+    ..strokeCap = StrokeCap.round;
+  static final Paint _postBodyPaint = Paint()
+    ..color = const Color(0xFF334155)
+    ..strokeWidth = 4.0
+    ..strokeCap = StrokeCap.round;
+  static final Paint _postHighlightPaint = Paint()
+    ..color = const Color(0xFF94A3B8)
+    ..strokeWidth = 1.0;
+  static final Paint _postCapPaint = Paint()..color = const Color(0xFF1E293B);
+  static final Paint _ballEdgePaint = Paint()
+    ..color = const Color(0x55000000)
+    ..strokeWidth = 0.8
+    ..style = PaintingStyle.stroke;
+  static final Paint _holePaint = Paint()..color = const Color(0x99556B2F);
+
+  // ── Performance Mode Cached Flat Paints (zero shader creation per frame) ──
+  static final Paint _fastSideBarrierPaint = Paint()..color = const Color(0xFF0F1E36);
+  static final Paint _netMeshQuadPaint = Paint()..color = const Color(0x33FFFFFF);
+
+  // ── Cached TextPainter for static court branding (laid out once per size) ──
+  TextPainter? _courtBrandingPainter;
+  double _lastBoardWidth = -1;
+  CourtTheme? _lastBoardTheme;
+
+  // ── Cached TextPainter for broadcast messages ──
+  static TextPainter? _cachedMsgPainter;
+  static String? _cachedMsgText;
+
+  // ── Shadow oval paint (reused with updated alpha each frame) ──
+  final Paint _ballShadowPaint = Paint();
+  final Paint _netShadowPaint = Paint()..color = const Color(0x3C000000);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cam = game.camera;
+    cam.screenSize = size;
+    cam.prepareFrame();
+
+    // 1. Arena atmosphere & grandstands
+    _drawEnvironment(canvas, size, cam);
+
+    // 2. 3D Court perimeter LED barrier boards
+    _drawPerimeterBoards(canvas, cam);
+
+    // 3. Dual-tone tournament court surface with regulation lines
+    _drawCourt(canvas, size, cam);
+
+    // 3b. Serve target box visual guide
+    if (game.state == GameState.waitingForServe) {
+      _drawServiceBoxHighlight(canvas, cam);
+    }
+
+    // 3c. Frostbite ice freeze zone on court
+    if (game.ball.iceZoneTimer > 0 && game.ball.iceZoneCenter != null) {
+      _drawFrostIceZone(canvas, cam);
+    }
+
+    // 4. Opponent players (far side, behind net)
+    _drawPlayer(canvas, cam, game.ai);
+    if (game.aiPartner != null) {
+      _drawPlayer(canvas, cam, game.aiPartner!);
+    }
+
+    // 5. Regulation net with center strap & realistic sag
+    _drawNet(canvas, cam);
+
+    // 6. Near side team players (human + partner, sorted by depth)
+    if (game.playerPartner != null) {
+      if (game.player.position.z > game.playerPartner!.position.z) {
+        _drawPlayer(canvas, cam, game.playerPartner!);
+        _drawPlayer(canvas, cam, game.player);
+      } else {
+        _drawPlayer(canvas, cam, game.player);
+        _drawPlayer(canvas, cam, game.playerPartner!);
+      }
+    } else {
+      _drawPlayer(canvas, cam, game.player);
+    }
+
+    // 7. Ball shadow, speed trail, ball & impact effect
+    _drawBallShadow(canvas, cam);
+    _drawBallTrail(canvas, cam);
+    if (game.ball.isUltimate &&
+        game.ball.ultimateType == UltimateType.ghostPhantom) {
+      _drawGhostClones(canvas, cam);
+    }
+    _drawBall(canvas, cam);
+    _drawImpactFlash(canvas, cam);
+
+    // 8. Screen effects: Ultimate vignette glow & cinematic cut-in banner
+    if (game.isUltimateArmed) {
+      _drawUltimateVignette(canvas, size);
+    }
+    if (game.ultimateCutinTimer > 0 && game.activeCutinUltimate != null) {
+      _drawUltimateCutIn(canvas, size);
+    }
+
+    // 9. Broadcast on-screen messages
+    _drawMessage(canvas, size);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // 1. Arena Atmosphere & Grandstands (Cached via ui.Picture for 60 FPS performance)
+  // ────────────────────────────────────────────────────────────
+  void _drawEnvironment(Canvas canvas, Size size, PerspectiveCamera cam) {
+    final theme = game.settings.courtTheme;
+    if (_cachedEnvPicture != null &&
+        _cachedEnvSize == size &&
+        _cachedEnvTheme == theme) {
+      canvas.drawPicture(_cachedEnvPicture!);
+      return;
+    }
+
+    final recorder = ui.PictureRecorder();
+    final recCanvas =
+        Canvas(recorder, Rect.fromLTWH(0, 0, size.width, size.height));
+    _renderEnvironmentToCanvas(recCanvas, size, theme);
+    _cachedEnvPicture = recorder.endRecording();
+    _cachedEnvSize = size;
+    _cachedEnvTheme = theme;
+
+    canvas.drawPicture(_cachedEnvPicture!);
+  }
+
+  void _renderEnvironmentToCanvas(Canvas canvas, Size size, CourtTheme theme) {
+    final horizon = size.height * CameraConstants.horizonFraction;
+
+    if (theme == CourtTheme.outdoor) {
+      _renderOutdoorParkEnvironment(canvas, size, horizon, theme);
+    } else if (theme == CourtTheme.beach) {
+      _renderBeachEnvironment(canvas, size, horizon, theme);
+    } else if (theme == CourtTheme.gym) {
+      _renderGymEnvironment(canvas, size, horizon, theme);
+    } else {
+      _renderStadiumEnvironment(canvas, size, horizon, theme);
+    }
+  }
+
+  // ── A. Professional Tournament Stadium Environment (Center Court & Indoor Arena) ──
+  void _renderStadiumEnvironment(Canvas canvas, Size size, double horizon, CourtTheme theme) {
+    // 1. Stadium evening atmosphere gradient
+    final skyPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          const Color(0xFF040711), // High arena ceiling
+          theme.skyColor,          // Mid arena atmosphere
+          const Color(0xFF14243B), // Low horizon lighting
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: const [0.0, 0.45, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, horizon + 20));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), skyPaint);
+
+    // 2. Structural Steel Roof Trusses (architectural arena gantry)
+    final trussPaint = Paint()
+      ..color = const Color(0x3064748B)
+      ..strokeWidth = 1.6;
+    final trussThinPaint = Paint()
+      ..color = const Color(0x1F94A3B8)
+      ..strokeWidth = 1.0;
+
+    final gantryY1 = horizon * 0.08;
+    final gantryY2 = horizon * 0.17;
+    canvas.drawLine(Offset(0, gantryY1), Offset(size.width, gantryY1), trussPaint);
+    canvas.drawLine(Offset(0, gantryY2), Offset(size.width, gantryY2), trussPaint);
+
+    const trussBays = 24;
+    final bayWidth = size.width / trussBays;
+    for (int b = 0; b < trussBays; b++) {
+      final xA = b * bayWidth;
+      final xB = (b + 1) * bayWidth;
+      canvas.drawLine(Offset(xA, gantryY1), Offset(xB, gantryY2), trussThinPaint);
+      canvas.drawLine(Offset(xB, gantryY1), Offset(xA, gantryY2), trussThinPaint);
+      canvas.drawLine(Offset(xA, gantryY1), Offset(xA, gantryY2), trussThinPaint);
+    }
+
+    // 3. Stadium Floodlight Banks (4 high-output LED arrays)
+    _drawFloodlight(canvas, size.width * 0.08, horizon * 0.22, true);
+    _drawFloodlight(canvas, size.width * 0.32, horizon * 0.19, true);
+    _drawFloodlight(canvas, size.width * 0.68, horizon * 0.19, false);
+    _drawFloodlight(canvas, size.width * 0.92, horizon * 0.22, false);
+
+    // 4. Tiered Concrete Grandstand Bowl (5 architectural tiers)
+    const tierCount = 5;
+    final grandstandTop = horizon * 0.23;
+    final grandstandHeight = horizon - grandstandTop;
+
+    for (int tier = 0; tier < tierCount; tier++) {
+      final t = tier / tierCount;
+      final tierY = grandstandTop + t * grandstandHeight;
+      final tierH = grandstandHeight / tierCount;
+
+      final tierColor = tier.isEven
+          ? const Color(0xFF0F172A)
+          : const Color(0xFF1E293B);
+      canvas.drawRect(
+        Rect.fromLTRB(0, tierY, size.width, tierY + tierH),
+        Paint()..color = tierColor,
+      );
+
+      // Steel step ledge highlight
+      canvas.drawLine(
+        Offset(0, tierY + 0.8),
+        Offset(size.width, tierY + 0.8),
+        Paint()..color = const Color(0x4094A3B8)..strokeWidth = 1.0,
+      );
+
+      // Concourse Vomitories (illuminated entryway tunnels)
+      if (tier == 2 || tier == 3) {
+        for (int v = 1; v <= 3; v++) {
+          final vx = size.width * (v * 0.25);
+          final portalRect = Rect.fromCenter(
+            center: Offset(vx, tierY + tierH * 0.5),
+            width: 18,
+            height: tierH * 0.85,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(portalRect, const Radius.circular(3)),
+            Paint()..color = const Color(0xFF020617),
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(portalRect.left + 2, portalRect.top + 2, portalRect.width - 4, portalRect.height - 4),
+              const Radius.circular(2),
+            ),
+            Paint()..color = const Color(0x35FBBF24),
+          );
+        }
+      }
+
+      // Natural clustered tournament crowd
+      _drawCrowdRow(canvas, size.width, tierY + tierH * 0.42, tier);
+    }
+
+    // 5. Grandstand Lower Ribbon LED Display Board
+    const ribbonH = 8.0;
+    final ribbonY = horizon - ribbonH - 3;
+    canvas.drawRect(
+      Rect.fromLTRB(0, ribbonY, size.width, horizon - 3),
+      Paint()..color = const Color(0xFF020617),
+    );
+    canvas.drawLine(Offset(0, ribbonY), Offset(size.width, ribbonY),
+        Paint()..color = theme.ledAccentColor.withAlpha(160)..strokeWidth = 1.2);
+    canvas.drawLine(Offset(0, horizon - 3), Offset(size.width, horizon - 3),
+        Paint()..color = theme.ledAccentColor.withAlpha(100)..strokeWidth = 1.0);
+
+    // 6. Lower Glass Safety Barrier Railing
+    canvas.drawRect(
+      Rect.fromLTRB(0, horizon - 2, size.width, horizon + 6),
+      _railingFillPaint,
+    );
+    canvas.drawLine(
+      Offset(0, horizon - 2),
+      Offset(size.width, horizon - 2),
+      _railingLinePaint,
+    );
+  }
+
+  // ── B. Natural Daytime Outdoor Park Environment ─────────────
+  void _renderOutdoorParkEnvironment(Canvas canvas, Size size, double horizon, CourtTheme theme) {
+    // 1. Natural daylight sunny sky gradient
+    final skyPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0xFF0284C7), // High daytime sky
+          Color(0xFF38BDF8), // Mid atmosphere
+          Color(0xFFBAE6FD), // Low horizon haze
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: [0.0, 0.45, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, horizon + 10));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), skyPaint);
+
+    // 2. Soft procedural cumulus clouds
+    final cloudPaint = Paint()..color = const Color(0x40FFFFFF);
+    void drawCloud(double cx, double cy, double scale) {
+      canvas.drawCircle(Offset(cx, cy), 16 * scale, cloudPaint);
+      canvas.drawCircle(Offset(cx - 14 * scale, cy + 3 * scale), 12 * scale, cloudPaint);
+      canvas.drawCircle(Offset(cx + 15 * scale, cy + 2 * scale), 13 * scale, cloudPaint);
+      canvas.drawCircle(Offset(cx + 28 * scale, cy + 5 * scale), 9 * scale, cloudPaint);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(cx - 18 * scale, cy + 4 * scale, 52 * scale, 12 * scale),
+          Radius.circular(6 * scale),
+        ),
+        cloudPaint,
+      );
+    }
+    drawCloud(size.width * 0.18, horizon * 0.22, 1.2);
+    drawCloud(size.width * 0.58, horizon * 0.15, 0.9);
+    drawCloud(size.width * 0.85, horizon * 0.28, 1.1);
+
+    // 3. Distant Park Tree Line & Canopy
+    final treeHorizonY = horizon - 22;
+    final backTreePaint = Paint()..color = const Color(0xFF14532D);
+    const treeCount = 28;
+    final treeSpacing = size.width / treeCount;
+    for (int i = 0; i <= treeCount; i++) {
+      final tx = i * treeSpacing;
+      final seed = (i * 47) % 13;
+      final tr = 14.0 + seed * 1.2;
+      canvas.drawCircle(Offset(tx, treeHorizonY + 6), tr, backTreePaint);
+    }
+
+    final frontTreePaint = Paint()..color = const Color(0xFF166534);
+    for (int i = 0; i <= treeCount + 2; i++) {
+      final tx = (i - 0.5) * treeSpacing;
+      final seed = (i * 31) % 11;
+      final tr = 11.0 + seed * 1.0;
+      canvas.drawCircle(Offset(tx, treeHorizonY + 12), tr, frontTreePaint);
+    }
+
+    // 4. Dark Green Tournament Park Windscreen Fencing
+    final fenceTopY = horizon - 14;
+    canvas.drawRect(
+      Rect.fromLTRB(0, fenceTopY, size.width, horizon + 4),
+      Paint()..color = const Color(0xFF1B4332),
+    );
+
+    // Fence top metal rail & posts
+    canvas.drawLine(
+      Offset(0, fenceTopY),
+      Offset(size.width, fenceTopY),
+      Paint()..color = const Color(0xFF64748B)..strokeWidth = 2.0,
+    );
+    for (double fx = 0; fx <= size.width; fx += size.width / 12) {
+      canvas.drawLine(
+        Offset(fx, fenceTopY),
+        Offset(fx, horizon + 4),
+        Paint()..color = const Color(0xFF475569)..strokeWidth = 1.5,
+      );
+    }
+
+    // Outdoor Spectators along the park fence
+    _drawCrowdRow(canvas, size.width, fenceTopY + 4, 3);
+  }
+
+  // ── C. Tropical Coastal Beach Environment ───────────────────
+  void _renderBeachEnvironment(Canvas canvas, Size size, double horizon, CourtTheme theme) {
+    // 1. Tropical coastal ocean sky
+    final skyPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0xFF0284C7),
+          Color(0xFF38BDF8),
+          Color(0xFFFEF08A),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, horizon + 10));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), skyPaint);
+
+    // 2. Coastal Sun Glow
+    final sunCenter = Offset(size.width * 0.78, horizon * 0.35);
+    canvas.drawCircle(
+      sunCenter,
+      48,
+      Paint()
+        ..shader = const RadialGradient(
+          colors: [Color(0x70FEF08A), Color(0x20FDE047), Colors.transparent],
+          stops: [0.0, 0.45, 1.0],
+        ).createShader(Rect.fromCircle(center: sunCenter, radius: 48)),
+    );
+
+    // 3. Turquoise Ocean Horizon & Surf Lines
+    final seaTopY = horizon - 26;
+    final seaPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF0369A1), Color(0xFF0EA5E9), Color(0xFF2DD4BF)],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTRB(0, seaTopY, size.width, horizon));
+    canvas.drawRect(Rect.fromLTRB(0, seaTopY, size.width, horizon), seaPaint);
+
+    final surfPaint = Paint()
+      ..color = const Color(0x60FFFFFF)
+      ..strokeWidth = 1.2;
+    canvas.drawLine(Offset(0, seaTopY + 8), Offset(size.width, seaTopY + 8), surfPaint);
+    canvas.drawLine(Offset(0, seaTopY + 16), Offset(size.width, seaTopY + 16), surfPaint);
+
+    // 4. Palm Trees on Left and Right coastal borders
+    void drawPalm(double px, double py, bool leanRight) {
+      final trunkPath = Path()
+        ..moveTo(px, horizon)
+        ..quadraticBezierTo(
+          leanRight ? px + 8 : px - 8,
+          py + 25,
+          leanRight ? px + 16 : px - 16,
+          py,
+        );
+      canvas.drawPath(
+        trunkPath,
+        Paint()
+          ..color = const Color(0xFF5C4028)
+          ..strokeWidth = 5.0
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round,
+      );
+      final topX = leanRight ? px + 16 : px - 16;
+      final frondPaint = Paint()
+        ..color = const Color(0xFF15803D)
+        ..strokeWidth = 2.4
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      for (double angle in [-0.8, -0.4, 0.0, 0.4, 0.8]) {
+        final endX = topX + math.cos(angle - 1.57) * 26;
+        final endY = py + math.sin(angle - 1.57) * 16;
+        canvas.drawLine(Offset(topX, py), Offset(endX, endY), frondPaint);
+      }
+    }
+    drawPalm(size.width * 0.06, horizon * 0.12, true);
+    drawPalm(size.width * 0.94, horizon * 0.10, false);
+
+    // 5. Boardwalk Pavilion Railing along horizon
+    final railingY = horizon - 8;
+    canvas.drawRect(
+      Rect.fromLTRB(0, railingY, size.width, horizon + 4),
+      Paint()..color = const Color(0xFF785938),
+    );
+    canvas.drawLine(
+      Offset(0, railingY),
+      Offset(size.width, railingY),
+      Paint()..color = const Color(0xFFD4A373)..strokeWidth = 2.0,
+    );
+  }
+
+  // ── D. Fieldhouse Gymnasium Environment ─────────────────────
+  void _renderGymEnvironment(Canvas canvas, Size size, double horizon, CourtTheme theme) {
+    // 1. Acoustic brick gymnasium back wall
+    final wallPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0xFF18181B), // Dark rafters ceiling
+          Color(0xFF27272A), // Acoustic brick wall
+          Color(0xFF3F3F46), // Lower wall base
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, horizon + 10));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), wallPaint);
+
+    // 2. High Clerestory Windows with soft daylight streaming
+    const windowCount = 5;
+    final winWidth = size.width / (windowCount * 2);
+    final winTop = horizon * 0.12;
+    final winH = horizon * 0.28;
+
+    for (int w = 0; w < windowCount; w++) {
+      final wx = (w * 2 + 0.5) * winWidth;
+      final winRect = Rect.fromLTWH(wx, winTop, winWidth, winH);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(winRect, const Radius.circular(4)),
+        Paint()..color = const Color(0x35E0F2FE),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(winRect, const Radius.circular(4)),
+        Paint()..color = const Color(0xFF52525B)..strokeWidth = 1.2..style = PaintingStyle.stroke,
+      );
+      canvas.drawLine(Offset(wx + winWidth / 2, winTop), Offset(wx + winWidth / 2, winTop + winH),
+          Paint()..color = const Color(0xFF52525B)..strokeWidth = 1.0);
+    }
+
+    // 3. Suspended Basketball Hoop & Backboard (Centered beyond AI baseline)
+    final hoopCenterX = size.width * 0.5;
+    final hoopCenterY = horizon * 0.40;
+    final backboardRect = Rect.fromCenter(center: Offset(hoopCenterX, hoopCenterY), width: 34, height: 22);
+    canvas.drawRect(backboardRect, Paint()..color = const Color(0x25FFFFFF));
+    canvas.drawRect(backboardRect, Paint()..color = Colors.white..strokeWidth = 1.2..style = PaintingStyle.stroke);
+    final targetRect = Rect.fromCenter(center: Offset(hoopCenterX, hoopCenterY + 3), width: 12, height: 9);
+    canvas.drawRect(targetRect, Paint()..color = Colors.white..strokeWidth = 1.0..style = PaintingStyle.stroke);
+    canvas.drawLine(
+      Offset(hoopCenterX - 6, hoopCenterY + 7.5),
+      Offset(hoopCenterX + 6, hoopCenterY + 7.5),
+      Paint()..color = const Color(0xFFF97316)..strokeWidth = 2.2,
+    );
+    final netPath = Path()
+      ..moveTo(hoopCenterX - 6, hoopCenterY + 7.5)
+      ..lineTo(hoopCenterX - 3, hoopCenterY + 16)
+      ..lineTo(hoopCenterX + 3, hoopCenterY + 16)
+      ..lineTo(hoopCenterX + 6, hoopCenterY + 7.5);
+    canvas.drawPath(netPath, Paint()..color = const Color(0x70FFFFFF)..strokeWidth = 1.0..style = PaintingStyle.stroke);
+
+    // 4. Wooden Bleachers along the wall
+    final bleacherY = horizon - 16;
+    canvas.drawRect(
+      Rect.fromLTRB(0, bleacherY, size.width, horizon + 4),
+      Paint()..color = const Color(0xFF54341B),
+    );
+    _drawCrowdRow(canvas, size.width, bleacherY + 4, 2);
+  }
+
+  // ── E. Realistic Clustered Tournament Spectator Rows ─────────
+  void _drawCrowdRow(Canvas canvas, double width, double y, int tier) {
+    const cols = 38;
+    final colWidth = width / cols;
+    final spectatorScale = 0.55 + tier * 0.08;
+
+    final attirePalette = [
+      const Color(0xFF0F172A), // Slate navy
+      const Color(0xFFF1F5F9), // Clean white
+      const Color(0xFF475569), // Heather graphite
+      const Color(0xFF1E3A8A), // Royal team blue
+      const Color(0xFF334155), // Charcoal
+      const Color(0xFFD97706), // Tournament amber
+      const Color(0xFF991B1B), // Crimson polo
+      const Color(0xFF0D9488), // Teal athletic
+    ];
+
+    for (int i = 0; i < cols; i++) {
+      if (i % 8 == 0) continue; // aisle spacing
+      final seed = (tier * 67 + i * 41);
+      final xJitter = ((seed % 9) - 4) * 0.7;
+      final x = (i + 0.5) * colWidth + xJitter;
+
+      final bodyColor = attirePalette[seed % attirePalette.length];
+      const headColor = Color(0xFFD4A373);
+
+      // Torso
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(x, y + 2.5 * spectatorScale),
+            width: 10 * spectatorScale,
+            height: 9 * spectatorScale,
+          ),
+          Radius.circular(2 * spectatorScale),
+        ),
+        Paint()..color = bodyColor.withAlpha(220),
+      );
+
+      // Head
+      canvas.drawCircle(
+        Offset(x, y - 3.5 * spectatorScale),
+        3.2 * spectatorScale,
+        Paint()..color = headColor.withAlpha(210),
+      );
+
+      // Cap / Visor
+      if (seed % 3 == 0) {
+        canvas.drawArc(
+          Rect.fromCircle(
+            center: Offset(x, y - 4.5 * spectatorScale),
+            radius: 3.4 * spectatorScale,
+          ),
+          math.pi,
+          math.pi,
+          true,
+          Paint()..color = bodyColor,
+        );
+      }
+    }
+  }
+
+  void _drawFloodlight(Canvas canvas, double x, double y, bool isLeft) {
+    final flarePaint = Paint()
+      ..shader = const RadialGradient(
+        colors: [
+          Color(0x35FFFFFF),
+          Color(0x1538BDF8),
+          Colors.transparent,
+        ],
+        stops: [0.0, 0.4, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(x, y), radius: 55));
+    canvas.drawCircle(Offset(x, y), 55, flarePaint);
+
+    final bankRect = Rect.fromCenter(center: Offset(x, y), width: 22, height: 8);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bankRect, const Radius.circular(2)),
+      Paint()..color = const Color(0xFF334155),
+    );
+
+    for (int i = 0; i < 4; i++) {
+      final lx = bankRect.left + 3 + i * 5.0;
+      canvas.drawCircle(
+        Offset(lx, y),
+        1.6,
+        Paint()..color = const Color(0xFFF8FAFC),
+      );
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // 2. 3D Perimeter Digital LED Barrier Boards & Sideline Venues
+  // ────────────────────────────────────────────────────────────
+  void _drawPerimeterBoards(Canvas canvas, PerspectiveCamera cam) {
+    final court = game.court;
+    final hw = court.halfWidth;
+    final theme = game.settings.courtTheme;
+
+    // Back baseline LED barrier in 3D
+    const boardH = 4.5;
+    const boardZ = -88.0 - 15.0; // Behind AI baseline
+    const boardLeftX = -40.0 - 16.0;
+    const boardRightX = 40.0 + 16.0;
+
+    final pBL = cam.project(Vec3(boardLeftX, 0, boardZ));
+    final pBR = cam.project(Vec3(boardRightX, 0, boardZ));
+    final pTL = cam.project(Vec3(boardLeftX, boardH, boardZ));
+    final pTR = cam.project(Vec3(boardRightX, boardH, boardZ));
+
+    if (pBL != null && pBR != null && pTL != null && pTR != null) {
+      final boardPath = Path()
+        ..moveTo(pTL.dx, pTL.dy)
+        ..lineTo(pTR.dx, pTR.dy)
+        ..lineTo(pBR.dx, pBR.dy)
+        ..lineTo(pBL.dx, pBL.dy)
+        ..close();
+
+      // Sleek dark LED board panel
+      canvas.drawPath(
+        boardPath,
+        Paint()
+          ..shader = const LinearGradient(
+            colors: [Color(0xFF0F172A), Color(0xFF020617)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ).createShader(Rect.fromLTRB(pTL.dx, pTL.dy, pBR.dx, pBR.dy)),
+      );
+
+      // Top glowing LED edge with theme color
+      canvas.drawLine(
+        pTL,
+        pTR,
+        Paint()
+          ..color = theme.ledAccentColor
+          ..strokeWidth = 2.2,
+      );
+
+      // Bottom metallic floor mounting rail
+      canvas.drawLine(
+        pBL,
+        pBR,
+        Paint()
+          ..color = const Color(0xFF334155)
+          ..strokeWidth = 1.5,
+      );
+
+      // Tournament Branding on the back board
+      final boardWidth = (pTR.dx - pTL.dx).abs();
+      if ((boardWidth - _lastBoardWidth).abs() > 1.0 ||
+          _courtBrandingPainter == null ||
+          _lastBoardTheme != theme) {
+        _lastBoardWidth = boardWidth;
+        _lastBoardTheme = theme;
+        _courtBrandingPainter = TextPainter(
+          text: TextSpan(
+            text: theme.sponsorBoardText,
+            style: TextStyle(
+              fontSize: (boardWidth * 0.024).clamp(7.0, 13.0),
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2.0,
+              color: const Color(0xFFF8FAFC).withAlpha(235),
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+      }
+      final tp = _courtBrandingPainter!;
+      final boardMidY = (pTL.dy + pBL.dy) / 2;
+      tp.paint(canvas, Offset((pTL.dx + pTR.dx) / 2 - tp.width / 2, boardMidY - tp.height / 2));
+    }
+
+    // Left and Right Side Barriers extending toward player
+    _drawSideBarrier(canvas, cam, -hw - 16.0, true, theme);
+    _drawSideBarrier(canvas, cam, hw + 16.0, false, theme);
+
+    // 3D Elevated Umpire / Referee Chair Stand on left sideline near net
+    _drawRefereeStand(canvas, cam, -hw - 11.0);
+
+    // 3D Player Equipment Bench on right sideline near net
+    _drawPlayerBench(canvas, cam, hw + 11.0);
+  }
+
+  void _drawSideBarrier(Canvas canvas, PerspectiveCamera cam, double xPos, bool isLeft, CourtTheme theme) {
+    const boardH = 3.8;
+    const zFar = -88.0 - 15.0;
+    const zNear = 88.0 + 18.0;
+
+    final pFarBot = cam.projectCoords(xPos, 0, zFar);
+    final pFarTop = cam.projectCoords(xPos, boardH, zFar);
+    final pNearBot = cam.projectCoords(xPos, 0, zNear);
+    final pNearTop = cam.projectCoords(xPos, boardH, zNear);
+
+    if (pFarBot == null || pFarTop == null || pNearBot == null || pNearTop == null) return;
+
+    final path = Path()
+      ..moveTo(pFarTop.dx, pFarTop.dy)
+      ..lineTo(pNearTop.dx, pNearTop.dy)
+      ..lineTo(pNearBot.dx, pNearBot.dy)
+      ..lineTo(pFarBot.dx, pFarBot.dy)
+      ..close();
+
+    if (game.settings.isLowEndMode) {
+      canvas.drawPath(path, _fastSideBarrierPaint);
+    } else {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..shader = LinearGradient(
+            colors: const [
+              Color(0xFF0F1E36),
+              Color(0xFF080D1A),
+            ],
+            begin: isLeft ? Alignment.centerRight : Alignment.centerLeft,
+            end: isLeft ? Alignment.centerLeft : Alignment.centerRight,
+          ).createShader(path.getBounds()),
+      );
+    }
+
+    // Glowing top trim in theme LED accent color
+    canvas.drawLine(
+      pFarTop,
+      pNearTop,
+      Paint()
+        ..color = theme.ledAccentColor.withAlpha(200)
+        ..strokeWidth = 1.8,
+    );
+
+    // Corner Stanchion Post at junction with backboard
+    canvas.drawLine(
+      pFarBot,
+      pFarTop,
+      Paint()
+        ..color = const Color(0xFF64748B)
+        ..strokeWidth = 2.5,
+    );
+  }
+
+  // ── 3D Elevated Umpire / Referee Chair Stand ────────────────
+  void _drawRefereeStand(Canvas canvas, PerspectiveCamera cam, double xPos) {
+    final pFootA = cam.projectCoords(xPos - 1.5, 0, -2.5);
+    final pFootB = cam.projectCoords(xPos + 1.5, 0, -2.5);
+    final pFootC = cam.projectCoords(xPos + 1.5, 0, 2.5);
+    final pFootD = cam.projectCoords(xPos - 1.5, 0, 2.5);
+
+    const platH = 4.8;
+    final pPlatA = cam.projectCoords(xPos - 1.2, platH, -2.0);
+    final pPlatB = cam.projectCoords(xPos + 1.2, platH, -2.0);
+    final pPlatC = cam.projectCoords(xPos + 1.2, platH, 2.0);
+    final pPlatD = cam.projectCoords(xPos - 1.2, platH, 2.0);
+
+    if (pFootA == null || pFootB == null || pFootC == null || pFootD == null ||
+        pPlatA == null || pPlatB == null || pPlatC == null || pPlatD == null) {
+      return;
+    }
+
+    final legPaint = Paint()
+      ..color = const Color(0xFF475569)
+      ..strokeWidth = 1.8;
+
+    canvas.drawLine(pFootA, pPlatA, legPaint);
+    canvas.drawLine(pFootB, pPlatB, legPaint);
+    canvas.drawLine(pFootC, pPlatC, legPaint);
+    canvas.drawLine(pFootD, pPlatD, legPaint);
+
+    final platPath = Path()
+      ..moveTo(pPlatA.dx, pPlatA.dy)
+      ..lineTo(pPlatB.dx, pPlatB.dy)
+      ..lineTo(pPlatC.dx, pPlatC.dy)
+      ..lineTo(pPlatD.dx, pPlatD.dy)
+      ..close();
+    canvas.drawPath(platPath, Paint()..color = const Color(0xFF1E293B));
+    canvas.drawPath(platPath, Paint()..color = const Color(0xFF94A3B8)..strokeWidth = 1.0..style = PaintingStyle.stroke);
+
+    const chairH = platH + 3.2;
+    final pCanopy = cam.projectCoords(xPos, chairH + 1.2, 0);
+    if (pCanopy != null) {
+      final pRefHead = cam.projectCoords(xPos, platH + 2.0, 0);
+      final pRefBody = cam.projectCoords(xPos, platH + 1.0, 0);
+      if (pRefHead != null && pRefBody != null) {
+        canvas.drawCircle(pRefHead, 3.2, Paint()..color = const Color(0xFFD4A373));
+        canvas.drawCircle(Offset(pRefHead.dx, pRefHead.dy - 1), 3.5, Paint()..color = const Color(0xFF0284C7));
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromCenter(center: pRefBody, width: 8, height: 7), const Radius.circular(2)),
+          Paint()..color = const Color(0xFFF8FAFC),
+        );
+      }
+      canvas.drawCircle(
+        pCanopy,
+        7.5,
+        Paint()..color = const Color(0xFF0284C7),
+      );
+      canvas.drawCircle(
+        pCanopy,
+        7.5,
+        Paint()..color = Colors.white..strokeWidth = 1.0..style = PaintingStyle.stroke,
+      );
+    }
+  }
+
+  // ── 3D Tournament Player Bench & Gear Caddy ─────────────────
+  void _drawPlayerBench(Canvas canvas, PerspectiveCamera cam, double xPos) {
+    const benchH = 1.8;
+    final pF1 = cam.projectCoords(xPos - 1.2, 0, -3.5);
+    final pF2 = cam.projectCoords(xPos + 1.2, 0, -3.5);
+    final pF3 = cam.projectCoords(xPos + 1.2, 0, 3.5);
+    final pF4 = cam.projectCoords(xPos - 1.2, 0, 3.5);
+
+    final pT1 = cam.projectCoords(xPos - 1.2, benchH, -3.5);
+    final pT2 = cam.projectCoords(xPos + 1.2, benchH, -3.5);
+    final pT3 = cam.projectCoords(xPos + 1.2, benchH, 3.5);
+    final pT4 = cam.projectCoords(xPos - 1.2, benchH, 3.5);
+
+    if (pF1 == null || pF2 == null || pF3 == null || pF4 == null ||
+        pT1 == null || pT2 == null || pT3 == null || pT4 == null) {
+      return;
+    }
+
+    final legPaint = Paint()..color = const Color(0xFF334155)..strokeWidth = 1.8;
+    canvas.drawLine(pF1, pT1, legPaint);
+    canvas.drawLine(pF2, pT2, legPaint);
+    canvas.drawLine(pF3, pT3, legPaint);
+    canvas.drawLine(pF4, pT4, legPaint);
+
+    final seatPath = Path()
+      ..moveTo(pT1.dx, pT1.dy)
+      ..lineTo(pT2.dx, pT2.dy)
+      ..lineTo(pT3.dx, pT3.dy)
+      ..lineTo(pT4.dx, pT4.dy)
+      ..close();
+    canvas.drawPath(seatPath, Paint()..color = const Color(0xFF0F172A));
+    canvas.drawPath(seatPath, Paint()..color = const Color(0xFF0284C7)..strokeWidth = 1.2..style = PaintingStyle.stroke);
+
+    final pTowel = cam.projectCoords(xPos, benchH + 0.5, 1.2);
+    if (pTowel != null) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromCenter(center: pTowel, width: 6, height: 4), const Radius.circular(1.5)),
+        Paint()..color = const Color(0xFFF8FAFC),
+      );
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // 3. Tournament Court Surface & Regulation Markings
+  // ────────────────────────────────────────────────────────────
+  void _drawCourt(Canvas canvas, Size sz, PerspectiveCamera cam) {
+    final court = game.court;
+    final hw = court.halfWidth;
+    final hl = court.halfLength;
+    final theme = game.settings.courtTheme;
+
+    // ── A. Tournament Apron (Outer Run-off Area) ──────────────
+    const apronPadX = 14.0;
+    const apronPadZ = 15.0;
+    final p0 = cam.projectCoords(-hw - apronPadX, 0, -hl - apronPadZ);
+    final p1 = cam.projectCoords(hw + apronPadX, 0, -hl - apronPadZ);
+    final p2 = cam.projectCoords(hw + apronPadX, 0, hl + apronPadZ + 6);
+    final p3 = cam.projectCoords(-hw - apronPadX, 0, hl + apronPadZ + 6);
+
+    if (p0 != null && p1 != null && p2 != null && p3 != null) {
+      final apronPath = Path()
+        ..moveTo(p0.dx, p0.dy)
+        ..lineTo(p1.dx, p1.dy)
+        ..lineTo(p2.dx, p2.dy)
+        ..lineTo(p3.dx, p3.dy)
+        ..close();
+
+      if (game.settings.isLowEndMode) {
+        canvas.drawPath(apronPath, Paint()..color = theme.apronColorDark);
+      } else {
+        canvas.drawPath(
+          apronPath,
+          Paint()
+            ..shader = LinearGradient(
+              colors: [
+                theme.apronColorDark,
+                theme.apronColor,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ).createShader(apronPath.getBounds()),
+        );
+
+        // Subtle outer apron border
+        canvas.drawPath(
+          apronPath,
+          Paint()
+            ..color = theme.apronColor.withAlpha(80)
+            ..strokeWidth = 1.5
+            ..style = PaintingStyle.stroke,
+        );
+      }
+
+      // Stenciled Tournament Watermark Decal on Apron Floor behind AI baseline
+      final pDecalL = cam.projectCoords(-hw * 0.6, 0, -hl - 6.0);
+      final pDecalR = cam.projectCoords(hw * 0.6, 0, -hl - 6.0);
+      if (pDecalL != null && pDecalR != null) {
+        final decalWidth = (pDecalR.dx - pDecalL.dx).abs();
+        final decalPainter = TextPainter(
+          text: TextSpan(
+            text: '\u2605  ${theme.displayName}  \u2605',
+            style: TextStyle(
+              fontFamily: AppFonts.orbitron,
+              fontSize: (decalWidth * 0.038).clamp(8.0, 16.0),
+              fontWeight: FontWeight.w900,
+              letterSpacing: 3.0,
+              color: const Color(0x35FFFFFF),
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        decalPainter.paint(
+          canvas,
+          Offset((pDecalL.dx + pDecalR.dx) / 2 - decalPainter.width / 2, (pDecalL.dy + pDecalR.dy) / 2 - decalPainter.height / 2),
+        );
+      }
+    }
+
+    // ── B. Playing Court Surface ───────────────────────────────
+    final c0 = cam.projectCoords(-hw, 0, -hl);
+    final c1 = cam.projectCoords(hw, 0, -hl);
+    final c2 = cam.projectCoords(hw, 0, hl);
+    final c3 = cam.projectCoords(-hw, 0, hl);
+    if (c0 == null || c1 == null || c2 == null || c3 == null) return;
+
+    final courtPath = Path()
+      ..moveTo(c0.dx, c0.dy)
+      ..lineTo(c1.dx, c1.dy)
+      ..lineTo(c2.dx, c2.dy)
+      ..lineTo(c3.dx, c3.dy)
+      ..close();
+
+    if (game.settings.isLowEndMode) {
+      canvas.drawPath(courtPath, Paint()..color = theme.surfaceColor);
+    } else {
+      // 1. Acrylic Sports Coating Surface Gradient
+      canvas.drawPath(
+        courtPath,
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              theme.surfaceColorDark,
+              theme.surfaceColor,
+              theme.surfaceColorLight,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.45, 1.0],
+          ).createShader(courtPath.getBounds()),
+      );
+
+      // 2. Overhead Arena Spotlight Radial Sheen (simulates stadium floodlights illuminating midcourt)
+      final centerProj = cam.projectCoords(0, 0, 0);
+      if (centerProj != null) {
+        canvas.save();
+        canvas.clipPath(courtPath);
+        final courtBounds = courtPath.getBounds();
+        final spotRadius = courtBounds.width * 0.85;
+        canvas.drawCircle(
+          centerProj,
+          spotRadius,
+          Paint()
+            ..shader = RadialGradient(
+              colors: [
+                theme.surfaceColorLight.withAlpha(55),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 1.0],
+            ).createShader(Rect.fromCircle(center: centerProj, radius: spotRadius)),
+        );
+
+        // For School Gym: subtle procedural hardwood planks
+        if (theme == CourtTheme.gym) {
+          final plankPaint = Paint()
+            ..color = const Color(0x18FFFFFF)
+            ..strokeWidth = 0.8;
+          for (double z = -hl; z <= hl; z += 6.0) {
+            final pl1 = cam.projectCoords(-hw, 0, z);
+            final pl2 = cam.projectCoords(hw, 0, z);
+            if (pl1 != null && pl2 != null) {
+              canvas.drawLine(pl1, pl2, plankPaint);
+            }
+          }
+        }
+        canvas.restore();
+      }
+    }
+
+    // ── C. Non-Volley Zone (The Kitchen) ──────────────────────
+    _drawZone(canvas, cam, hw, court.playerKitchenNear, court.playerKitchenFar,
+        theme.kitchenColor);
+    _drawZone(canvas, cam, hw, court.aiKitchenFar, court.aiKitchenNear,
+        theme.kitchenColorDark);
+
+    // ── D. Regulation Court Markings (Dual-Pass Painted Lines) ──
+    _drawCourtLines(canvas, cam, hw, hl, court.playerKitchenFar, court.aiKitchenFar, theme);
+  }
+
+  void _drawZone(Canvas canvas, PerspectiveCamera cam, double halfW,
+      double zNear, double zFar, Color color) {
+    final p0 = cam.projectCoords(-halfW, 0, zNear);
+    final p1 = cam.projectCoords(halfW, 0, zNear);
+    final p2 = cam.projectCoords(halfW, 0, zFar);
+    final p3 = cam.projectCoords(-halfW, 0, zFar);
+    if (p0 == null || p1 == null || p2 == null || p3 == null) return;
+
+    final path = Path()
+      ..moveTo(p0.dx, p0.dy)
+      ..lineTo(p1.dx, p1.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..lineTo(p3.dx, p3.dy)
+      ..close();
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  void _drawCourtLines(Canvas canvas, PerspectiveCamera cam, double hw,
+      double hl, double kitchenZ, double aiKitchenZ, CourtTheme theme) {
+    final shadowLinePaint = Paint()
+      ..color = const Color(0x35000000)
+      ..strokeWidth = 3.2
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke;
+
+    final regulationLinePaint = Paint()
+      ..color = theme.lineColor
+      ..strokeWidth = 2.2
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke;
+
+    void lineCoords(double ax, double ay, double az, double bx, double by, double bz) {
+      final pa = cam.projectCoords(ax, ay, az);
+      final pb = cam.projectCoords(bx, by, bz);
+      if (pa != null && pb != null) {
+        // Pass 1: Under-layer contact shadow for realism
+        canvas.drawLine(Offset(pa.dx, pa.dy + 0.8), Offset(pb.dx, pb.dy + 0.8), shadowLinePaint);
+        // Pass 2: Core crisp painted line
+        canvas.drawLine(pa, pb, regulationLinePaint);
+      }
+    }
+
+    // Outer boundary lines
+    lineCoords(-hw, 0, hl, hw, 0, hl);   // Player baseline
+    lineCoords(-hw, 0, -hl, hw, 0, -hl); // AI baseline
+    lineCoords(-hw, 0, -hl, -hw, 0, hl); // Left sideline
+    lineCoords(hw, 0, -hl, hw, 0, hl);   // Right sideline
+
+    // Center service lines (extends from baseline to kitchen line)
+    lineCoords(0, 0, hl, 0, 0, kitchenZ);
+    lineCoords(0, 0, -hl, 0, 0, aiKitchenZ);
+
+    // Kitchen (Non-Volley Zone) lines
+    lineCoords(-hw, 0, kitchenZ, hw, 0, kitchenZ);
+    lineCoords(-hw, 0, aiKitchenZ, hw, 0, aiKitchenZ);
+
+    // Official Baseline Center Hash Marks (Regulation 4-inch tick mark)
+    lineCoords(0, 0, hl, 0, 0, hl - 2.5);
+    lineCoords(0, 0, -hl, 0, 0, -hl + 2.5);
+  }
+
+  // ── Serve Target Diagonal Service Box Highlight ─────────────
+  void _drawServiceBoxHighlight(Canvas canvas, PerspectiveCamera cam) {
+    final court = game.court;
+    final hw = court.halfWidth;
+    final hl = court.halfLength;
+    final kitchenZ = court.kitchenDepth;
+    final serverRight = game.scoreController.serverShouldBeOnRight;
+    final isPlayerServing = game.scoreController.isPlayerServing;
+
+    // Determine target service box coordinates:
+    double x1, x2, z1, z2;
+    if (isPlayerServing) {
+      // Human serves to AI side (negative Z)
+      z1 = -kitchenZ;
+      z2 = -hl;
+      if (serverRight) {
+        x1 = -hw;
+        x2 = 0;
+      } else {
+        x1 = 0;
+        x2 = hw;
+      }
+    } else {
+      // AI serves to Player side (positive Z)
+      z1 = kitchenZ;
+      z2 = hl;
+      if (serverRight) {
+        x1 = 0;
+        x2 = hw;
+      } else {
+        x1 = -hw;
+        x2 = 0;
+      }
+    }
+
+    final p1 = cam.projectCoords(x1, 0, z1);
+    final p2 = cam.projectCoords(x2, 0, z1);
+    final p3 = cam.projectCoords(x2, 0, z2);
+    final p4 = cam.projectCoords(x1, 0, z2);
+    if (p1 == null || p2 == null || p3 == null || p4 == null) return;
+
+    final path = Path()
+      ..moveTo(p1.dx, p1.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..lineTo(p3.dx, p3.dy)
+      ..lineTo(p4.dx, p4.dy)
+      ..close();
+
+    final pulse = (math.sin(animTime * 4) + 1) / 2;
+
+    // Translucent tournament green highlight
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = AppColors.ballColor.withAlpha((22 + pulse * 18).toInt())
+        ..style = PaintingStyle.fill,
+    );
+
+    // Glowing border outline
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = AppColors.ballColor.withAlpha((140 + pulse * 90).toInt())
+        ..strokeWidth = 2.0
+        ..style = PaintingStyle.stroke,
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // 4. Regulation Net with Center Strap & Realistic Sag
+  // ────────────────────────────────────────────────────────────
+  void _drawNet(Canvas canvas, PerspectiveCamera cam) {
+    const netPostH = CourtDimensions.netHeight; // 3.0 units (36 inches)
+    const netCenterH = netPostH * 0.944;        // 2.83 units (34 inches at center!)
+    const hw = CourtDimensions.halfWidth;
+    const postX = hw + 2.5;
+
+    // Posts in 3D
+    final postLeftTop = cam.projectCoords(-postX, netPostH, 0);
+    final postLeftBot = cam.projectCoords(-postX, 0, 0);
+    final postRightTop = cam.projectCoords(postX, netPostH, 0);
+    final postRightBot = cam.projectCoords(postX, 0, 0);
+
+    // Center point in 3D
+    final centerTop = cam.projectCoords(0, netCenterH, 0);
+    final centerBot = cam.projectCoords(0, 0, 0);
+
+    if (postLeftTop == null || postLeftBot == null ||
+        postRightTop == null || postRightBot == null ||
+        centerTop == null || centerBot == null) {
+      return;
+    }
+
+    // ── Net Ground Shadow (respects showShadows) ───────────────────
+    if (game.settings.showShadows) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset((postLeftBot.dx + postRightBot.dx) / 2, (postLeftBot.dy + postRightBot.dy) / 2 + 1),
+          width: (postRightBot.dx - postLeftBot.dx).abs() * 0.96,
+          height: 6,
+        ),
+        _netShadowPaint,
+      );
+    }
+
+    // ── Net Mesh: adaptive LOD based on graphics quality ────
+    if (game.settings.graphicsQuality == GraphicsQuality.low) {
+      // Clean, fast net quad on low-end mode — saves 50+ projection and path ops
+      final netQuad = Path()
+        ..moveTo(postLeftTop.dx, postLeftTop.dy)
+        ..quadraticBezierTo(centerTop.dx, centerTop.dy, postRightTop.dx, postRightTop.dy)
+        ..lineTo(postRightBot.dx, postRightBot.dy)
+        ..lineTo(postLeftBot.dx, postLeftBot.dy)
+        ..close();
+      canvas.drawPath(netQuad, _netMeshQuadPaint);
+    } else {
+      final segments = (game.settings.graphicsQuality == GraphicsQuality.medium) ? 4 : 8;
+      for (int i = 0; i <= segments; i++) {
+        final t = i / segments;
+        final x3d = -hw + t * (hw * 2);
+        // Realistic catenary curve drop toward center
+        final sagFactor = 1.0 - math.sin(t * math.pi) * 0.056;
+        final y3d = netPostH * sagFactor;
+
+        final pTop = cam.projectCoords(x3d, y3d, 0);
+        final pBot = cam.projectCoords(x3d, 0, 0);
+        if (pTop != null && pBot != null) {
+          canvas.drawLine(pTop, pBot, _meshPaint);
+        }
+      }
+
+      // Horizontal mesh cords
+      final horizCords = (game.settings.graphicsQuality == GraphicsQuality.medium) ? 2 : 4;
+      for (int j = 1; j <= horizCords; j++) {
+        final frac = j / (horizCords + 1);
+        final meshPath = Path();
+        bool started = false;
+        for (int i = 0; i <= segments; i++) {
+          final t = i / segments;
+          final x3d = -hw + t * (hw * 2);
+          final sagFactor = 1.0 - math.sin(t * math.pi) * 0.056;
+          final y3d = netPostH * sagFactor * frac;
+          final pt = cam.projectCoords(x3d, y3d, 0);
+          if (pt != null) {
+            if (!started) {
+              meshPath.moveTo(pt.dx, pt.dy);
+              started = true;
+            } else {
+              meshPath.lineTo(pt.dx, pt.dy);
+            }
+          }
+        }
+        canvas.drawPath(meshPath, _meshPaint);
+      }
+    }
+
+        // Top White Vinyl Headband (Regulation Top Cable)
+    final topBand = Path()
+      ..moveTo(postLeftTop.dx, postLeftTop.dy)
+      ..quadraticBezierTo(centerTop.dx, centerTop.dy, postRightTop.dx, postRightTop.dy);
+    canvas.drawPath(topBand, _topCableBackPaint);
+    canvas.drawPath(topBand, _topCablePaint);
+
+    // Center adjustment strap
+    canvas.drawLine(centerTop, centerBot, _strapPaint);
+    canvas.drawCircle(Offset(centerTop.dx, centerTop.dy + 8), 2.5, _strapBucklePaint);
+
+    // Steel net posts with ground base plates
+    final postLeftGround = cam.projectCoords(-postX, 0, 0);
+    final postRightGround = cam.projectCoords(postX, 0, 0);
+    if (postLeftGround != null && postRightGround != null) {
+      canvas.drawOval(Rect.fromCenter(center: postLeftGround, width: 8, height: 3.5), _postShadowPaint);
+      canvas.drawOval(Rect.fromCenter(center: postRightGround, width: 8, height: 3.5), _postShadowPaint);
+    }
+
+    canvas.drawLine(postLeftTop, postLeftBot, _postShadowPaint);
+    canvas.drawLine(postLeftTop, postLeftBot, _postBodyPaint);
+    canvas.drawLine(postLeftTop, postLeftBot, _postHighlightPaint);
+    canvas.drawCircle(postLeftTop, 3.5, _postCapPaint);
+
+    canvas.drawLine(postRightTop, postRightBot, _postShadowPaint);
+    canvas.drawLine(postRightTop, postRightBot, _postBodyPaint);
+    canvas.drawLine(postRightTop, postRightBot, _postHighlightPaint);
+    canvas.drawCircle(postRightTop, 3.5, _postCapPaint);
+
+    // Tension ratchet crank handle on the right post
+    final crankPoint = Offset(postRightTop.dx + 4.5, postRightTop.dy + 6.0);
+    canvas.drawLine(Offset(postRightTop.dx, postRightTop.dy + 6.0), crankPoint, Paint()..color = const Color(0xFF94A3B8)..strokeWidth = 2.0);
+    canvas.drawCircle(crankPoint, 2.0, Paint()..color = const Color(0xFF0F172A));
+  }
+
+  void _drawPlayer(Canvas canvas, PerspectiveCamera cam, Player p) {
+    CharacterRenderer.drawPlayer(
+      canvas: canvas,
+      player: p,
+      cam: cam,
+      isLowEnd: game.settings.isLowEndMode,
+      showShadow: game.settings.showShadows,
+      equippedSkin: p.isHuman ? game.currentPlayerSkin : null,
+      equippedPaddle: p.isHuman ? game.currentPaddle : null,
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // 6. Ball Shadow, Speed Trail & High-Vis Tournament Pickleball
+  // ────────────────────────────────────────────────────────────
+  void _drawBallShadow(Canvas canvas, PerspectiveCamera cam) {
+    if (!game.settings.showShadows) return;
+    final ball = game.ball;
+    final isVisible = ball.isInPlay || game.state == GameState.waitingForServe;
+    if (!isVisible) return;
+
+    final shadowPos = cam.projectCoords(ball.position.x, 0.05, ball.position.z);
+    if (shadowPos == null) return;
+
+    final heightFactor = (1.0 - (ball.position.y / 55).clamp(0.0, 1.0));
+    final shadowScale = cam.depthScale(ball.position);
+
+    // Cheap oval shadow — no MaskFilter.blur (saved ~2ms/frame on web)
+    _ballShadowPaint.color = Color.fromARGB(
+      (110 * heightFactor).toInt(),
+      0, 0, 0,
+    );
+
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: shadowPos,
+        width: 14 * shadowScale * (0.6 + 0.4 * heightFactor),
+        height: 6 * shadowScale * (0.6 + 0.4 * heightFactor),
+      ),
+      _ballShadowPaint,
+    );
+  }
+
+  void _drawBallTrail(Canvas canvas, PerspectiveCamera cam) {
+    if (!game.settings.showBallTrail) return;
+    final ball = game.ball;
+    if (!ball.isInPlay || ball.trail.length < 2) return;
+
+    // ── Ultimate Custom Trail VFX ──────────────────────────────
+    if (ball.isUltimate) {
+      final ultType = ball.ultimateType ?? UltimateType.thunderbolt;
+      Color primaryTrailColor;
+      Color secondaryTrailColor;
+      double strokeMult = 1.0;
+
+      switch (ultType) {
+        case UltimateType.thunderbolt:
+          primaryTrailColor = const Color(0xFF38BDF8); // lightning cyan
+          secondaryTrailColor = const Color(0xFFFBBF24); // gold electricity
+          strokeMult = 1.6;
+          break;
+        case UltimateType.ghostPhantom:
+          primaryTrailColor = const Color(0xFFA855F7); // neon violet
+          secondaryTrailColor = const Color(0xFFEC4899); // hot magenta
+          strokeMult = 1.3;
+          break;
+        case UltimateType.dragonMeteor:
+          primaryTrailColor = const Color(0xFFF97316); // fiery orange
+          secondaryTrailColor = const Color(0xFFEF4444); // blazing crimson
+          strokeMult = 1.8;
+          break;
+        case UltimateType.frostbite:
+          primaryTrailColor = const Color(0xFF00E5FF); // cryo cyan
+          secondaryTrailColor = const Color(0xFFE0F7FA); // ice crystal white
+          strokeMult = 1.4;
+          break;
+      }
+
+      for (int i = 1; i < ball.trail.length; i++) {
+        final prev = cam.project(ball.trail[i - 1]);
+        final curr = cam.project(ball.trail[i]);
+        if (prev == null || curr == null) continue;
+
+        final t = i / ball.trail.length;
+        final alpha = (t * 240).toInt();
+
+        // Primary core beam
+        canvas.drawLine(
+          prev,
+          curr,
+          Paint()
+            ..color = primaryTrailColor.withAlpha(alpha)
+            ..strokeWidth = 4.2 * t * strokeMult
+            ..strokeCap = StrokeCap.round,
+        );
+
+        // Outer neon aura ribbon
+        canvas.drawLine(
+          prev,
+          curr,
+          Paint()
+            ..color = secondaryTrailColor.withAlpha((alpha * 0.7).toInt())
+            ..strokeWidth = 6.8 * t * strokeMult
+            ..strokeCap = StrokeCap.round,
+        );
+
+        // Thunderbolt electric spark jitter
+        if (ultType == UltimateType.thunderbolt && i % 2 == 0) {
+          final jitterX = (math.sin(i * 9.0 + animTime * 20.0)) * 5.0;
+          final jitterY = (math.cos(i * 9.0 + animTime * 20.0)) * 5.0;
+          canvas.drawLine(
+            curr,
+            Offset(curr.dx + jitterX, curr.dy + jitterY),
+            Paint()
+              ..color = const Color(0xFFFFFFFF).withAlpha((alpha * 0.9).toInt())
+              ..strokeWidth = 1.8,
+          );
+        }
+
+        // Dragon Meteor ember spark specks
+        if (ultType == UltimateType.dragonMeteor && i % 2 == 1) {
+          final emberX = (math.sin(i * 13.0 + animTime * 15.0)) * 6.0;
+          final emberY = (math.cos(i * 13.0 + animTime * 15.0)) * 6.0;
+          canvas.drawCircle(
+            Offset(curr.dx + emberX, curr.dy + emberY),
+            2.0 * t,
+            Paint()..color = const Color(0xFFFBBF24).withAlpha(alpha),
+          );
+        }
+      }
+      return;
+    }
+
+    final isPowerShot = ball.speed > PhysicsConstants.normalHitPower * 0.8;
+
+    for (int i = 1; i < ball.trail.length; i++) {
+      final prev = cam.project(ball.trail[i - 1]);
+      final curr = cam.project(ball.trail[i]);
+      if (prev == null || curr == null) continue;
+
+      final t = i / ball.trail.length;
+      final alpha = (t * (isPowerShot ? 220 : 130)).toInt();
+      final color = isPowerShot
+          ? AppColors.power.withAlpha(alpha)
+          : AppColors.ballColor.withAlpha(alpha);
+
+      canvas.drawLine(
+        prev,
+        curr,
+        Paint()
+          ..color = color
+          ..strokeWidth = isPowerShot ? (3.5 * t) : (2.2 * t)
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  void _drawBall(Canvas canvas, PerspectiveCamera cam) {
+    final ball = game.ball;
+    final isVisible = (ball.state != BallState.dead) &&
+        (ball.isInPlay || game.state == GameState.waitingForServe);
+    if (!isVisible) return;
+
+    final screenPos = cam.projectCoords(ball.position.x, ball.position.y, ball.position.z);
+    if (screenPos == null) return;
+
+    final scale = cam.depthScale(ball.position).clamp(0.4, 2.5);
+    final radius = PhysicsConstants.ballRadius * 2.3 * scale;
+
+    // Ultimate glowing energy aura corona
+    if (ball.isUltimate) {
+      final ultType = ball.ultimateType ?? UltimateType.thunderbolt;
+      Color auraColor;
+      switch (ultType) {
+        case UltimateType.thunderbolt:
+          auraColor = const Color(0xFF38BDF8);
+          break;
+        case UltimateType.ghostPhantom:
+          auraColor = const Color(0xFFA855F7);
+          break;
+        case UltimateType.dragonMeteor:
+          auraColor = const Color(0xFFF97316);
+          break;
+        case UltimateType.frostbite:
+          auraColor = const Color(0xFF00E5FF);
+          break;
+      }
+      canvas.drawCircle(
+        screenPos,
+        radius * 1.85,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              auraColor.withAlpha(210),
+              auraColor.withAlpha(80),
+              auraColor.withAlpha(0),
+            ],
+            stops: const [0.35, 0.70, 1.0],
+          ).createShader(
+              Rect.fromCircle(center: screenPos, radius: radius * 1.85)),
+      );
+    }
+
+    // High-Vis Tournament Optic Yellow Ball Body
+    final ballPaint = Paint()
+      ..shader = const RadialGradient(
+        colors: [
+          Color(0xFFF9FBE7), // Bright specular highlight
+          Color(0xFFD4E157), // Tournament chartreuse yellow
+          Color(0xFFAFB42B), // Ambient shadow side
+        ],
+        center: Alignment(-0.35, -0.40),
+        stops: [0.0, 0.45, 1.0],
+      ).createShader(Rect.fromCircle(center: screenPos, radius: radius));
+    canvas.drawCircle(screenPos, radius, ballPaint);
+
+    // Subtle edge rim for crisp visibility
+    canvas.drawCircle(
+      screenPos,
+      radius,
+      _ballEdgePaint,
+    );
+
+    // Aerodynamic Perforated Holes (Official 26-40 hole pattern) — skipped in low-end mode
+    if (!game.settings.isLowEndMode) {
+      for (final angle in const [0.0, 1.05, 2.09, 3.14, 4.19, 5.24]) {
+        final hx =
+            screenPos.dx + math.cos(angle + ball.spinAngle) * radius * 0.52;
+        final hy =
+            screenPos.dy + math.sin(angle + ball.spinAngle) * radius * 0.52;
+        canvas.drawCircle(Offset(hx, hy), radius * 0.16, _holePaint);
+      }
+      // Center hole
+      canvas.drawCircle(screenPos, radius * 0.14, _holePaint);
+    }
+  }
+
+  void _drawImpactFlash(Canvas canvas, PerspectiveCamera cam) {
+    final ball = game.ball;
+    if (ball.impactFlash <= 0) return;
+
+    final screenPos = cam.projectCoords(ball.position.x, ball.position.y, ball.position.z);
+    if (screenPos == null) return;
+
+    final scale = cam.depthScale(ball.position).clamp(0.4, 2.5);
+    final r = PhysicsConstants.ballRadius * 5.5 * scale * ball.impactFlash;
+
+    // Clean radial impact burst — cheap, no blur
+    final flashPaint = Paint()
+      ..color = Colors.white.withAlpha((180 * ball.impactFlash).toInt());
+    canvas.drawCircle(screenPos, r, flashPaint);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // 7. Broadcast-Style In-Game Messages
+  // ────────────────────────────────────────────────────────────
+  void _drawMessage(Canvas canvas, Size size) {
+    if (game.lastMessage.isEmpty || game.messageTimer <= 0) return;
+
+    final alpha = (game.messageTimer / 1.5).clamp(0.0, 1.0);
+    final scale = 1.0 + (1.0 - alpha) * 0.2;
+
+    final msgText = game.lastMessage.toUpperCase();
+    if (_cachedMsgText != msgText || _cachedMsgPainter == null) {
+      _cachedMsgText = msgText;
+      _cachedMsgPainter = TextPainter(
+        text: TextSpan(
+          text: msgText,
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFFF8FAFC),
+            letterSpacing: 4.0,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    }
+
+    final tp = _cachedMsgPainter!;
+    final badgeWidth = (tp.width + 48) * scale;
+    final badgeHeight = (tp.height + 20) * scale;
+    final badgeCenter = Offset(size.width / 2, size.height * 0.30);
+    final badgeRect = Rect.fromCenter(center: badgeCenter, width: badgeWidth, height: badgeHeight);
+
+    // Frosted dark pill
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(badgeRect, const Radius.circular(24)),
+      Paint()..color = const Color(0xEB0B132B).withAlpha((235 * alpha).toInt()),
+    );
+
+    // Gold / Coral accent trim
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(badgeRect, const Radius.circular(24)),
+      Paint()
+        ..color = const Color(0xFFF59E0B).withAlpha((200 * alpha).toInt())
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke,
+    );
+
+    canvas.save();
+    canvas.translate(badgeCenter.dx, badgeCenter.dy);
+    canvas.scale(scale);
+    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+    canvas.restore();
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // 8. Ultimate Skill Special VFX Renderers
+  // ────────────────────────────────────────────────────────────
+  void _drawFrostIceZone(Canvas canvas, PerspectiveCamera cam) {
+    final center3D = game.ball.iceZoneCenter;
+    if (center3D == null || game.ball.iceZoneTimer <= 0) return;
+
+    final center2D = cam.project(Vec3(center3D.x, 0.08, center3D.z));
+    if (center2D == null) return;
+
+    final scale = cam.depthScale(center3D);
+    final radius = game.ball.iceZoneRadius * scale * 2.2;
+    final alpha = (game.ball.iceZoneTimer / 3.5).clamp(0.0, 1.0);
+
+    // Ice ground oval
+    final icePaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xAA00E5FF).withAlpha((140 * alpha).toInt()),
+          const Color(0x6600B0FF).withAlpha((90 * alpha).toInt()),
+          const Color(0x000284C7),
+        ],
+        stops: const [0.0, 0.65, 1.0],
+      ).createShader(Rect.fromCircle(center: center2D, radius: radius));
+
+    canvas.drawOval(
+      Rect.fromCenter(center: center2D, width: radius * 2, height: radius * 0.9),
+      icePaint,
+    );
+
+    // Frost crystal ring border
+    final ringPaint = Paint()
+      ..color = const Color(0xFFE0F7FA).withAlpha((180 * alpha).toInt())
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: center2D, width: radius * 1.9, height: radius * 0.85),
+      ringPaint,
+    );
+
+    // Snowflake crystal spikes around perimeter
+    final spikePaint = Paint()
+      ..color = const Color(0xFFFFFFFF).withAlpha((210 * alpha).toInt())
+      ..strokeWidth = 1.6;
+    for (int i = 0; i < 8; i++) {
+      final ang = i * math.pi / 4 + animTime * 0.5;
+      final px = center2D.dx + math.cos(ang) * radius * 0.95;
+      final py = center2D.dy + math.sin(ang) * radius * 0.42;
+      canvas.drawLine(Offset(px - 3, py), Offset(px + 3, py), spikePaint);
+      canvas.drawLine(Offset(px, py - 3), Offset(px, py + 3), spikePaint);
+    }
+  }
+
+  void _drawGhostClones(Canvas canvas, PerspectiveCamera cam) {
+    final ball = game.ball;
+    if (!ball.isInPlay) return;
+
+    final allClones = [...ball.ghostClones1, ...ball.ghostClones2];
+    for (int i = 0; i < allClones.length; i++) {
+      final clonePos = allClones[i];
+      final screenPos = cam.project(clonePos);
+      if (screenPos == null) continue;
+
+      final scale = cam.depthScale(clonePos).clamp(0.4, 2.5);
+      final radius = PhysicsConstants.ballRadius * 2.2 * scale;
+
+      // Holographic ethereal clone
+      final clonePaint = Paint()
+        ..shader = const RadialGradient(
+          colors: [
+            Color(0xEEF0ABFC),
+            Color(0x88A855F7),
+            Color(0x006B21A8),
+          ],
+          stops: [0.0, 0.6, 1.0],
+        ).createShader(
+            Rect.fromCircle(center: screenPos, radius: radius * 1.5));
+
+      canvas.drawCircle(screenPos, radius, clonePaint);
+
+      // Neon ripple ring
+      canvas.drawCircle(
+        screenPos,
+        radius * 1.3,
+        Paint()
+          ..color = const Color(0xAAEC4899)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+    }
+  }
+
+  void _drawUltimateVignette(Canvas canvas, Size size) {
+    final ultSkill = game.currentUltimate;
+    final pulse = 0.5 + 0.5 * math.sin(animTime * 8.0);
+    final borderAlpha = (60 + 60 * pulse).toInt();
+
+    // Radiant outer border glow
+    final borderPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          ultSkill.primaryColor.withAlpha(borderAlpha),
+          ultSkill.accentColor.withAlpha((borderAlpha * 0.7).toInt()),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6.0;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(3, 3, size.width - 6, size.height - 6),
+        const Radius.circular(16),
+      ),
+      borderPaint,
+    );
+  }
+
+  void _drawUltimateCutIn(Canvas canvas, Size size) {
+    final ultType = game.activeCutinUltimate;
+    if (ultType == null || game.ultimateCutinTimer <= 0) return;
+
+    final ultSkill = getUltimateByType(ultType);
+    final progress = (game.ultimateCutinTimer / 1.4).clamp(0.0, 1.0);
+    final alpha = (progress > 0.8
+            ? (1.0 - progress) / 0.2
+            : (progress < 0.2 ? progress / 0.2 : 1.0))
+        .clamp(0.0, 1.0);
+
+    const ribbonHeight = 72.0;
+    final centerY = size.height * 0.40;
+
+    canvas.save();
+    // Dynamic angled speed ribbon
+    final path = Path()
+      ..moveTo(0, centerY - ribbonHeight / 2 - 10)
+      ..lineTo(size.width, centerY - ribbonHeight / 2 + 10)
+      ..lineTo(size.width, centerY + ribbonHeight / 2 + 10)
+      ..lineTo(0, centerY + ribbonHeight / 2 - 10)
+      ..close();
+
+    // Dark sleek backdrop with neon edge
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color =
+            const Color(0xEE0B132B).withAlpha((235 * alpha).toInt()),
+    );
+
+    // Accent energy stripe
+    final stripePaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          ultSkill.primaryColor.withAlpha((255 * alpha).toInt()),
+          ultSkill.accentColor.withAlpha((255 * alpha).toInt()),
+          ultSkill.primaryColor.withAlpha((255 * alpha).toInt()),
+        ],
+      ).createShader(Rect.fromLTWH(
+          0, centerY - ribbonHeight / 2, size.width, ribbonHeight))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0;
+    canvas.drawPath(path, stripePaint);
+
+    // Text & Subtitle
+    final titlePainter = TextPainter(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: '${ultSkill.name}  ',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: Colors.white.withAlpha((255 * alpha).toInt()),
+              letterSpacing: 3.5,
+              shadows: [
+                Shadow(
+                  color: ultSkill.primaryColor
+                      .withAlpha((240 * alpha).toInt()),
+                  blurRadius: 14,
+                ),
+              ],
+            ),
+          ),
+          TextSpan(
+            text: '[${ultSkill.japaneseName}]',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: ultSkill.primaryColor
+                  .withAlpha((245 * alpha).toInt()),
+              letterSpacing: 2.0,
+            ),
+          ),
+        ],
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final subtitlePainter = TextPainter(
+      text: TextSpan(
+        text: '★ SUPER ULTIMATE ACTIVATED ★',
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          color: ultSkill.accentColor.withAlpha((230 * alpha).toInt()),
+          letterSpacing: 4.0,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final textX = size.width / 2 - titlePainter.width / 2;
+    titlePainter.paint(canvas, Offset(textX, centerY - 16));
+    subtitlePainter.paint(
+      canvas,
+      Offset(size.width / 2 - subtitlePainter.width / 2, centerY + 12),
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(CourtPainter oldDelegate) {
+    return oldDelegate.game != game ||
+        oldDelegate.animTimeOverride != animTimeOverride;
+  }
+}
