@@ -79,6 +79,11 @@ class CourtPainter extends CustomPainter {
   static final Paint _ultimateEffectPaint = Paint();
   static final Paint _ultimateEffectStrokePaint = Paint()
     ..style = PaintingStyle.stroke;
+  static final Paint _serveGuidePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+  static final Paint _serveTargetPaint = Paint();
   UltimateType? _cachedCutInType;
   TextPainter? _cachedCutInTitle;
   TextPainter? _cachedCutInSubtitle;
@@ -243,6 +248,7 @@ class CourtPainter extends CustomPainter {
 
     // 2. Perspective ground pass: surface, lighting, lines, marks, shadows
     _drawCourt(canvas, size, cam);
+    _drawServeGuide(canvas, cam);
 
     // 3. Opponent players (far side, behind net)
     _drawPlayer(canvas, cam, game.ai);
@@ -305,6 +311,120 @@ class CourtPainter extends CustomPainter {
     }
     _drawBall(canvas, cam);
     _drawImpactFlash(canvas, cam);
+  }
+
+  void _drawServeGuide(Canvas canvas, PerspectiveCamera cam) {
+    if (game.state != GameState.waitingForServe ||
+        !game.scoreController.isPlayerServing) {
+      return;
+    }
+
+    final trajectory = game.getPlayerServeTrajectory(
+      samples: game.settings.useReducedUltimateEffects ? 16 : 24,
+    );
+    final guideColor = trajectory.isLegal
+        ? const Color(0xFF22D3EE)
+        : const Color(0xFFFB7185);
+    final minX = trajectory.serverOnRight ? -CourtDimensions.halfWidth : 0.0;
+    final maxX = trajectory.serverOnRight ? 0.0 : CourtDimensions.halfWidth;
+    const nearZ =
+        -CourtDimensions.kitchenDepth - CourtDimensions.lineWidth * 0.5;
+    const farZ = -CourtDimensions.halfLength;
+    final corners = <Offset>[];
+    for (final point in <Vec3>[
+      Vec3(minX, 0.08, nearZ),
+      Vec3(maxX, 0.08, nearZ),
+      Vec3(maxX, 0.08, farZ),
+      Vec3(minX, 0.08, farZ),
+    ]) {
+      final projected = cam.project(point);
+      if (projected == null) return;
+      corners.add(projected);
+    }
+
+    final targetPath = Path()..moveTo(corners.first.dx, corners.first.dy);
+    for (int i = 1; i < corners.length; i++) {
+      targetPath.lineTo(corners[i].dx, corners[i].dy);
+    }
+    targetPath.close();
+    canvas.drawPath(
+      targetPath,
+      _serveTargetPaint
+        ..shader = null
+        ..style = PaintingStyle.fill
+        ..color = guideColor.withAlpha(20),
+    );
+    canvas.drawPath(
+      targetPath,
+      _serveGuidePaint
+        ..shader = null
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = guideColor.withAlpha(150),
+    );
+
+    final projectedPoints = <Offset>[];
+    for (final point in trajectory.points) {
+      final projected = cam.project(point);
+      if (projected != null) projectedPoints.add(projected);
+    }
+    if (projectedPoints.length < 2) return;
+
+    final arc = Path()
+      ..moveTo(projectedPoints.first.dx, projectedPoints.first.dy);
+    for (int i = 1; i < projectedPoints.length; i++) {
+      arc.lineTo(projectedPoints[i].dx, projectedPoints[i].dy);
+    }
+    if (!game.settings.useReducedUltimateEffects) {
+      canvas.drawPath(
+        arc,
+        _serveGuidePaint
+          ..shader = null
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 6
+          ..color = guideColor.withAlpha(34),
+      );
+    }
+    canvas.drawPath(
+      arc,
+      _serveGuidePaint
+        ..shader = null
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = guideColor.withAlpha(220),
+    );
+
+    final beadIndex = ((animTime * 12).floor() % projectedPoints.length);
+    canvas.drawCircle(
+      projectedPoints[beadIndex],
+      3.4,
+      _serveTargetPaint
+        ..shader = null
+        ..style = PaintingStyle.fill
+        ..color = Colors.white,
+    );
+    final target = cam.project(
+      Vec3(trajectory.targetX, 0.1, trajectory.targetZ),
+    );
+    if (target != null) {
+      canvas.drawCircle(
+        target,
+        7,
+        _serveGuidePaint
+          ..shader = null
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = guideColor,
+      );
+      canvas.drawCircle(
+        target,
+        2.5,
+        _serveTargetPaint
+          ..shader = null
+          ..style = PaintingStyle.fill
+          ..color = guideColor,
+      );
+    }
   }
 
   /// Smooth multi-frequency shake (no random jitter → no strobing).

@@ -41,6 +41,24 @@ enum GameState {
   paused,
 }
 
+class ServeTrajectoryPreview {
+  const ServeTrajectoryPreview({
+    required this.points,
+    required this.launchVelocity,
+    required this.targetX,
+    required this.targetZ,
+    required this.serverOnRight,
+    required this.isLegal,
+  });
+
+  final List<Vec3> points;
+  final Vec3 launchVelocity;
+  final double targetX;
+  final double targetZ;
+  final bool serverOnRight;
+  final bool isLegal;
+}
+
 class PickleballGame extends ChangeNotifier {
   // ── Mode ─────────────────────────────────────────────────────
   final GameMode gameMode;
@@ -382,13 +400,13 @@ class PickleballGame extends ChangeNotifier {
       ball.position = Vec3(
         player.position.x,
         PhysicsConstants.serveBallHeight,
-        player.position.z - 8,
+        player.position.z - 2,
       );
     } else {
       ball.position = Vec3(
         ai.position.x,
         PhysicsConstants.serveBallHeight,
-        ai.position.z + 8,
+        ai.position.z + 2,
       );
       // AI starts serving after a short natural delay
       if (stateTimer > _aiServeDelay) {
@@ -425,30 +443,54 @@ class PickleballGame extends ChangeNotifier {
     player.velocity.z = 0;
   }
 
-  void _playerServe() {
+  ServeTrajectoryPreview getPlayerServeTrajectory({int samples = 24}) {
     final serverRight = scoreController.serverShouldBeOnRight;
-    // Serve diagonally across court:
-    // If server on right (x > 0), target left half of AI court (x < 0)
-    // If server on left (x < 0), target right half of AI court (x > 0)
     final targetX = serverRight ? -16.0 : 16.0;
     const targetZ = -55.0; // Deep in AI service box past the kitchen line (-28)
-
+    final start = Vec3(
+      player.position.x,
+      PhysicsConstants.serveBallHeight,
+      player.position.z - 2,
+    );
     const vy = 32.0;
     const g = PhysicsConstants.gravity;
-    final y0 = ball.position.y;
+    final y0 = start.y;
     final tFlight = (vy + math.sqrt(vy * vy + 2 * g * y0)) / g;
+    final vz = (targetZ - start.z) / tFlight;
+    final vx = (targetX - start.x) / tFlight;
+    final sampleCount = samples.clamp(8, 40).toInt();
+    final points = <Vec3>[];
+    for (int i = 0; i <= sampleCount; i++) {
+      final t = tFlight * i / sampleCount;
+      points.add(Vec3(
+        start.x + vx * t,
+        math.max(0, start.y + vy * t - 0.5 * g * t * t),
+        start.z + vz * t,
+      ));
+    }
 
-    final vz = (targetZ - ball.position.z) / tFlight;
-    final vx = (targetX - ball.position.x) / tFlight;
+    return ServeTrajectoryPreview(
+      points: points,
+      launchVelocity: Vec3(vx, vy, vz),
+      targetX: targetX,
+      targetZ: targetZ,
+      serverOnRight: serverRight,
+      isLegal: court.isValidServiceBox(targetX, targetZ, serverRight),
+    );
+  }
 
-    ball.velocity = Vec3(vx, vy, vz);
+  void _playerServe() {
+    final trajectory = getPlayerServeTrajectory();
+    ball.position = trajectory.points.first.copy();
+
+    ball.velocity = trajectory.launchVelocity.copy();
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = true;
     ball.bounceCount = 0;
     ball.hasBounced = false;
     ball.rallyHitCount = 0;
     ball.isServe = true;
-    ball.serverOnRight = serverRight;
+    ball.serverOnRight = trajectory.serverOnRight;
     ball.shotType = ShotType.normal;
 
     state = GameState.rally;

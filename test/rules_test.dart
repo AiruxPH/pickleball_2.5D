@@ -98,6 +98,34 @@ void main() {
       expect(ball.position.x, lessThan(0),
           reason: 'The AI right court is mirrored from the player camera');
     });
+
+    test('Serve preview is legal, parabolic, and matches launch velocity', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 450),
+        settings: GameSettings(),
+      );
+      final preview = game.getPlayerServeTrajectory(samples: 20);
+
+      expect(preview.isLegal, isTrue);
+      expect(preview.targetX, lessThan(0),
+          reason: 'A right-side server targets the opposite service court');
+      expect(preview.targetZ, lessThan(-CourtDimensions.kitchenDepth));
+      expect(preview.points.first.z, greaterThan(CourtDimensions.halfLength));
+      expect(preview.points.last.x, closeTo(preview.targetX, 0.001));
+      expect(preview.points.last.z, closeTo(preview.targetZ, 0.001));
+      expect(
+        preview.points.map((point) => point.y).reduce((a, b) => a > b ? a : b),
+        greaterThan(preview.points.first.y),
+      );
+
+      game.setServePressed(true);
+      game.update(0.016);
+      expect(game.ball.velocity.x, closeTo(preview.launchVelocity.x, 0.001));
+      expect(game.ball.velocity.y, closeTo(preview.launchVelocity.y, 0.001));
+      expect(game.ball.velocity.z, closeTo(preview.launchVelocity.z, 0.001));
+
+      game.dispose();
+    });
   });
 
   group('Two-Bounce Rule & Volley Constraints', () {

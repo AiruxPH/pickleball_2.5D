@@ -229,3 +229,11 @@
 - Restricted the human server to lateral movement before contact, preventing forward input from crossing or touching the baseline.
 - Enforced right/even and left/odd serving halves during the waiting-for-serve phase while retaining the existing diagonal service-box target and landing validation.
 - Added rule tests for player baseline clearance, pre-serve forward-input suppression, score-dependent side switching, ball tracking, and mirrored AI serve-ball placement.
+
+### 2026-10-05 - Shared serve trajectory preview
+- Added a public `ServeTrajectoryPreview` generated from the same ballistic calculation and launch velocity used by the real player serve, preventing visual-guide and gameplay drift.
+- Added a glowing parabolic pre-serve guide, animated direction bead, landing marker, and translucent highlight over the legal diagonal service box.
+- Added a reduced-quality rendering path that omits the wide arc glow while preserving the trajectory and legal target information.
+- Kept the held ball outside the baseline before contact by reducing its forward paddle offset for both player and AI servers.
+- Added regression coverage for cross-court target legality, baseline-clear trajectory origin, parabolic elevation, target endpoint accuracy, and preview-to-launch velocity parity.
+- Follow-up: changed the constant legal-service-box near boundary to a `const` declaration, resolving the `prefer_const_declarations` analyzer lint.
