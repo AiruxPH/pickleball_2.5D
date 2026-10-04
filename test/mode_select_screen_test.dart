@@ -56,7 +56,7 @@ void main() {
     );
   }
 
-  testWidgets('ModeSelectScreen displays QUICK MATCH, SINGLES 1v1, DOUBLES 2v2, and TRAINING',
+  testWidgets('ModeSelectScreen displays player and bot match modes',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1280, 720);
     tester.view.devicePixelRatio = 1.0;
@@ -69,8 +69,29 @@ void main() {
     expect(find.text('QUICK MATCH'), findsOneWidget);
     expect(find.text('SINGLES 1v1'), findsOneWidget);
     expect(find.text('DOUBLES 2v2'), findsOneWidget);
+    expect(find.text('BOT VS BOT'), findsOneWidget);
     expect(find.text('TRAINING'), findsNothing);
     expect(find.text('Team up with AI partner vs AI duo'), findsOneWidget);
+  });
+
+  testWidgets('BOT VS BOT launches an autonomous spectator match',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(await buildTestWidget(size: const Size(1280, 720)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('BOT VS BOT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PLAY NOW'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('mode: bot-vs-bot, botVsBot: true'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Selecting DOUBLES 2v2 displays the DIFFICULTY selector',

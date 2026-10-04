@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../game/pickleball_game.dart';
+import '../game/bot_agent.dart';
 import '../game/game_loop.dart';
 import '../game/match_command_controller.dart';
+import '../game/pickleball_game.dart';
 import '../models/game_settings.dart';
 import '../models/ultimate_skill.dart';
 import '../utils/constants.dart';
@@ -37,6 +38,7 @@ class _GameScreenState extends State<GameScreen>
     with SingleTickerProviderStateMixin {
   PickleballGame? _game;
   MatchCommandController? _commands;
+  BotAgent? _playerBot;
   Ticker? _ticker;
   Duration _lastTime = Duration.zero;
   bool _gameInitialized = false;
@@ -59,6 +61,7 @@ class _GameScreenState extends State<GameScreen>
   bool _isPractice = false;
   bool _isTournament = false;
   bool _isCareer = false;
+  bool _isBotVsBot = false;
   final FocusNode _focusNode = FocusNode();
   AudioService? _audioService;
 
@@ -92,6 +95,7 @@ class _GameScreenState extends State<GameScreen>
     _isTournament = args?['isTournament'] == true;
     _isCareer = args?['isCareer'] == true;
     final modeArg = args?['mode'] as String?;
+    _isBotVsBot = args?['botVsBot'] == true || modeArg == 'bot-vs-bot';
     final drillType = args?['drillType'] as String?;
     final gameMode = modeArg == 'doubles' ? GameMode.doubles : GameMode.singles;
 
@@ -120,6 +124,13 @@ class _GameScreenState extends State<GameScreen>
       audioService: _audioService,
     );
     _commands = MatchCommandController(game: _game!);
+    if (_isBotVsBot) {
+      _playerBot = BotAgent(
+        game: _game!,
+        commands: _commands!,
+        difficulty: diffOverride ?? settings.difficulty,
+      );
+    }
     if (isLandscape) {
       _game!.camera.fov = 48.0;
     }
@@ -151,6 +162,7 @@ class _GameScreenState extends State<GameScreen>
     _accumulatedDt = 0.0;
 
     _matchDuration += clampedDt;
+    _playerBot?.update(clampedDt);
     _game?.update(clampedDt);
 
     // Track rally length & score changes
@@ -254,6 +266,20 @@ class _GameScreenState extends State<GameScreen>
 
   void _handleKeyEvent(KeyEvent event) {
     if (_game == null) return;
+    if (_isBotVsBot) {
+      if (event is KeyDownEvent &&
+          (event.logicalKey == LogicalKeyboardKey.escape ||
+              event.logicalKey == LogicalKeyboardKey.keyP)) {
+        setState(() {
+          if (_game!.isPaused) {
+            _game!.resume();
+          } else {
+            _game!.pause();
+          }
+        });
+      }
+      return;
+    }
 
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.space ||
@@ -355,9 +381,9 @@ class _GameScreenState extends State<GameScreen>
         autofocus: true,
         onKeyEvent: _handleKeyEvent,
         child: GestureDetector(
-          onPanStart: _onSwipeStart,
-          onPanUpdate: _onSwipeUpdate,
-          onPanEnd: _onSwipeEnd,
+          onPanStart: _isBotVsBot ? null : _onSwipeStart,
+          onPanUpdate: _isBotVsBot ? null : _onSwipeUpdate,
+          onPanEnd: _isBotVsBot ? null : _onSwipeEnd,
           child: Stack(
             children: [
               // ── Custom Court Environment Artwork Backdrop ────────
@@ -395,7 +421,8 @@ class _GameScreenState extends State<GameScreen>
               ValueListenableBuilder<GameState>(
                 valueListenable: _stateNotifier,
                 builder: (_, state, ___) {
-                  if (state == GameState.waitingForServe &&
+                  if (!_isBotVsBot &&
+                      state == GameState.waitingForServe &&
                       game.scoreController.isPlayerServing) {
                     return _buildServePrompt(game, isLandscape: isLandscape);
                   }
@@ -437,10 +464,13 @@ class _GameScreenState extends State<GameScreen>
                   isPractice: _isPractice,
                   modeName: _isPractice
                       ? 'PRACTICE'
-                      : (game.gameMode == GameMode.doubles
-                          ? 'DOUBLES'
-                          : 'SINGLES'),
-                  footer: _buildPlayerStatusCard(game),
+                      : (_isBotVsBot
+                          ? 'BOT VS BOT'
+                          : (game.gameMode == GameMode.doubles
+                              ? 'DOUBLES'
+                              : 'SINGLES')),
+                  footer:
+                      _isBotVsBot ? null : _buildPlayerStatusCard(game),
                 ),
               ),
             ),
@@ -456,33 +486,35 @@ class _GameScreenState extends State<GameScreen>
           ),
 
           // ── Virtual Joystick (bottom left) ────────────────
-          Positioned(
-            bottom: isLandscape ? 8 : 28,
-            left: isLandscape ? 16 : 20,
-            child: VirtualJoystick(
-              size: joystickSize,
-              onMove: _onJoystickMove,
-              onRelease: _onJoystickRelease,
-              sensitivity:
-                  context.read<GameSettings>().joystickSensitivity,
+          if (!_isBotVsBot)
+            Positioned(
+              bottom: isLandscape ? 8 : 28,
+              left: isLandscape ? 16 : 20,
+              child: VirtualJoystick(
+                size: joystickSize,
+                onMove: _onJoystickMove,
+                onRelease: _onJoystickRelease,
+                sensitivity:
+                    context.read<GameSettings>().joystickSensitivity,
+              ),
             ),
-          ),
 
           // ── Compact Ergonomic Action Buttons (bottom right) ──
-          Positioned(
-            bottom: isLandscape ? 8 : 24,
-            right: isLandscape ? 16 : 16,
-            child: RepaintBoundary(
-              child: ValueListenableBuilder<GameState>(
-                valueListenable: _stateNotifier,
-                builder: (_, __, ___) => _buildActionButtons(
-                  game,
-                  isLandscape: isLandscape,
-                  screenHeight: size.height,
+          if (!_isBotVsBot)
+            Positioned(
+              bottom: isLandscape ? 8 : 24,
+              right: isLandscape ? 16 : 16,
+              child: RepaintBoundary(
+                child: ValueListenableBuilder<GameState>(
+                  valueListenable: _stateNotifier,
+                  builder: (_, __, ___) => _buildActionButtons(
+                    game,
+                    isLandscape: isLandscape,
+                    screenHeight: size.height,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

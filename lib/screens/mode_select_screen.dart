@@ -25,7 +25,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
   late AnimationController _enterCtrl;
   late Animation<double> _fadeAnim;
 
-  int _selectedModeIndex = 0; // 0=Quick, 1=Singles, 2=Doubles, 3=Training
+  int _selectedModeIndex = 0; // 0=Quick, 1=Singles, 2=Doubles, 3=Bot vs Bot
   int _selectedCourtIndex = 0;
   int _selectedDiffIndex = 1; // 0=Easy, 1=Medium, 2=Hard
   bool _initialized = false;
@@ -37,6 +37,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         Icons.person_rounded, TilePalette.blue),
     _ModeOption('DOUBLES 2v2', 'Team up with AI partner vs AI duo',
         Icons.group_rounded, TilePalette.purple),
+    _ModeOption('BOT VS BOT', 'Watch two agents compete autonomously',
+        Icons.smart_toy_rounded, TilePalette.green),
   ];
 
   @override
@@ -63,6 +65,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           _selectedModeIndex = 1;
         } else if (mode == 'doubles') {
           _selectedModeIndex = 2;
+        } else if (mode == 'bot-vs-bot') {
+          _selectedModeIndex = 3;
         }
       }
     }
@@ -115,6 +119,20 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           'difficulty': _selectedDiffIndex + 1
         });
         break;
+      case 3: // Bot vs Bot spectator match
+        final diffs = [
+          AIDifficulty.easy,
+          AIDifficulty.medium,
+          AIDifficulty.hard
+        ];
+        settings.difficulty = diffs[_selectedDiffIndex];
+        context.read<SettingsService>().save(settings);
+        Navigator.pushReplacementNamed(context, '/game', arguments: {
+          'mode': 'bot-vs-bot',
+          'botVsBot': true,
+          'difficulty': _selectedDiffIndex + 1
+        });
+        break;
     }
   }
 
@@ -135,7 +153,9 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
   }
 
   bool get _showDifficulty =>
-      _selectedModeIndex == 1 || _selectedModeIndex == 2;
+      _selectedModeIndex == 1 ||
+      _selectedModeIndex == 2 ||
+      _selectedModeIndex == 3;
 
   Widget _buildPortraitLayout(GameSettings settings, double ui) {
     return SingleChildScrollView(

@@ -244,3 +244,11 @@
 - Sanitized movement axes and normalized aim commands so future bot, replay, local multiplayer, and online sources cannot inject malformed control values.
 - Added an optional command observer as the seam for later replay recording and multiplayer transport work.
 - Added focused tests for movement validation, aim normalization/clearing, and serve/shot dispatch.
+
+### 2026-10-05 - Bot-vs-bot spectator foundation
+- Added a decision-only near-side `BotAgent` that observes public match state and controls the player exclusively through the shared command gateway.
+- Added deterministic serve timing, reaction pacing, predicted landing movement, two-bounce awareness, open-court aiming, recovery positioning, and difficulty-aware shot selection.
+- Added an opt-in `BOT VS BOT` mode to mode selection with difficulty support and spectator-oriented gameplay HUD that hides human joystick and action controls.
+- Preserved the existing opponent `AIController` and scoring/physics paths so autonomous matches exercise the same gameplay rules as regular matches.
+- Added BotAgent behavior tests and mode-selection navigation coverage.
+- Follow-up: restored predicted horizontal ball velocities to mutable locals because the landing simulation applies per-step drag to both values.
