@@ -76,6 +76,12 @@ class CourtPainter extends CustomPainter {
   static final Paint _msgBorderPaint = Paint()
     ..strokeWidth = 1.5
     ..style = PaintingStyle.stroke;
+  static final Paint _ultimateEffectPaint = Paint();
+  static final Paint _ultimateEffectStrokePaint = Paint()
+    ..style = PaintingStyle.stroke;
+  UltimateType? _cachedCutInType;
+  TextPainter? _cachedCutInTitle;
+  TextPainter? _cachedCutInSubtitle;
 
   // ── Pre-compiled static net paths (computed once, reused across all frames) ──
   static final Path _staticNetBody = _buildStaticNetBody();
@@ -1745,37 +1751,51 @@ class CourtPainter extends CustomPainter {
           break;
       }
 
-      // Soft outer aura ribbon + bright inner core ribbon
-      _drawTrailRibbon(canvas, cam, ball.trail, secondaryTrailColor, 170, 7.5 * strokeMult);
+      // Medium quality keeps the bright core ribbon. High quality adds the
+      // wider aura pass and denser secondary sparks.
+      if (!game.settings.useReducedUltimateEffects) {
+        _drawTrailRibbon(
+          canvas,
+          cam,
+          ball.trail,
+          secondaryTrailColor,
+          150,
+          7.0 * strokeMult,
+        );
+      }
       _drawTrailRibbon(canvas, cam, ball.trail, primaryTrailColor, 240, 3.6 * strokeMult);
 
-      for (int i = 1; i < ball.trail.length; i++) {
+      final detailStride = game.settings.useReducedUltimateEffects ? 4 : 2;
+      for (int i = 1; i < ball.trail.length; i += detailStride) {
         final curr = cam.project(ball.trail[i]);
         if (curr == null) continue;
         final t = i / ball.trail.length;
         final alpha = (t * 240).toInt();
 
         // Thunderbolt electric spark jitter
-        if (ultType == UltimateType.thunderbolt && i % 2 == 0) {
+        if (ultType == UltimateType.thunderbolt) {
           final jitterX = (math.sin(i * 9.0 + animTime * 20.0)) * 5.0;
           final jitterY = (math.cos(i * 9.0 + animTime * 20.0)) * 5.0;
           canvas.drawLine(
             curr,
             Offset(curr.dx + jitterX, curr.dy + jitterY),
-            Paint()
+            _ultimateEffectStrokePaint
+              ..shader = null
               ..color = const Color(0xFFFFFFFF).withAlpha((alpha * 0.9).toInt())
               ..strokeWidth = 1.8,
           );
         }
 
         // Dragon Meteor ember spark specks
-        if (ultType == UltimateType.dragonMeteor && i % 2 == 1) {
+        if (ultType == UltimateType.dragonMeteor) {
           final emberX = (math.sin(i * 13.0 + animTime * 15.0)) * 6.0;
           final emberY = (math.cos(i * 13.0 + animTime * 15.0)) * 6.0;
           canvas.drawCircle(
             Offset(curr.dx + emberX, curr.dy + emberY),
             2.0 * t,
-            Paint()..color = const Color(0xFFFBBF24).withAlpha(alpha),
+            _ultimateEffectPaint
+              ..shader = null
+              ..color = const Color(0xFFFBBF24).withAlpha(alpha),
           );
         }
       }
@@ -1921,20 +1941,30 @@ class CourtPainter extends CustomPainter {
           auraColor = const Color(0xFF00E5FF);
           break;
       }
-      canvas.drawCircle(
-        screenPos,
-        radius * 1.85,
-        Paint()
-          ..shader = RadialGradient(
-            colors: [
-              auraColor.withAlpha(210),
-              auraColor.withAlpha(80),
-              auraColor.withAlpha(0),
-            ],
-            stops: const [0.35, 0.70, 1.0],
-          ).createShader(
-              Rect.fromCircle(center: screenPos, radius: radius * 1.85)),
-      );
+      if (game.settings.useReducedUltimateEffects) {
+        canvas.drawCircle(
+          screenPos,
+          radius * 1.45,
+          _ultimateEffectPaint
+            ..shader = null
+            ..color = auraColor.withAlpha(100),
+        );
+      } else {
+        canvas.drawCircle(
+          screenPos,
+          radius * 1.85,
+          _ultimateEffectPaint
+            ..shader = RadialGradient(
+              colors: [
+                auraColor.withAlpha(210),
+                auraColor.withAlpha(80),
+                auraColor.withAlpha(0),
+              ],
+              stops: const [0.35, 0.70, 1.0],
+            ).createShader(
+                Rect.fromCircle(center: screenPos, radius: radius * 1.85)),
+        );
+      }
     }
 
     // Optic-yellow body: key light upper-left, soft terminator, dark rim
@@ -2356,7 +2386,7 @@ class CourtPainter extends CustomPainter {
     if (ultType == null || game.ultimateCutinTimer <= 0) return;
 
     final ultSkill = getUltimateByType(ultType);
-    final progress = (game.ultimateCutinTimer / 1.4).clamp(0.0, 1.0);
+    final progress = (game.ultimateCutinTimer / 0.9).clamp(0.0, 1.0);
     final alpha = (progress > 0.8
             ? (1.0 - progress) / 0.2
             : (progress < 0.2 ? progress / 0.2 : 1.0))
@@ -2383,49 +2413,52 @@ class CourtPainter extends CustomPainter {
     );
 
     // Accent energy stripe
-    final stripePaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          ultSkill.primaryColor.withAlpha((255 * alpha).toInt()),
-          ultSkill.accentColor.withAlpha((255 * alpha).toInt()),
-          ultSkill.primaryColor.withAlpha((255 * alpha).toInt()),
-        ],
-      ).createShader(Rect.fromLTWH(
-          0, centerY - ribbonHeight / 2, size.width, ribbonHeight))
+    final stripePaint = _ultimateEffectStrokePaint
+      ..shader = game.settings.useReducedUltimateEffects
+          ? null
+          : LinearGradient(
+              colors: [
+                ultSkill.primaryColor.withAlpha((255 * alpha).toInt()),
+                ultSkill.accentColor.withAlpha((255 * alpha).toInt()),
+                ultSkill.primaryColor.withAlpha((255 * alpha).toInt()),
+              ],
+            ).createShader(Rect.fromLTWH(
+              0, centerY - ribbonHeight / 2, size.width, ribbonHeight))
+      ..color = ultSkill.primaryColor.withAlpha((255 * alpha).toInt())
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
     canvas.drawPath(path, stripePaint);
 
     // Text & Subtitle
-    final titlePainter = TextPainter(
-      text: TextSpan(
-        children: [
-          TextSpan(
-            text: ultSkill.name,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              color: Colors.white.withAlpha((255 * alpha).toInt()),
-              letterSpacing: 2.0,
-            ),
+    if (_cachedCutInType != ultType) {
+      _cachedCutInType = ultType;
+      _cachedCutInTitle = TextPainter(
+        text: TextSpan(
+          text: ultSkill.name,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            letterSpacing: 2.0,
           ),
-        ],
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    final subtitlePainter = TextPainter(
-      text: TextSpan(
-        text: 'SPECIAL SHOT',
-        style: TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-          color: ultSkill.accentColor.withAlpha((230 * alpha).toInt()),
-          letterSpacing: 4.0,
         ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+        textDirection: TextDirection.ltr,
+      )..layout();
+      _cachedCutInSubtitle = TextPainter(
+        text: TextSpan(
+          text: 'SPECIAL SHOT',
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            color: ultSkill.accentColor,
+            letterSpacing: 4.0,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    }
+    final titlePainter = _cachedCutInTitle!;
+    final subtitlePainter = _cachedCutInSubtitle!;
 
     final textX = size.width / 2 - titlePainter.width / 2;
     titlePainter.paint(canvas, Offset(textX, centerY - 16));

@@ -335,6 +335,16 @@ class GameSettings extends ChangeNotifier {
     return false;
   }
 
+  /// Credits a validated gem-store purchase. The current shop calls this from
+  /// its clearly labelled preview flow; production billing must invoke it only
+  /// after the platform purchase receipt has been verified.
+  bool creditGemPurchase(int amount) {
+    if (amount <= 0) return false;
+    _gems += amount;
+    notifyListeners();
+    return true;
+  }
+
   // ── Achievements ───────────────────────────────────────────
   Map<String, int> _achievementProgress = {};
   Set<String> _unlockedAchievements = {};
@@ -609,6 +619,8 @@ class GameSettings extends ChangeNotifier {
   bool get showParticles => _graphicsQuality != GraphicsQuality.low;
   bool get showShadows    => _graphicsQuality == GraphicsQuality.high;
   bool get showBallTrail  => _graphicsQuality != GraphicsQuality.low;
+  bool get useReducedUltimateEffects =>
+      _graphicsQuality != GraphicsQuality.high;
 
   int get maxTrailLength {
     switch (_graphicsQuality) {

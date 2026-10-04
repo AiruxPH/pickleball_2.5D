@@ -274,88 +274,132 @@ class _HowToPlayScreenState extends State<HowToPlayScreen>
   Widget _buildLandscapeLayout(_HowToPage page) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 860),
+        constraints: const BoxConstraints(maxWidth: 1120),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Left Column: Icon + Title + Dots
-              Expanded(
-                flex: 4,
-                child: FadeTransition(
-                  opacity: _fade,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 90,
-                        height: 90,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: page.color.withAlpha(25),
-                          border: Border.all(
-                              color: page.color.withAlpha(90), width: 2),
-                        ),
-                        child: Icon(page.icon, color: page.color, size: 44),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        page.title,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: AppFonts.orbitron,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: page.color,
-                          letterSpacing: 3,
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 14),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xB3121D34),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: page.color.withAlpha(70)),
+              boxShadow: [
+                BoxShadow(color: page.color.withAlpha(18), blurRadius: 28),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: FadeTransition(
+                    opacity: _fade,
+                    child: Container(
+                      padding: const EdgeInsets.all(28),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            page.color.withAlpha(34),
+                            const Color(0xFF10192D),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      _buildDots(page),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Vertical divider
-              Container(
-                width: 1.2,
-                height: 180,
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                color: Colors.white12,
-              ),
-
-              // Right Column: Scrollable Steps + Navigation Buttons
-              Expanded(
-                flex: 6,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: FadeTransition(
-                        opacity: _fade,
-                        child: SingleChildScrollView(
-                          physics: const ClampingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: page.steps.asMap().entries.map((entry) {
-                              return _StepRow(
-                                number: entry.key + 1,
-                                text: entry.value,
-                                color: page.color,
-                              );
-                            }).toList(),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'LESSON ${(_currentPage + 1).toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              color: page.color,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: 82,
+                            height: 82,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              color: page.color.withAlpha(22),
+                              border: Border.all(color: page.color.withAlpha(120)),
+                            ),
+                            child: Icon(page.icon, color: page.color, size: 42),
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            page.title,
+                            style: const TextStyle(
+                              fontFamily: AppFonts.orbitron,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 3,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Master the fundamentals, then take them onto the court.',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                              height: 1.45,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _buildDots(page),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    _buildNavigationButtons(page),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                Expanded(
+                  flex: 6,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(30, 22, 30, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'COURT NOTES',
+                          style: TextStyle(
+                            fontFamily: AppFonts.orbitron,
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.8,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: FadeTransition(
+                            opacity: _fade,
+                            child: SingleChildScrollView(
+                              physics: const ClampingScrollPhysics(),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: page.steps.asMap().entries.map((entry) {
+                                  return _StepRow(
+                                    number: entry.key + 1,
+                                    text: entry.value,
+                                    color: page.color,
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildNavigationButtons(page),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

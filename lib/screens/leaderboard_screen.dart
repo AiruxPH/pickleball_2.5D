@@ -84,23 +84,44 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             child: SafeArea(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: Column(
-                    children: [
-                      _buildHeader(compact: isLandscape),
-                      _buildTableHeader(),
-                      Expanded(
-                        child: ListView.builder(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: isLandscape ? 4 : 8,
-                          ),
-                          itemCount: entries.length,
-                          itemBuilder: (_, i) =>
-                              _buildRow(i + 1, entries[i], compact: isLandscape),
-                        ),
+                  constraints: const BoxConstraints(maxWidth: 1080),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isLandscape ? 24 : 12,
+                      vertical: isLandscape ? 8 : 4,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0x9910182B),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: Colors.white10),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x33000000), blurRadius: 24),
+                        ],
                       ),
-                    ],
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          _buildHeader(compact: isLandscape),
+                          _buildPodium(entries.take(3).toList(), compact: isLandscape),
+                          _buildTableHeader(),
+                          Expanded(
+                            child: ListView.builder(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isLandscape ? 14 : 10,
+                                vertical: isLandscape ? 5 : 8,
+                              ),
+                              itemCount: entries.length,
+                              itemBuilder: (_, i) => _buildRow(
+                                i + 1,
+                                entries[i],
+                                compact: isLandscape,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -133,14 +154,42 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           const SizedBox(width: 14),
           const Icon(Icons.leaderboard_rounded, color: AppColors.primary, size: 22),
           const SizedBox(width: 8),
-          const Text(
-            'LEADERBOARD',
-            style: TextStyle(
-              fontFamily: AppFonts.orbitron,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: 2,
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'GLOBAL LEADERBOARD',
+                  style: TextStyle(
+                    fontFamily: AppFonts.orbitron,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 2,
+                  ),
+                ),
+                Text(
+                  'Season rankings · climb the tour',
+                  style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withAlpha(20),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withAlpha(90)),
+            ),
+            child: const Text(
+              'TOP 10',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
         ],
@@ -148,10 +197,70 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     );
   }
 
+  Widget _buildPodium(List<Map<String, dynamic>> leaders,
+      {required bool compact}) {
+    const colors = [Color(0xFFF5B301), Color(0xFFB8C2CC), Color(0xFFCD7F32)];
+    return Container(
+      padding: EdgeInsets.fromLTRB(14, compact ? 7 : 12, 14, compact ? 7 : 12),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF121E35), Color(0xFF0C1426)],
+        ),
+      ),
+      child: Row(
+        children: List.generate(leaders.length, (index) {
+          final leader = leaders[index];
+          return Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: compact ? 7 : 11,
+              ),
+              decoration: BoxDecoration(
+                color: colors[index].withAlpha(12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colors[index].withAlpha(75)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.emoji_events_rounded,
+                      color: colors[index], size: compact ? 18 : 23),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${index + 1}  ${leader['name']}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          '${leader['wins']} wins  ·  ${(leader['winPct'] as num).toStringAsFixed(1)}%',
+                          style: TextStyle(color: colors[index], fontSize: 9),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
   Widget _buildTableHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      color: const Color(0xFF0F172A),
+      color: const Color(0xFF0A1222),
       child: const Row(
         children: [
           SizedBox(width: 36, child: Text('#', style: TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w700, letterSpacing: 1))),
@@ -200,7 +309,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         color: isPlayer
             ? AppColors.primary.withAlpha(18)
             : const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isPlayer ? AppColors.primary.withAlpha(100) : Colors.transparent,
           width: isPlayer ? 1.5 : 1,

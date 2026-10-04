@@ -1831,7 +1831,13 @@ class _ShopScreenState extends State<ShopScreen>
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: _buildDailySponsorCrateCard(settings, isCompact: true),
+                  child: Column(
+                    children: [
+                      _buildGemStore(settings, isCompact: true),
+                      const SizedBox(height: 10),
+                      _buildDailySponsorCrateCard(settings, isCompact: true),
+                    ],
+                  ),
               ),
             ),
 
@@ -1895,6 +1901,8 @@ class _ShopScreenState extends State<ShopScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _buildGemStore(settings, isCompact: false),
+                const SizedBox(height: 20),
                 _buildDailySponsorCrateCard(settings, isCompact: false),
                 const SizedBox(height: 20),
                 const Text(
@@ -1932,6 +1940,177 @@ class _ShopScreenState extends State<ShopScreen>
         ),
       );
     }
+  }
+
+  Widget _buildGemStore(GameSettings settings, {required bool isCompact}) {
+    const packs = <({int gems, String price, String label})>[
+      (gems: 500, price: r'$0.99', label: 'STARTER'),
+      (gems: 1400, price: r'$2.49', label: 'POPULAR'),
+      (gems: 3200, price: r'$4.99', label: 'BEST VALUE'),
+    ];
+
+    return Container(
+      padding: EdgeInsets.all(isCompact ? 12 : 18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF25134A), Color(0xFF111A31)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(isCompact ? 18 : 22),
+        border: Border.all(color: const Color(0xFFAB47BC), width: 1.4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.diamond_rounded,
+                  color: Color(0xFFE879F9), size: 22),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'GEM STORE',
+                      style: TextStyle(
+                        fontFamily: AppFonts.orbitron,
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                    Text(
+                      'Store preview · no real charge',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 9),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '${settings.gems}',
+                style: const TextStyle(
+                  fontFamily: AppFonts.orbitron,
+                  color: Color(0xFFE879F9),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: isCompact ? 9 : 14),
+          Row(
+            children: packs.map((pack) {
+              final featured = pack.label == 'POPULAR';
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () =>
+                      _confirmGemPackPreview(settings, pack.gems, pack.price),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: isCompact ? 8 : 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: featured
+                          ? const Color(0xFF7E22CE).withAlpha(85)
+                          : Colors.white.withAlpha(8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: featured
+                            ? const Color(0xFFE879F9)
+                            : Colors.white12,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          pack.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFE879F9),
+                            fontSize: 7,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Icon(Icons.diamond_rounded,
+                            color: Color(0xFFE879F9), size: 18),
+                        Text(
+                          '${pack.gems}',
+                          style: const TextStyle(
+                            fontFamily: AppFonts.orbitron,
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          pack.price,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmGemPackPreview(
+    GameSettings settings,
+    int gems,
+    String displayPrice,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF111A31),
+        title: const Text(
+          'STORE PREVIEW',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+        ),
+        content: Text(
+          'Preview the $displayPrice purchase and add $gems test gems? '
+          'No payment will be processed.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('ADD TEST GEMS'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    HapticFeedback.heavyImpact();
+    settings.creditGemPurchase(gems);
+    await context.read<SettingsService>().save(settings);
+    if (!mounted) return;
+    _showFeedbackSnackBar(
+      context,
+      '+$gems TEST GEMS ADDED',
+      const Color(0xFFE879F9),
+      Icons.diamond_rounded,
+    );
   }
 
   // ── Daily Sponsor Crate Card ─────────────────────────────────

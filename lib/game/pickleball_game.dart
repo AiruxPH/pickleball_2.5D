@@ -316,12 +316,14 @@ class PickleballGame extends ChangeNotifier {
   // ── Position players for regulation serve ──────────────────────
   void _setupServePositions() {
     final serverRight = scoreController.serverShouldBeOnRight;
+    const serveZ =
+        CourtDimensions.halfLength + CourtDimensions.serveBaselineOffset;
 
     if (scoreController.isPlayerServing) {
       player.assignedRightSide = serverRight;
       player.resetPosition(
         customX: serverRight ? 16.0 : -16.0,
-        customZ: CourtDimensions.playerStartZ + 15,
+        customZ: serveZ,
       );
       ball.resetForPlayerServe(fromRight: serverRight);
 
@@ -343,7 +345,7 @@ class PickleballGame extends ChangeNotifier {
       ai.assignedRightSide = serverRight;
       ai.resetPosition(
         customX: serverRight ? -16.0 : 16.0,
-        customZ: CourtDimensions.aiStartZ - 15,
+        customZ: -serveZ,
       );
       ball.resetForAIServe(fromRight: serverRight);
 
@@ -367,9 +369,13 @@ class PickleballGame extends ChangeNotifier {
 
   // ── State: Waiting for serve ───────────────────────────────────
   void _updateWaitingForServe(double dt) {
-    // Move player with joystick
-    playerController.updateMovement(dt, joystickX, joystickY);
-    player.clampToCourt();
+    if (scoreController.isPlayerServing) {
+      _updatePlayerServePosition(dt);
+    } else {
+      // The receiver remains free to move on the near side of the court.
+      playerController.updateMovement(dt, joystickX, joystickY);
+      player.clampToCourt();
+    }
 
     // Position ball above server
     if (scoreController.isPlayerServing) {
@@ -395,6 +401,28 @@ class PickleballGame extends ChangeNotifier {
       servePressed = false;
       _playerServe();
     }
+  }
+
+  void _updatePlayerServePosition(double dt) {
+    final serverRight = scoreController.serverShouldBeOnRight;
+    const sideMargin = 5.0;
+    const serveZ =
+        CourtDimensions.halfLength + CourtDimensions.serveBaselineOffset;
+
+    // Only lateral positioning is legal before contact. Keeping Z fixed
+    // prevents the server's feet from crossing or touching the baseline.
+    playerController.updateMovement(dt, joystickX, 0);
+    player.position.x = serverRight
+        ? player.position.x.clamp(
+            sideMargin,
+            CourtDimensions.halfWidth - sideMargin,
+          )
+        : player.position.x.clamp(
+            -CourtDimensions.halfWidth + sideMargin,
+            -sideMargin,
+          );
+    player.position.z = serveZ;
+    player.velocity.z = 0;
   }
 
   void _playerServe() {
@@ -753,7 +781,9 @@ class PickleballGame extends ChangeNotifier {
       ball.ultimateType = ultType;
       ball.ultimateAnimTimer = 0;
       activeCutinUltimate = ultType;
-      ultimateCutinTimer = 1.4;
+      // Keep the cinematic readable without carrying its most expensive
+      // full-screen rendering work through most of the shot.
+      ultimateCutinTimer = 0.9;
       slowMoTimer = 0.35;
       timeDilation = 0.25;
       final ultSkill = getUltimateByType(ultType);
@@ -1168,4 +1198,3 @@ extension OffsetExt on Offset {
     return Offset(dx / len, dy / len);
   }
 }
-

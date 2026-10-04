@@ -193,3 +193,39 @@
     - **Exiting / Restarting Matches:** When match finishes (navigating to `/game-over`), pausing and exiting to the main menu, or closing the match, `AudioService.stopMatchMusic()` in `GameScreen.dispose()` halts the match track and smoothly resumes the primary menu BGM (`Energetic rock background music for sports & workout videos.mp3`) at full volume. Restarting in the pause menu keeps the match music playing seamlessly.
 - **Cause of Errors & Fixes:**
   - *No compile-time errors or warnings occurred.* Validated cleanly with 0 issues via `flutter analyze`.
+
+### 2026-10-05 - Recent changes review
+- Reviewed commits `02179ea` and `87ee0a1` against `main`, covering the deferred game-over statistics update and BGM synchronization/autoplay changes.
+- Found a BGM transition race where `pause()` can return while `playTrack()` is awaiting playback, allowing audio to start after a pause request.
+- Static analysis of the three changed Dart files was attempted but did not complete within the 60-second review timeout.
+
+### 2026-10-05 - External pickle_ball_game library review
+- Reviewed the uncommitted `lib` changes under `C:\Users\CLienT\Desktop\PICKLEBALL\pickle_ball_game` without modifying that target project.
+- Found that an immediate two-bounce swing fault updates match scoring through the screen while leaving the simulation rally active, which can produce a second rally result before the delayed reset.
+- `dart analyze lib` exceeded 60 seconds, and three targeted Flutter tests exceeded their combined 180-second timeout without producing results.
+
+### 2026-10-05 - Pickleball project comparison
+- Compared this project with `C:\Users\CLienT\Desktop\PICKLEBALL\pickle_ball_game` across gameplay scope, architecture, test organization, rendering, dependencies, and maintainability.
+- Concluded that this project is the stronger full game and has broader, better-organized test coverage, while the external project has a cleaner simulation/render boundary and a more current Flutter/Flame baseline.
+- Identified modularizing this project's largest files and reducing swallowed exceptions as the highest-value lessons to adopt from the external project.
+
+### 2026-10-05 - Pickleball comparison correction after rules audit
+- Reassessed the parallel project using its full changelog, USAP-derived rule data, and gameplay implementation rather than treating it as a smaller competing product.
+- Confirmed that the parallel project is the stronger experimental reference for court-rule fidelity, particularly forcing servers outside the baseline, constraining the server to the score-correct side, targeting the diagonal service box, and validating regulation court/net geometry.
+- Confirmed a concrete gap here: this project's server setup uses positions inside the 88-unit baseline and the waiting-for-serve update clamps the player back onto the court, despite correctly validating diagonal serve landings and implementing side-out, two-bounce, and advanced NVZ rules.
+- Expanded the assessment to recognize the parallel project's unique experimental features: autonomous bot-vs-bot spectator matches, action/broadcast/top-down/free-roam cameras, bounded stadium exploration, parabolic pre-serve trajectory and legal-target visualization, fixed-step simulation, smooth camera tracking, inertial movement, and filtered sprite direction changes.
+
+### 2026-10-05 - Performance, information screens, and gem-store pass
+- Reduced special-skill rendering pressure by shortening the cinematic cut-in, caching its text layouts, reusing ultimate-effect paints, reducing medium-quality trail passes/detail samples, and replacing medium-quality radial ball auras with a flat glow while retaining full effects on high quality.
+- Redesigned the leaderboard into a wider framed season panel with stronger header hierarchy, a top-three podium summary, denser ranking rows, and improved landscape use.
+- Redesigned the landscape How To Play experience as one cohesive lesson card with a visual lesson rail, court-note content area, and integrated navigation.
+- Added a dedicated Gem Store to the Bank tab with three gem packs and an explicitly labelled local preview transaction; no real payment is processed until platform billing and receipt verification are integrated.
+- Added `GameSettings.creditGemPurchase()` with invalid-amount protection and regression coverage.
+- Validation: `git diff --check` passed. Formatting verification exceeded 30 seconds, targeted analysis exceeded 120 seconds, and the focused shop test exceeded 180 seconds without emitting results in this environment.
+- Follow-up: corrected an unmatched closing delimiter in the redesigned How To Play landscape `Row.children` list reported by the Dart language server.
+
+### 2026-10-05 - Regulation serve-position integration
+- Ported the first rule-fidelity concept from the parallel project: player and AI serve setups now place the server and ball completely outside their respective baselines using a shared six-unit clearance.
+- Restricted the human server to lateral movement before contact, preventing forward input from crossing or touching the baseline.
+- Enforced right/even and left/odd serving halves during the waiting-for-serve phase while retaining the existing diagonal service-box target and landing validation.
+- Added rule tests for player baseline clearance, pre-serve forward-input suppression, score-dependent side switching, ball tracking, and mirrored AI serve-ball placement.

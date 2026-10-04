@@ -155,8 +155,11 @@ class Pickleball {
   void resetForPlayerServe({bool fromRight = true}) {
     serverOnRight = fromRight;
     final startX = fromRight ? 16.0 : -16.0;
-    position = Vec3(startX, PhysicsConstants.serveBallHeight,
-                    CourtDimensions.playerStartZ + 15);
+    position = Vec3(
+      startX,
+      PhysicsConstants.serveBallHeight,
+      CourtDimensions.halfLength + CourtDimensions.serveBaselineOffset,
+    );
     lastHitByPlayer = true;
     _resetCommon();
   }
@@ -164,8 +167,11 @@ class Pickleball {
   void resetForAIServe({bool fromRight = true}) {
     serverOnRight = fromRight;
     final startX = fromRight ? -16.0 : 16.0;
-    position = Vec3(startX, PhysicsConstants.serveBallHeight,
-                    CourtDimensions.aiStartZ - 15);
+    position = Vec3(
+      startX,
+      PhysicsConstants.serveBallHeight,
+      -CourtDimensions.halfLength - CourtDimensions.serveBaselineOffset,
+    );
     lastHitByPlayer = false;
     _resetCommon();
   }

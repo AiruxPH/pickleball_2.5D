@@ -56,6 +56,48 @@ void main() {
       );
       expect(playerDeep.isInKitchen(), isFalse);
     });
+
+    test('Serve setup stays outside baseline and on score-correct side', () {
+      final settings = GameSettings();
+      final game = PickleballGame(
+        screenSize: const Size(800, 450),
+        settings: settings,
+      );
+
+      expect(game.player.position.z, greaterThan(CourtDimensions.halfLength));
+      expect(game.ball.position.z, greaterThan(CourtDimensions.halfLength));
+      expect(game.player.position.x, greaterThan(0),
+          reason: 'An even-score player server starts on the right');
+
+      game.setJoystick(0, -1);
+      game.update(0.25);
+      expect(
+        game.player.position.z,
+        CourtDimensions.halfLength + CourtDimensions.serveBaselineOffset,
+        reason: 'Forward input cannot carry the server onto the court',
+      );
+
+      game.scoreController.awardPlayerPoint();
+      game.update(0.016);
+      expect(game.player.position.x, lessThan(0),
+          reason: 'An odd-score player server is restricted to the left');
+      expect(game.ball.position.x, game.player.position.x);
+
+      game.dispose();
+    });
+
+    test('Player and AI serve balls reset completely outside each baseline', () {
+      final ball = Pickleball();
+
+      ball.resetForPlayerServe(fromRight: true);
+      expect(ball.position.z, greaterThan(CourtDimensions.halfLength));
+      expect(ball.position.x, greaterThan(0));
+
+      ball.resetForAIServe(fromRight: true);
+      expect(ball.position.z, lessThan(-CourtDimensions.halfLength));
+      expect(ball.position.x, lessThan(0),
+          reason: 'The AI right court is mirrored from the player camera');
+    });
   });
 
   group('Two-Bounce Rule & Volley Constraints', () {
@@ -919,4 +961,3 @@ class _FakeAudioService extends AudioService {
     netHitCount++;
   }
 }
-

@@ -177,6 +177,9 @@ class CourtDimensions {
   // Player starting positions (z is depth, negative = player side)
   static const double playerStartZ = 60.0;   // behind kitchen
   static const double aiStartZ = -60.0;      // opponent side
+  // Regulation serve contact occurs completely outside the baseline. The
+  // six-unit margin also keeps the player's rendered feet clear of the line.
+  static const double serveBaselineOffset = 6.0;
 
   // Player movement bounds
   static const double playerMinZ = halfLength * 0.05;

@@ -118,6 +118,16 @@ void main() {
       expect(settings.coins, 11000);
     });
 
+    test('Validated gem purchase credits gems and rejects invalid amounts', () {
+      settings.gems = 1000;
+
+      expect(settings.creditGemPurchase(500), isTrue);
+      expect(settings.gems, 1500);
+      expect(settings.creditGemPurchase(0), isFalse);
+      expect(settings.creditGemPurchase(-100), isFalse);
+      expect(settings.gems, 1500);
+    });
+
     test('Serialization and deserialization preserves shop inventory', () {
       final vortex = getPaddleById('paddle_vortex');
       settings.buyPaddle(vortex);
