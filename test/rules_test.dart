@@ -860,13 +860,13 @@ void main() {
       expect(game.scoreController.isPlayerServing, isFalse);
     });
 
-    test('Second bounce is adjudicated before a nearby AI can return it', () {
+    test('Untouched second bounce is called after the recovery grace window', () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
-        settings: GameSettings()..difficulty = AIDifficulty.hard,
+        settings: GameSettings()..difficulty = AIDifficulty.easy,
       );
       game.state = GameState.rally;
-      game.ai.position = Vec3(0, 0, -40);
+      game.ai.position = Vec3(30, 0, -80);
       game.ball
         ..state = BallState.inFlight
         ..position = Vec3(0, PhysicsConstants.ballRadius, -40)
@@ -880,16 +880,23 @@ void main() {
 
       game.update(0.016);
 
+      expect(game.state, GameState.rally);
+      expect(game.ball.secondBounceGraceTimer, greaterThan(0));
+
+      for (var i = 0; i < 10 && game.state == GameState.rally; i++) {
+        game.update(0.016);
+      }
+
       expect(game.state, GameState.pointScored);
       expect(game.ball.state, BallState.dead);
       expect(game.ball.bounceCount, 2);
       expect(game.ball.rallyHitCount, 3,
-          reason: 'AI must not erase the second bounce with a same-frame hit');
+          reason: 'An untouched second bounce must still end the rally');
       expect(game.player.score, 1);
       expect(game.lastMessage, contains('DOUBLE BOUNCE'));
     });
 
-    test('Second bounce is adjudicated before a queued player swing', () {
+    test('Queued player swing may recover inside second-bounce grace window', () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings(),
@@ -910,13 +917,63 @@ void main() {
 
       game.update(0.016);
 
-      expect(game.state, GameState.pointScored);
-      expect(game.ball.state, BallState.dead);
-      expect(game.ball.bounceCount, 2);
-      expect(game.ball.rallyHitCount, 3,
-          reason: 'Player must not erase the second bounce with a queued hit');
-      expect(game.scoreController.isPlayerServing, isFalse);
-      expect(game.lastMessage, contains('DOUBLE BOUNCE'));
+      expect(game.state, GameState.rally);
+      expect(game.ball.state, BallState.inFlight);
+      expect(game.ball.bounceCount, 0);
+      expect(game.ball.rallyHitCount, 4);
+      expect(game.ball.lastHitByPlayer, isTrue);
+    });
+
+    test('Deep power return receives enough lift to clear the net', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+      );
+      game.state = GameState.rally;
+      game.player.position = Vec3(0, 0, 82);
+      game.ball
+        ..state = BallState.inFlight
+        ..position = Vec3(0, 8, 82)
+        ..velocity = Vec3(0, 0, 0)
+        ..isServe = false
+        ..rallyHitCount = 3
+        ..bounceCount = 1
+        ..hasBounced = true
+        ..lastHitByPlayer = false
+        ..playerSideBounce = true;
+
+      game.setPowerPressed(true);
+      game.update(0.016);
+
+      expect(game.ball.lastHitByPlayer, isTrue);
+      expect(game.ball.velocity.y, greaterThan(48));
+      expect(game.ball.velocity.z, lessThan(-170));
+    });
+
+    test('Deep lob return receives additional forward depth', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+      );
+      game.state = GameState.rally;
+      game.player.position = Vec3(0, 0, 82);
+      game.ball
+        ..state = BallState.inFlight
+        ..position = Vec3(0, 10, 82)
+        ..velocity = Vec3(0, 0, 0)
+        ..isServe = false
+        ..rallyHitCount = 3
+        ..bounceCount = 1
+        ..hasBounced = true
+        ..lastHitByPlayer = false
+        ..playerSideBounce = true;
+
+      game.setLobPressed(true);
+      game.update(0.016);
+
+      expect(game.ball.lastHitByPlayer, isTrue);
+      expect(game.ball.velocity.y, greaterThanOrEqualTo(68));
+      expect(game.ball.velocity.z, lessThan(-105));
     });
 
     test('Game-winning point remains overturnable during NVZ momentum', () {

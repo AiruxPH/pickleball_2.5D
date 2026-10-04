@@ -134,7 +134,9 @@ class ScoreController {
       }
     }
 
-    if (ball.hasBounced && ball.bounceCount >= 2) {
+    if (ball.hasBounced &&
+        ball.bounceCount >= 2 &&
+        ball.secondBounceGraceTimer <= 0) {
       ball.state = BallState.dead;
       lastFaultDetail = 'DOUBLE BOUNCE!';
       return ball.playerSideBounce

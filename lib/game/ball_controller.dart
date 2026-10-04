@@ -32,6 +32,11 @@ class BallController {
   void update(double dt) {
     if (ball.state == BallState.dead || ball.state == BallState.idle) return;
 
+    if (ball.secondBounceGraceTimer > 0) {
+      ball.secondBounceGraceTimer =
+          math.max(0, ball.secondBounceGraceTimer - dt);
+    }
+
     // ── Record previous position for swept collision detection ──
     ball.prevPosition = ball.position.copy();
 
@@ -80,6 +85,9 @@ class BallController {
       }
 
       ball.bounceCount++;
+      if (ball.bounceCount == 2) {
+        ball.secondBounceGraceTimer = 0.12;
+      }
       ball.hasBounced = true;
       ball.lastBounceZ = ball.position.z;
       ball.playerSideBounce = ball.position.z > 0;

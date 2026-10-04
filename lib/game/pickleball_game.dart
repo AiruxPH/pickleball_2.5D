@@ -548,6 +548,7 @@ class PickleballGame extends ChangeNotifier {
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = true;
     ball.bounceCount = 0;
+    ball.secondBounceGraceTimer = 0;
     ball.hasBounced = false;
     ball.rallyHitCount = 0;
     ball.isServe = true;
@@ -616,6 +617,7 @@ class PickleballGame extends ChangeNotifier {
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = false;
     ball.bounceCount = 0;
+    ball.secondBounceGraceTimer = 0;
     ball.hasBounced = false;
     ball.rallyHitCount = 0;
     ball.isServe = true;
@@ -639,6 +641,7 @@ class PickleballGame extends ChangeNotifier {
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = true;
     ball.bounceCount = 0;
+    ball.secondBounceGraceTimer = 0;
     ball.hasBounced = false;
     ball.rallyHitCount = 0;
     ball.isServe = true;
@@ -1035,12 +1038,51 @@ class PickleballGame extends ChangeNotifier {
     final powerBonus = 1.0 + (paddle.power - 0.50) * 0.25;
     forwardSpeed *= powerBonus;
 
+    // Reward difficult contacts near the back line with additional depth.
+    // The assist fades to zero at the normal starting position.
+    final deepRecoveryFactor = ((ball.position.z -
+                CourtDimensions.playerStartZ) /
+            (CourtDimensions.playerMaxZ - CourtDimensions.playerStartZ))
+        .clamp(0.0, 1.0)
+        .toDouble();
+    if (deepRecoveryFactor > 0 &&
+        activeShot != ShotType.smash &&
+        activeShot != ShotType.ultimate) {
+      final forwardBoost = activeShot == ShotType.lob
+          ? 0.24
+          : (activeShot == ShotType.power ? 0.18 : 0.15);
+      forwardSpeed *= 1.0 + forwardBoost * deepRecoveryFactor;
+      final liftBoost = activeShot == ShotType.lob
+          ? 8.0
+          : (activeShot == ShotType.power ? 18.0 : 15.0);
+      upSpeed += liftBoost * deepRecoveryFactor;
+    }
+
     final spinBonus = 1.0 + (paddle.spin - 0.50) * 0.35;
     final baseSpin = activeShot == ShotType.drop ? -500.0 : 500.0;
 
     // Compute directional unit vector with normalized horizontal speed
     final aimDirX = dir.dx.clamp(-0.85, 0.85);
     final aimDirZ = -math.sqrt(math.max(0.05, 1.0 - aimDirX * aimDirX));
+    if (deepRecoveryFactor > 0 &&
+        activeShot != ShotType.smash &&
+        activeShot != ShotType.ultimate) {
+      final assistedForwardZ =
+          math.max(1.0, aimDirZ.abs() * forwardSpeed * 0.88);
+      final timeToNet = ball.position.z / assistedForwardZ;
+      final targetNetHeight = CourtDimensions.netHeight +
+          PhysicsConstants.ballRadius +
+          4.0;
+      final minimumUpSpeed = (targetNetHeight -
+                  ball.position.y +
+                  0.5 * PhysicsConstants.gravity * timeToNet * timeToNet) /
+              timeToNet +
+          4.0 * deepRecoveryFactor;
+      upSpeed = math.max(
+        upSpeed,
+        minimumUpSpeed.clamp(0.0, 82.0).toDouble(),
+      );
+    }
     ball.velocity = Vec3(
       aimDirX * forwardSpeed,
       upSpeed,
@@ -1049,6 +1091,7 @@ class PickleballGame extends ChangeNotifier {
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = true;
     ball.bounceCount = 0;
+    ball.secondBounceGraceTimer = 0;
     ball.hasBounced = false;
     ball.isServe = false;
     ball.impactFlash = activeShot == ShotType.power ? 1.0 : 0.7;

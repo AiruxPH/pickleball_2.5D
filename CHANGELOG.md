@@ -2,11 +2,12 @@
 
 ## 2026-10-05
 
-### 2026-10-05 - Same-frame double-bounce adjudication
+### 2026-10-05 - Deep recovery assistance and double-bounce grace
 
-- Moved ground-fault scoring immediately after ball physics so a player or bot cannot hit on the second-bounce frame and reset the bounce state before adjudication.
-- Kept the later scoring pass for net collisions and faults generated during player/controller updates.
-- Added regressions for both a nearby AI return and a queued human swing on the second bounce.
+- Added a 120 ms recovery window after the second ground contact: an already-reachable swing is accepted, while an untouched second bounce still ends the rally.
+- Kept ground-fault evaluation directly after physics so the grace timer, rather than update ordering, consistently decides whether recovery was in time.
+- Added distance-scaled forward pace and calculated minimum net-clearing lift for normal, power, lob, and drop returns contacted behind the normal baseline position.
+- Cleared grace state on every serve and paddle contact and added regressions for grace recovery, untouched double bounces, deep power returns, and deep lobs.
 
 ### 2026-10-05 - Official doubles server and receiver rotation
 

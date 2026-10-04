@@ -548,6 +548,7 @@ class AIController {
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = isPartner;
     ball.bounceCount = 0;
+    ball.secondBounceGraceTimer = 0;
     ball.hasBounced = false;
     ball.isServe = false;
     ball.impactFlash = chosenShot == ShotType.power ? 1.0 : 0.7;

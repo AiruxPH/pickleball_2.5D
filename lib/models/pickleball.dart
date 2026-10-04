@@ -59,6 +59,7 @@ class Pickleball {
   bool hasBounced;       // has ball bounced on the CURRENT side since last hit
   double lastBounceZ;    // Z position of last bounce (to check service box)
   bool playerSideBounce; // bounced on player's side?
+  double secondBounceGraceTimer;
 
   Pickleball()
       : position = Vec3(0, PhysicsConstants.serveBallHeight, 
@@ -91,7 +92,8 @@ class Pickleball {
         spinAngle = 0,
         hasBounced = false,
         lastBounceZ = 0,
-        playerSideBounce = false;
+        playerSideBounce = false,
+        secondBounceGraceTimer = 0;
 
   // ── Convenience getters ────────────────────────────────────
   bool get isInPlay => state == BallState.inFlight || state == BallState.bouncing;
@@ -165,6 +167,7 @@ class Pickleball {
     trail.clear();
     hasBounced = false;
     playerSideBounce = false;
+    secondBounceGraceTimer = 0;
     isUltimate = false;
     ultimateType = null;
     ghostClones1.clear();
