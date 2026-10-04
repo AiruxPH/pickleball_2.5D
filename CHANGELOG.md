@@ -2,6 +2,14 @@
 
 ## 2026-10-04
 
+### 2026-10-04 23:55:00+08:00
+- **Reason of Change:** `setState() or markNeedsBuild() called during build` exception thrown on every game-over screen load.
+- **Cause:** `didChangeDependencies()` in `GameOverScreen` called `_recordMatchStats()` synchronously on first mount (`_firstBuild`). That method called `GameSettings.recordMatchResult()` → `notifyListeners()`, which tried to mark `_InheritedProviderScope<GameSettings?>` dirty while Flutter was already mid-frame building widgets. This is illegal and throws an assertion error.
+- **Fix:** Wrapped `_recordMatchStats(args)` in `WidgetsBinding.instance.addPostFrameCallback((_) { ... })` inside `game_over_screen.dart`. The callback fires after the current frame completes, so `notifyListeners()` is safely called between frames instead of during build.
+- **Files Modified:**
+  - [game_over_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/game_over_screen.dart) — deferred `_recordMatchStats` call to `addPostFrameCallback`.
+
+
 ### 2026-10-04 23:41:00+08:00
 - **Reason of Change:** User reported two audio issues: (1) match music does not change when a game starts, (2) volume sliders in Settings have no audible effect.
 - **Cause of Errors & Fixes:**

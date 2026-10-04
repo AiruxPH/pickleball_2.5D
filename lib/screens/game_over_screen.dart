@@ -90,8 +90,11 @@ class _GameOverScreenState extends State<GameOverScreen>
       }
     }
 
-    // Record match stats into GameSettings
-    _recordMatchStats(args);
+    // Record match stats AFTER the current build frame to avoid calling
+    // GameSettings.notifyListeners() during build (setState during build error).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _recordMatchStats(args);
+    });
 
     // Start animations
     Future.delayed(const Duration(milliseconds: 100), () {

@@ -94,8 +94,6 @@ class AudioService {
   void playBGM({String track = kDefaultBgmTrack}) {
     _bgmWanted = true;
     _inMatch = false;
-    // Treat an explicit playBGM call as user interaction (navigation acts as gesture)
-    _userInteracted = true;
 
     if (_currentTrack == track && isBgmPlaying) {
       _bgmCoordinator.setVolume(_effectiveMusicVolume);
@@ -104,6 +102,8 @@ class AudioService {
 
     _currentTrack = track;
     if (_musicVolume <= 0) return;
+    // Respect Web Audio autoplay policy — wait for handleUserInteraction()
+    if (kIsWeb && !_userInteracted) return;
 
     _startBgmInternal();
   }
