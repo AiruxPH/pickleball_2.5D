@@ -2,6 +2,22 @@
 
 ## 2026-10-05
 
+### 2026-10-05 04:38:00+08:00
+- **Reason of Change:** Fix Windows crash `ExceptionCode=-1073741819` (Access Violation `0xC0000005`) in Dart VM (`Dart_IsolateRunnableLatencyMetric`) and clean desynchronized incremental kernel compiler caches.
+- **Cause of Error:**
+  1. Frontend Compiler Kernel Cache Desynchronization:
+     - The Dart frontend compiler's incremental compilation cache (`.cache.dill` / `.cache.dill.track.dill`) in `build/` became corrupted on Windows after rapid multi-target switching and code edits, causing the Dart VM runtime to crash with an access violation (`0xC0000005`) during isolate initialization.
+  2. Mobile SystemUiMode Call on Desktop:
+     - `SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky)` was being invoked indiscriminately on Windows desktop where `immersiveSticky` is an unsupported Android-specific platform feature.
+- **Fix Applied:**
+  1. Purged corrupted kernel compiler caches using `flutter clean` and re-indexed dependencies via `flutter pub get`.
+  2. [main.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/main.dart):
+     - Wrapped `SystemChrome` calls in a protective `try-catch` block.
+     - Added platform checks (`!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)`) so `SystemUiMode.immersiveSticky` only executes on mobile devices where the system UI mode is supported.
+- **Verification:**
+  - Ran `flutter analyze` across the entire project (`No issues found!`).
+  - Ran all 19 unit & integration tests (`All tests passed!`).
+
 ### 2026-10-05 04:23:00+08:00
 - **Reason of Change:** Fix `SyntaxError: Failed to construct 'WebSocket': The URL 'ws://192.0.0.4:7777:7777' is invalid`, expand IP range validation for Android hotspot/cellular NAT networks (e.g. `192.0.0.X`), and clarify cross-device connection architecture between Web browsers and Android.
 - **Cause of Error:**

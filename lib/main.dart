@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -23,14 +24,20 @@ import 'models/game_settings.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Force landscape orientation (no portrait)
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-
-  // Full-screen immersive mode
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  // Force landscape orientation on supported devices
+  try {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
+  } catch (e) {
+    debugPrint('[SystemChrome] Platform orientation/UI mode skipped: $e');
+  }
 
   // Load saved settings
   final settingsService = SettingsService();
