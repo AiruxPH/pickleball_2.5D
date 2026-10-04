@@ -66,15 +66,16 @@ class BgmCoordinator {
 
     _isTransitioning = true;
     try {
-      // 1. Stop current BGM cleanly if playing
-      if (_isPlaying) {
-        try {
-          await FlameAudio.bgm.stop();
-        } catch (e) {
-          _suppressAbortError(e, 'FlameAudio.bgm.stop');
-        }
-        _isPlaying = false;
+      // Always stop any currently running audio before switching tracks.
+      // Do NOT gate on _isPlaying — the flag can be out of sync with the
+      // actual HTML5/WebAudio player, causing the old track to keep playing
+      // underneath the new one (double-BGM bug).
+      try {
+        await FlameAudio.bgm.stop();
+      } catch (e) {
+        _suppressAbortError(e, 'FlameAudio.bgm.stop');
       }
+      _isPlaying = false;
 
       if (_sequenceId != thisSeq) return;
 

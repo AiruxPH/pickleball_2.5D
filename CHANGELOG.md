@@ -1,5 +1,20 @@
 # Change Log
 
+## 2026-10-05
+
+### 2026-10-05 00:13:00+08:00
+- **Reason of Change:** User reported two simultaneous BGM tracks playing — one persistent and one screen-bound. Also a Chrome warning: "The AudioContext was not allowed to start."
+- **Cause:** Two separate bugs compounding each other:
+  1. *AudioContext warning / orphaned startup audio*: A previous fix removed the `kIsWeb && !_userInteracted` guard from `playBGM` and set `_userInteracted = true` inside it. This caused `main.dart`'s startup `audioService.playBGM()` call to attempt audio playback before any user gesture on web — Chrome blocked it with an "AudioContext was not allowed to start" warning, but the attempt left the BGM state partially initialized and `_isPlaying = false` even though a second play attempt could still succeed.
+  2. *Double-play when _isPlaying out of sync*: `BgmCoordinator.playTrack` only called `FlameAudio.bgm.stop()` if the `_isPlaying` flag was `true`. If the flag was `false` (after an aborted web play attempt) while the underlying HTML5 audio was still active, the stop was skipped — the old track kept playing while a new one started on top.
+- **Fix:**
+  - Restored `kIsWeb && !_userInteracted` guard in `AudioService.playBGM()` and removed the `_userInteracted = true` setter from it — startup calls from `main.dart` must respect web autoplay policy and wait for `handleUserInteraction()`.
+  - `startMatchMusic()` and `stopMatchMusic()` keep `_userInteracted = true` because they are always triggered by an explicit user navigation gesture (pressing Play).
+  - `BgmCoordinator.playTrack()` now unconditionally calls `FlameAudio.bgm.stop()` before every new track — regardless of `_isPlaying` state — so the old audio is always killed even if the state flag is stale.
+- **Files Modified:**
+  - [audio_service.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/audio_service.dart) — restored web guard in `playBGM`.
+  - [bgm_coordinator.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/bgm_coordinator.dart) — unconditional stop before every play.
+
 ## 2026-10-04
 
 ### 2026-10-04 23:55:00+08:00
