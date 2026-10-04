@@ -59,6 +59,8 @@ class _GameScreenState extends State<GameScreen>
 
   // Swipe tracking
   Offset? _swipeStart;
+  Offset? _spectatorGesturePoint;
+  double _spectatorGestureScale = 1;
   bool _isPractice = false;
   bool _isTournament = false;
   bool _isCareer = false;
@@ -371,6 +373,35 @@ class _GameScreenState extends State<GameScreen>
     _commands?.clearAim();
   }
 
+  void _onSpectatorScaleStart(ScaleStartDetails details) {
+    _spectatorGesturePoint = details.focalPoint;
+    _spectatorGestureScale = 1;
+  }
+
+  void _onSpectatorScaleUpdate(ScaleUpdateDetails details) {
+    final game = _game;
+    final previousPoint = _spectatorGesturePoint;
+    if (game == null ||
+        previousPoint == null ||
+        game.cameraController.view != CameraView.freeRoam) {
+      return;
+    }
+    final delta = details.focalPoint - previousPoint;
+    final scaleDelta = details.scale / _spectatorGestureScale;
+    game.cameraController.adjustFreeRoam(
+      orbitDx: delta.dx,
+      orbitDy: delta.dy,
+      zoomFactor: scaleDelta,
+    );
+    _spectatorGesturePoint = details.focalPoint;
+    _spectatorGestureScale = details.scale;
+  }
+
+  void _onSpectatorScaleEnd(ScaleEndDetails details) {
+    _spectatorGesturePoint = null;
+    _spectatorGestureScale = 1;
+  }
+
   @override
   Widget build(BuildContext context) {
     final game = _game;
@@ -398,6 +429,9 @@ class _GameScreenState extends State<GameScreen>
           onPanStart: _isBotVsBot ? null : _onSwipeStart,
           onPanUpdate: _isBotVsBot ? null : _onSwipeUpdate,
           onPanEnd: _isBotVsBot ? null : _onSwipeEnd,
+          onScaleStart: _isBotVsBot ? _onSpectatorScaleStart : null,
+          onScaleUpdate: _isBotVsBot ? _onSpectatorScaleUpdate : null,
+          onScaleEnd: _isBotVsBot ? _onSpectatorScaleEnd : null,
           child: Stack(
             children: [
               // ── Custom Court Environment Artwork Backdrop ────────
@@ -507,6 +541,15 @@ class _GameScreenState extends State<GameScreen>
                 label: game.cameraController.view.label,
                 onTap: _cycleSpectatorCamera,
               ),
+            ),
+
+          if (_isBotVsBot &&
+              game.cameraController.view == CameraView.freeRoam)
+            const Positioned(
+              bottom: 18,
+              left: 0,
+              right: 0,
+              child: Center(child: _FreeRoamHint()),
             ),
 
           // ── Virtual Joystick (bottom left) ────────────────
@@ -1289,6 +1332,35 @@ class _SpectatorCameraButton extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FreeRoamHint extends StatelessWidget {
+  const _FreeRoamHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xCC0F172A),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x445EE7F7)),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Text(
+            'DRAG TO ORBIT  •  PINCH TO ZOOM',
+            style: TextStyle(
+              color: Color(0xFFBAE6FD),
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
           ),
         ),
       ),

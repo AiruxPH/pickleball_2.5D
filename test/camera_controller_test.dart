@@ -30,6 +30,7 @@ void main() {
 
       expect(controller.cycleSpectatorView(), CameraView.sideline);
       expect(controller.cycleSpectatorView(), CameraView.overhead);
+      expect(controller.cycleSpectatorView(), CameraView.freeRoam);
       expect(controller.cycleSpectatorView(), CameraView.baseline);
     });
 
@@ -46,6 +47,22 @@ void main() {
       controller.update(1, 1);
 
       expect(camera.fov, 47);
+    });
+
+    test('free roam clamps pitch and zoom to safe stadium bounds', () {
+      controller.setView(CameraView.freeRoam);
+      controller.adjustFreeRoam(
+        orbitDx: 40,
+        orbitDy: 10000,
+        zoomFactor: 100,
+      );
+
+      expect(controller.freeRoamPitch, 0.20);
+      expect(controller.freeRoamDistance, 68);
+
+      controller.adjustFreeRoam(orbitDy: -10000, zoomFactor: 0.001);
+      expect(controller.freeRoamPitch, 1.22);
+      expect(controller.freeRoamDistance, 210);
     });
   });
 }

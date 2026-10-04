@@ -5,7 +5,7 @@ import '../models/player.dart';
 import '../utils/constants.dart';
 import '../utils/game_math.dart';
 
-enum CameraView { playerFollow, baseline, sideline, overhead }
+enum CameraView { playerFollow, baseline, sideline, overhead, freeRoam }
 
 extension CameraViewLabel on CameraView {
   String get label {
@@ -18,6 +18,8 @@ extension CameraViewLabel on CameraView {
         return 'SIDELINE';
       case CameraView.overhead:
         return 'OVERHEAD';
+      case CameraView.freeRoam:
+        return 'FREE ROAM';
     }
   }
 }
@@ -38,15 +40,44 @@ class CameraController {
   Vec3 _smoothCamPos;
   Vec3 _smoothTarget;
   CameraView view = CameraView.playerFollow;
+  double _freeRoamYaw = 0;
+  double _freeRoamPitch = 0.48;
+  double _freeRoamDistance = 132;
+  Vec3 _freeRoamTarget = Vec3(0, 5, 0);
 
   void setView(CameraView nextView) {
     view = nextView;
   }
 
+  double get freeRoamPitch => _freeRoamPitch;
+  double get freeRoamDistance => _freeRoamDistance;
+
+  void adjustFreeRoam({
+    double orbitDx = 0,
+    double orbitDy = 0,
+    double zoomFactor = 1,
+  }) {
+    if (view != CameraView.freeRoam) return;
+    _freeRoamYaw -= orbitDx * 0.008;
+    _freeRoamPitch =
+        (_freeRoamPitch - orbitDy * 0.006).clamp(0.20, 1.22);
+    if (zoomFactor.isFinite && zoomFactor > 0) {
+      _freeRoamDistance =
+          (_freeRoamDistance / zoomFactor).clamp(68.0, 210.0);
+    }
+  }
+
+  void resetFreeRoam() {
+    _freeRoamYaw = 0;
+    _freeRoamPitch = 0.48;
+    _freeRoamDistance = 132;
+    _freeRoamTarget = Vec3(0, 5, 0);
+  }
+
   CameraView cycleSpectatorView() {
     switch (view) {
       case CameraView.playerFollow:
-      case CameraView.overhead:
+      case CameraView.freeRoam:
         view = CameraView.baseline;
         break;
       case CameraView.baseline:
@@ -54,6 +85,9 @@ class CameraController {
         break;
       case CameraView.sideline:
         view = CameraView.overhead;
+        break;
+      case CameraView.overhead:
+        view = CameraView.freeRoam;
         break;
     }
     return view;
@@ -126,6 +160,18 @@ class CameraController {
           position: Vec3(0, 158, 28),
           target: Vec3(ball.position.x * 0.1, 0, ball.position.z * 0.08 - 5),
           fov: 58,
+        );
+      case CameraView.freeRoam:
+        final horizontal = math.cos(_freeRoamPitch) * _freeRoamDistance;
+        return _CameraPose(
+          position: Vec3(
+            _freeRoamTarget.x + math.sin(_freeRoamYaw) * horizontal,
+            _freeRoamTarget.y +
+                math.sin(_freeRoamPitch) * _freeRoamDistance,
+            _freeRoamTarget.z + math.cos(_freeRoamYaw) * horizontal,
+          ),
+          target: _freeRoamTarget.copy(),
+          fov: 52,
         );
     }
   }

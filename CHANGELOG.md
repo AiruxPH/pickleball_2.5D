@@ -259,3 +259,10 @@
 - Added a spectator-only camera control with an accessible current-angle label and a `C` keyboard shortcut.
 - Initialized bot-vs-bot matches in the baseline broadcast view without changing regular gameplay cameras.
 - Added camera-controller regression tests for spectator cycling, sideline placement, spectator FOV, and preservation of the gameplay-selected FOV.
+
+### 2026-10-05 - Free-roam spectator camera
+- Added free roam to the spectator camera cycle with drag-controlled yaw/pitch and pinch-controlled zoom, matching the interaction model proven in the parallel project.
+- Bounded elevation and camera distance to keep the court visible and prevent invalid stadium viewpoints.
+- Added an on-screen free-roam gesture hint that appears only while the mode is active.
+- Kept spectator gestures isolated from gameplay commands so camera interaction cannot steer either bot.
+- Extended camera regression tests with free-roam cycling and safety-bound validation.
