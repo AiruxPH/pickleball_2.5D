@@ -2,6 +2,20 @@
 
 ## 2026-10-05
 
+### 2026-10-05 - Local multiplayer lobby and online-ready match commands
+
+- Added a Local Multiplayer entry to mode selection and a dedicated shared-screen lobby with singles/doubles format selection, two human ready states, and AI partner slots for doubles.
+- Added a transport-neutral, JSON-serializable lobby model so the same room/slot/readiness contract can later be synchronized by an online service instead of replaced.
+- Passed the complete lobby payload into game arguments, which also keeps the selected local format and room state through the existing rematch flow.
+- Extended match commands with a player slot so player two, a future remote peer, bots, and replay playback can use the same movement, aim, serve, and shot interface.
+- Added far-side human control with mirrored movement, legal baseline serving, shot buffering, stamina use, deep-return assistance, and official wrong-receiver, two-bounce, and kitchen checks.
+- Kept doubles playable as one human plus one AI partner per team while preventing the normal opponent AI controller from competing with player-two input.
+- Split desktop controls into simultaneous schemes: Player 1 uses WASD and J/K/L/U (Space to serve); Player 2 uses arrow keys and M/N/B/V (Enter to serve).
+- Made mobile/shared touch controls automatically follow the current human server or next receiver, with an on-screen P1/P2 control indicator and local-player scoreboard labeling.
+- Decoupled court side from `isHuman` in the player model and renderer, allowing local or future network humans to occupy either end of the court without breaking bounds, facing, reset positions, or NVZ rules.
+- Added regression coverage for lobby readiness/serialization, doubles bot slots, and player-two command routing.
+- Verification note: `git diff --check` completed cleanly. Dart/Flutter analysis was attempted but the local tool process produced no output and timed out after 60 seconds, matching the existing SDK-runner issue in this workspace.
+
 ### 2026-10-05 - Deep recovery assistance and double-bounce grace
 
 - Added a 120 ms recovery window after the second ground contact: an already-reachable swing is accepted, while an untouched second bounce still ends the rally.
