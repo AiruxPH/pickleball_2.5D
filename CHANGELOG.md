@@ -2,6 +2,29 @@
 
 ## 2026-10-05
 
+### 2026-10-05 04:23:00+08:00
+- **Reason of Change:** Fix `SyntaxError: Failed to construct 'WebSocket': The URL 'ws://192.0.0.4:7777:7777' is invalid`, expand IP range validation for Android hotspot/cellular NAT networks (e.g. `192.0.0.X`), and clarify cross-device connection architecture between Web browsers and Android.
+- **Cause of Error:**
+  1. Port Duplication (`:7777:7777`):
+     - When a user entered or copied an address that already included a port (such as `192.0.0.4:7777`), `lan_transport_web.dart` and `lan_transport_io.dart` concatenated `:$port`, producing an invalid URI (`ws://192.0.0.4:7777:7777`).
+  2. Overly-Strict IP Validation:
+     - `LanRoomCode.isValidLanIp` only whitelisted `192.168.x.x`, failing on valid Android hotspot/tethering subnets like `192.0.0.x`, which caused `decodeIp` to fail and fall through to unparsed string concatenation.
+  3. Browser Sandboxing vs Android Hosting:
+     - Web browsers running JavaScript are sandboxed by browser vendors and cannot listen on raw TCP server ports (`HttpServer.bind` is unavailable in web browsers). Therefore, a browser can connect to an Android host, but an Android device cannot connect to a browser host.
+- **Fix Applied:**
+  1. [lan_room_code.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_room_code.dart):
+     - Added `LanRoomCode.parseHostAndPort(...)`, safely decomposing any IP/host with optional schemes (`ws://`, `http://`) and ports, preventing double-port generation.
+     - Enhanced `isValidLanIp` and `decodeIp` to support any valid IPv4 (including carrier NAT / hotspot `192.0.0.x`).
+  2. [lan_transport_web.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_transport_web.dart) & [lan_transport_io.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/services/lan/lan_transport_io.dart):
+     - Integrated `parseHostAndPort` into `createLanClient`, guaranteeing well-formed WebSocket URLs (`ws://$targetHost:$targetPort`).
+  3. [lan_host_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_host_view.dart) & [lan_join_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/widgets/lan/lan_join_view.dart):
+     - Added UI guidance explaining that for Browser vs Android multiplayer, Android acts as the host and the browser joins using the Room Code or IP.
+  4. [lan_multiplayer_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/lan_multiplayer_test.dart):
+     - Added unit tests verifying `parseHostAndPort` handles `192.0.0.4:7777`, `ws://192.0.0.4:8888`, and `localhost:7777` without port duplication.
+- **Verification:**
+  - Ran `flutter analyze lib/services/lan/ lib/widgets/lan/ test/lan_multiplayer_test.dart` (0 issues found).
+  - Ran `flutter test test/lan_multiplayer_test.dart` (all 9 tests passed).
+
 ### 2026-10-05 04:03:00+08:00
 - **Reason of Change:** User requested to force landscape orientation across the entire application (no more portrait orientation permitted).
 - **Implementation:**

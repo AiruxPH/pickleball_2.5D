@@ -117,11 +117,8 @@ Future<LanConnection> createLanClient(
   String? roomCode,
 }) async {
   final clean = hostOrCode.trim();
-  // Check if room code encodes an IP address
-  final decodedIp = LanRoomCode.decodeIp(clean);
-  final targetHost = decodedIp ?? (clean.isEmpty ? '127.0.0.1' : clean);
-
-  final socket = await WebSocket.connect('ws://$targetHost:$port')
+  final parsed = LanRoomCode.parseHostAndPort(clean, defaultPort: port);
+  final socket = await WebSocket.connect('ws://${parsed.host}:${parsed.port}')
       .timeout(const Duration(seconds: 4));
   return IoLanConnection(socket);
 }

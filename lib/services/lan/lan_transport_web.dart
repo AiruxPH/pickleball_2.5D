@@ -142,22 +142,31 @@ Future<LanConnection> createLanClient(
       ? roomCode.trim().toUpperCase()
       : clean.toUpperCase();
 
-  // 1. Try decoding IP from room code (e.g. PK-1P4MKD -> 192.168.1.45)
-  final decodedIp = LanRoomCode.decodeIp(clean);
-  if (decodedIp != null && decodedIp != '127.0.0.1') {
-    final ws = html.WebSocket('ws://$decodedIp:$port');
+  // Safely parse host and port, handling ws://, ports, and Base36 IP codes
+  final parsed = LanRoomCode.parseHostAndPort(clean, defaultPort: port);
+  final targetHost = parsed.host;
+  final targetPort = parsed.port;
+  final targetWsUrl = 'ws://$targetHost:$targetPort';
+
+  // 1. If targetHost is an external IP on the LAN (e.g. 192.0.0.4 or 192.168.1.X from Android)
+  if (LanRoomCode.isValidLanIp(targetHost) && targetHost != '127.0.0.1') {
     final completer = Completer<LanConnection>();
-    ws.onOpen.listen((_) {
-      if (!completer.isCompleted) {
-        completer.complete(WebLanConnection.fromWebSocket(ws));
-      }
-    });
-    ws.onError.listen((e) {
-      if (!completer.isCompleted) {
-        completer.completeError('Failed to connect to ws://$decodedIp:$port');
-      }
-    });
-    return completer.future.timeout(const Duration(seconds: 4));
+    try {
+      final ws = html.WebSocket(targetWsUrl);
+      ws.onOpen.listen((_) {
+        if (!completer.isCompleted) {
+          completer.complete(WebLanConnection.fromWebSocket(ws));
+        }
+      });
+      ws.onError.listen((e) {
+        if (!completer.isCompleted) {
+          completer.completeError('Failed to connect to $targetWsUrl. Ensure host is running on Android and connected to the same Wi-Fi.');
+        }
+      });
+      return await completer.future.timeout(const Duration(seconds: 5));
+    } catch (e) {
+      // If WebSocket fails, continue to BroadcastChannel fallback
+    }
   }
 
   // 2. Attempt BroadcastChannel cross-tab connection with target room code
@@ -179,26 +188,31 @@ Future<LanConnection> createLanClient(
 
   channel.postMessage({'type': 'client_hello'});
 
-  // 3. Fallback to WebSocket if no cross-tab broadcast in 600ms
+  // 3. Fallback to WebSocket if no cross-tab broadcast responds in 600ms
   Future.delayed(const Duration(milliseconds: 600), () {
     if (!completer.isCompleted) {
       tempSub?.cancel();
-      final wsHost = (clean == 'localhost' || clean.isEmpty) ? '127.0.0.1' : clean;
-      final ws = html.WebSocket('ws://$wsHost:$port');
-      final wsCompleter = Completer<LanConnection>();
-      ws.onOpen.listen((_) {
-        if (!wsCompleter.isCompleted) {
-          wsCompleter.complete(WebLanConnection.fromWebSocket(ws));
+      try {
+        final ws = html.WebSocket(targetWsUrl);
+        final wsCompleter = Completer<LanConnection>();
+        ws.onOpen.listen((_) {
+          if (!wsCompleter.isCompleted) {
+            wsCompleter.complete(WebLanConnection.fromWebSocket(ws));
+          }
+        });
+        ws.onError.listen((e) {
+          if (!wsCompleter.isCompleted) {
+            wsCompleter.completeError('Could not find room "$targetCode" at $targetWsUrl. For cross-device play, ensure Android creates the room.');
+          }
+        });
+        completer.complete(wsCompleter.future);
+      } catch (e) {
+        if (!completer.isCompleted) {
+          completer.completeError('Connection to $targetWsUrl failed: $e');
         }
-      });
-      ws.onError.listen((e) {
-        if (!wsCompleter.isCompleted) {
-          wsCompleter.completeError('Could not find room $targetCode. Check code and try again.');
-        }
-      });
-      completer.complete(wsCompleter.future);
+      }
     }
   });
 
-  return completer.future.timeout(const Duration(seconds: 4));
+  return completer.future.timeout(const Duration(seconds: 5));
 }

@@ -210,6 +210,14 @@ class _LanJoinViewState extends State<LanJoinView> {
                     ),
                   ),
                 ],
+                SizedBox(height: 10 * ui),
+                Text(
+                  '💡 Android vs Browser: To play across devices, create the room on Android, then enter the Room Code or IP (e.g. 192.168.1.X) here.',
+                  style: TextStyle(
+                    fontSize: 10.5 * ui,
+                    color: Colors.white54,
+                  ),
+                ),
               ],
             ),
           ),

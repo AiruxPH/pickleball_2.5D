@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/match_lobby.dart';
@@ -35,6 +36,39 @@ class LanHostView extends StatelessWidget {
           port: service.port,
           ui: ui,
         ),
+        if (kIsWeb) ...[
+          SizedBox(height: 10 * ui),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 14 * ui, vertical: 10 * ui),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F2B48).withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(10 * ui),
+              border: Border.all(
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.phone_android_rounded,
+                  size: 18 * ui,
+                  color: const Color(0xFF00E5FF),
+                ),
+                SizedBox(width: 10 * ui),
+                Expanded(
+                  child: Text(
+                    'Browser vs Android: Web browsers cannot open network server ports. To play against an Android phone on Wi-Fi, tap "CREATE ROOM" on Android, then join from here!',
+                    style: TextStyle(
+                      fontSize: 11 * ui,
+                      color: const Color(0xFFE0F7FA),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         SizedBox(height: 14 * ui),
 
         // Format Selector (Singles / Doubles)

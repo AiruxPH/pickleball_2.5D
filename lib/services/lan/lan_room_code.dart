@@ -15,7 +15,9 @@ class LanRoomCode {
 
   /// Encodes an IPv4 address into a compact 6-character Base36 code, e.g. "PK-1P4MKD".
   static String? encodeIp(String ip, {String prefix = prefix}) {
-    final parts = ip.trim().split('.');
+    var clean = ip.trim();
+    if (clean.contains(':')) clean = clean.split(':').first;
+    final parts = clean.split('.');
     if (parts.length != 4) return null;
     final b0 = int.tryParse(parts[0]);
     final b1 = int.tryParse(parts[1]);
@@ -31,10 +33,51 @@ class LanRoomCode {
     return '$prefix$encoded';
   }
 
+  /// Parses a host/port string or room code safely, extracting the target host and port.
+  /// Handles prefixes like ws://, wss://, http://, ports, and Base36 IP room codes.
+  static ({String host, int port}) parseHostAndPort(
+    String input, {
+    int defaultPort = 7777,
+  }) {
+    var clean = input.trim();
+    if (clean.startsWith('ws://')) clean = clean.substring(5);
+    if (clean.startsWith('wss://')) clean = clean.substring(6);
+    if (clean.startsWith('http://')) clean = clean.substring(7);
+    if (clean.startsWith('https://')) clean = clean.substring(8);
+    if (clean.contains('/')) clean = clean.split('/').first;
+
+    var host = clean;
+    var port = defaultPort;
+
+    if (clean.contains(':')) {
+      final parts = clean.split(':');
+      host = parts[0];
+      final parsedPort = int.tryParse(parts[1]);
+      if (parsedPort != null && parsedPort > 0 && parsedPort <= 65535) {
+        port = parsedPort;
+      }
+    }
+
+    // Try decoding room code if applicable
+    final decoded = decodeIp(host);
+    if (decoded != null) {
+      host = decoded;
+    }
+
+    if (host == 'localhost' || host.isEmpty) {
+      host = '127.0.0.1';
+    }
+
+    return (host: host, port: port);
+  }
+
   /// Attempts to decode a room code or string into an IPv4 address.
   /// Returns null if the code does not represent a valid LAN IPv4.
   static String? decodeIp(String code, {String prefix = prefix}) {
     var clean = code.trim().toUpperCase();
+    if (clean.contains(':')) {
+      clean = clean.split(':').first;
+    }
     if (clean.startsWith(prefix.toUpperCase())) {
       clean = clean.substring(prefix.length);
     }
@@ -55,9 +98,11 @@ class LanRoomCode {
     return isValidLanIp(ip) ? ip : null;
   }
 
-  /// Validates whether an IP address belongs to standard private/local ranges.
+  /// Validates whether an IP address belongs to a valid routable IPv4 network.
   static bool isValidLanIp(String ip) {
-    final parts = ip.split('.');
+    var clean = ip.trim();
+    if (clean.contains(':')) clean = clean.split(':').first;
+    final parts = clean.split('.');
     if (parts.length != 4) return false;
     final b0 = int.tryParse(parts[0]) ?? -1;
     final b1 = int.tryParse(parts[1]) ?? -1;
@@ -67,16 +112,11 @@ class LanRoomCode {
       return false;
     }
 
-    // 192.168.0.0/16
-    if (b0 == 192 && b1 == 168) return true;
-    // 10.0.0.0/8
-    if (b0 == 10) return true;
-    // 172.16.0.0/12
-    if (b0 == 172 && b1 >= 16 && b1 <= 31) return true;
-    // 127.0.0.1 (Loopback)
-    if (b0 == 127) return true;
+    // Disallow 0.0.0.0 and 255.255.255.255
+    if (b0 == 0 && b1 == 0 && b2 == 0 && b3 == 0) return false;
+    if (b0 == 255 && b1 == 255 && b2 == 255 && b3 == 255) return false;
 
-    return false;
+    return true;
   }
 
   /// Normalizes room code format (uppercase, trims spaces).

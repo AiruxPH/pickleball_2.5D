@@ -157,6 +157,23 @@ void main() {
 
       // Direct IP decoding pass-through
       expect(LanRoomCode.decodeIp('192.168.1.100'), '192.168.1.100');
+
+      // IP with port decoding
+      expect(LanRoomCode.decodeIp('192.0.0.4:7777'), '192.0.0.4');
+      expect(LanRoomCode.isValidLanIp('192.0.0.4'), isTrue);
+
+      // parseHostAndPort prevents port duplication
+      final parsed1 = LanRoomCode.parseHostAndPort('192.0.0.4:7777');
+      expect(parsed1.host, '192.0.0.4');
+      expect(parsed1.port, 7777);
+
+      final parsed2 = LanRoomCode.parseHostAndPort('ws://192.0.0.4:8888');
+      expect(parsed2.host, '192.0.0.4');
+      expect(parsed2.port, 8888);
+
+      final parsed3 = LanRoomCode.parseHostAndPort('localhost:7777');
+      expect(parsed3.host, '127.0.0.1');
+      expect(parsed3.port, 7777);
     });
 
     test('LanRoomInfo serializes and deserializes', () {
