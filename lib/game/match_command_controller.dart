@@ -45,15 +45,23 @@ typedef MatchCommandObserver = void Function(MatchCommand command);
 /// replay, local multiplayer, and online sources issue the same commands as
 /// the current UI without gaining direct access to physics or scoring state.
 class MatchCommandController {
-  MatchCommandController({required this.game, this.onDispatched});
+  MatchCommandController({
+    required this.game,
+    this.playerSlot = 0,
+    this.onDispatched,
+  });
 
   final PickleballGame game;
+  final int playerSlot;
   final MatchCommandObserver? onDispatched;
 
   void dispatch(MatchCommand command) {
     switch (command.type) {
       case MatchCommandType.movement:
-        game.setJoystick(
+        _isOpponent ? game.setOpponentJoystick(
+          _safeAxis(command.x),
+          _safeAxis(command.y),
+        ) : game.setJoystick(
           _safeAxis(command.x),
           _safeAxis(command.y),
         );
@@ -62,22 +70,28 @@ class MatchCommandController {
         final x = command.x;
         final y = command.y;
         if (x == null || y == null || !x.isFinite || !y.isFinite) {
-          game.setSwipe(null);
+          _isOpponent ? game.setOpponentSwipe(null) : game.setSwipe(null);
         } else {
           final direction = Offset(x, y);
-          game.setSwipe(
-            direction.distance == 0 ? null : direction / direction.distance,
-          );
+          final normalized =
+              direction.distance == 0 ? null : direction / direction.distance;
+          _isOpponent
+              ? game.setOpponentSwipe(normalized)
+              : game.setSwipe(
+                  normalized,
+                );
         }
         break;
       case MatchCommandType.serve:
-        game.setServePressed(true);
+        _isOpponent
+            ? game.setOpponentServePressed(true)
+            : game.setServePressed(true);
         break;
       case MatchCommandType.shot:
         _dispatchShot(command.shotType ?? ShotType.normal);
         break;
       case MatchCommandType.toggleUltimate:
-        game.toggleArmUltimate();
+        if (!_isOpponent) game.toggleArmUltimate();
         break;
     }
     onDispatched?.call(command);
@@ -98,12 +112,18 @@ class MatchCommandController {
 
   void toggleUltimate() => dispatch(const MatchCommand.toggleUltimate());
 
+  bool get _isOpponent => playerSlot == 1;
+
   double _safeAxis(double? value) {
     if (value == null || !value.isFinite) return 0;
     return value.clamp(-1.0, 1.0).toDouble();
   }
 
   void _dispatchShot(ShotType type) {
+    if (_isOpponent) {
+      game.queueOpponentShot(type == ShotType.ultimate ? ShotType.power : type);
+      return;
+    }
     switch (type) {
       case ShotType.normal:
         game.setHitPressed(true);

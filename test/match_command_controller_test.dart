@@ -56,5 +56,27 @@ void main() {
         MatchCommandType.shot,
       ]);
     });
+
+    test('routes player two commands to the far-side local player', () {
+      final localGame = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+        isLocalMultiplayer: true,
+      );
+      final playerTwo = MatchCommandController(game: localGame, playerSlot: 1);
+
+      playerTwo.move(-2, 0.5);
+      playerTwo.aim(const Offset(0, 5));
+      playerTwo.shot(ShotType.lob);
+      playerTwo.serve();
+
+      expect(localGame.opponentJoystickX, -1);
+      expect(localGame.opponentJoystickY, 0.5);
+      expect(localGame.opponentSwipeDirection, const Offset(0, 1));
+      expect(localGame.opponentBufferedShot, ShotType.lob);
+      expect(localGame.opponentServePressed, isTrue);
+      expect(localGame.ai.isHuman, isTrue);
+      expect(localGame.ai.isNearSide, isFalse);
+    });
   });
 }

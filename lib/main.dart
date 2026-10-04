@@ -14,6 +14,7 @@ import 'screens/career_screen.dart';
 import 'screens/training_screen.dart';
 import 'screens/leaderboard_screen.dart';
 import 'screens/achievements_screen.dart';
+import 'screens/local_lobby_screen.dart';
 import 'services/settings_service.dart';
 import 'services/audio_service.dart';
 import 'services/character_sprite_manager.dart';
@@ -108,6 +109,7 @@ class PickleballApp extends StatelessWidget {
         '/training':     (context) => const TrainingScreen(),
         '/leaderboard':  (context) => const LeaderboardScreen(),
         '/achievements': (context) => const AchievementsScreen(),
+        '/local-lobby':  (context) => const LocalLobbyScreen(),
       },
     );
   }

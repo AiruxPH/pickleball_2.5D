@@ -25,6 +25,8 @@ class Scoreboard extends StatelessWidget {
   final String? modeName;
   final bool isPractice;
   final Widget? footer;
+  final String playerName;
+  final String opponentName;
 
   const Scoreboard({
     super.key,
@@ -38,6 +40,8 @@ class Scoreboard extends StatelessWidget {
     this.modeName,
     this.isPractice = false,
     this.footer,
+    this.playerName = 'PLAYER',
+    this.opponentName = 'LORINE',
   });
 
   @override
@@ -101,7 +105,7 @@ class Scoreboard extends StatelessWidget {
               // Player Side
               Expanded(
                 child: _PlayerCard(
-                  name: 'PLAYER',
+                  name: playerName,
                   score: playerScore,
                   isServing: isServing,
                   serverNumber: serverNumber,
@@ -121,7 +125,7 @@ class Scoreboard extends StatelessWidget {
               // AI Opponent Side
               Expanded(
                 child: _PlayerCard(
-                  name: 'LORINE',
+                  name: opponentName,
                   score: aiScore,
                   isServing: !isServing,
                   serverNumber: serverNumber,

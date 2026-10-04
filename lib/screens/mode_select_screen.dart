@@ -25,7 +25,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
   late AnimationController _enterCtrl;
   late Animation<double> _fadeAnim;
 
-  int _selectedModeIndex = 0; // 0=Quick, 1=Singles, 2=Doubles, 3=Bot vs Bot
+  int _selectedModeIndex = 0; // Quick, Singles, Doubles, Bot vs Bot, Local
   int _selectedCourtIndex = 0;
   int _selectedDiffIndex = 1; // 0=Easy, 1=Medium, 2=Hard
   bool _initialized = false;
@@ -39,6 +39,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         Icons.group_rounded, TilePalette.purple),
     _ModeOption('BOT VS BOT', 'Watch two agents compete autonomously',
         Icons.smart_toy_rounded, TilePalette.green),
+    _ModeOption('LOCAL MULTIPLAYER', 'Two players on one shared screen',
+        Icons.people_alt_rounded, TilePalette.red),
   ];
 
   @override
@@ -67,6 +69,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           _selectedModeIndex = 2;
         } else if (mode == 'bot-vs-bot') {
           _selectedModeIndex = 3;
+        } else if (mode == 'local') {
+          _selectedModeIndex = 4;
         }
       }
     }
@@ -132,6 +136,10 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           'botVsBot': true,
           'difficulty': _selectedDiffIndex + 1
         });
+        break;
+      case 4: // Local shared-screen lobby
+        context.read<SettingsService>().save(settings);
+        Navigator.pushReplacementNamed(context, '/local-lobby');
         break;
     }
   }

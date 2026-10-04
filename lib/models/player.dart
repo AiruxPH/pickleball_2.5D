@@ -71,13 +71,16 @@ class Player {
 
   // ── Is this the human player? ──────────────────────────────
   final bool isHuman;
+  final bool isNearSide;
 
   Player({
     required Vec3 startPosition,
     required this.isHuman,
     this.isPartner = false,
     this.assignedRightSide = true,
+    bool? isNearSide,
   })  : position = startPosition,
+        isNearSide = isNearSide ?? (isHuman || isPartner),
         velocity = Vec3(0, 0, 0),
         animState = PlayerAnimState.idle,
         animTimer = 0,
@@ -87,7 +90,7 @@ class Player {
         score = 0,
         isForehand = true,
         stamina = StaminaConstants.maxStamina,
-        facingAngle = (isHuman || isPartner) ? 0 : 3.14159,
+        facingAngle = (isNearSide ?? (isHuman || isPartner)) ? 0 : 3.14159,
         legCycleTimer = 0,
         runBlend = 0.0,
         smoothedLean = 0.0,
@@ -109,7 +112,7 @@ class Player {
   /// Eases the rendered facing direction toward the movement direction.
   /// Keeps the last direction while standing still (no snap back to default).
   void updateFacing(double dt) {
-    final isOpponent = !isHuman && !isPartner;
+    final isOpponent = !isNearSide;
     if (velocity.x < -1.5) {
       facingFlipTarget = isOpponent ? 1.0 : -1.0;
     } else if (velocity.x > 1.5) {
@@ -139,7 +142,7 @@ class Player {
   /// If [includeFootMargin] is true (default), accounts for foot footprint touching the line.
   bool isInKitchen({bool includeFootMargin = true}) {
     final margin = includeFootMargin ? footRadius : 0.0;
-    if (isHuman || (isPartner && position.z > 0)) {
+    if (isNearSide) {
       return position.z >= -margin &&
           position.z <= (CourtDimensions.kitchenDepth + margin) &&
           position.x.abs() <= (CourtDimensions.halfWidth + margin);
@@ -152,7 +155,7 @@ class Player {
 
   /// Returns true if the player's foot is directly touching or on the Kitchen line.
   bool isTouchingKitchenLine({double margin = footRadius}) {
-    final targetLineZ = (isHuman || (isPartner && position.z > 0))
+    final targetLineZ = isNearSide
         ? CourtDimensions.kitchenDepth
         : -CourtDimensions.kitchenDepth;
     return (position.z - targetLineZ).abs() <= margin &&
@@ -199,7 +202,7 @@ class Player {
 
   // ── Bounds ─────────────────────────────────────────────────
   void clampToCourt() {
-    if (isHuman || (isPartner && position.z > 0)) {
+    if (isNearSide) {
       // Human / partner stays on near half (positive Z)
       position.x = position.x.clamp(
           -CourtDimensions.halfWidth + 5, CourtDimensions.halfWidth - 5);
@@ -217,9 +220,9 @@ class Player {
   void resetPosition({double? customX, double? customZ}) {
     if (customX != null && customZ != null) {
       position = Vec3(customX, 0, customZ);
-    } else if (isHuman) {
+    } else if (isNearSide && isHuman) {
       position = Vec3(assignedRightSide ? 16.0 : -16.0, 0, CourtDimensions.playerStartZ);
-    } else if (isPartner) {
+    } else if (isNearSide) {
       position = Vec3(assignedRightSide ? 16.0 : -16.0, 0, CourtDimensions.playerStartZ);
     } else {
       position = Vec3(assignedRightSide ? -16.0 : 16.0, 0, CourtDimensions.aiStartZ);

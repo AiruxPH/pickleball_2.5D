@@ -42,7 +42,7 @@ class SpriteCharacterRenderer {
     required bool isLowEnd,
     required bool showShadow,
   }) {
-    final nearTeam = player.isHuman || player.isPartner;
+    final nearTeam = player.isNearSide;
     final manager = CharacterSpriteManager.instance;
     final atlas = nearTeam ? manager.boyAtlas : manager.girlAtlas;
     if (atlas == null) return false;

@@ -39,6 +39,7 @@ class _GameScreenState extends State<GameScreen>
     with SingleTickerProviderStateMixin {
   PickleballGame? _game;
   MatchCommandController? _commands;
+  MatchCommandController? _opponentCommands;
   BotAgent? _playerBot;
   Ticker? _ticker;
   Duration _lastTime = Duration.zero;
@@ -65,6 +66,7 @@ class _GameScreenState extends State<GameScreen>
   bool _isTournament = false;
   bool _isCareer = false;
   bool _isBotVsBot = false;
+  bool _isLocalMultiplayer = false;
   Map<String, dynamic> _rematchArguments = <String, dynamic>{};
   final FocusNode _focusNode = FocusNode();
   AudioService? _audioService;
@@ -103,6 +105,7 @@ class _GameScreenState extends State<GameScreen>
     _isCareer = args?['isCareer'] == true;
     final modeArg = args?['mode'] as String?;
     _isBotVsBot = args?['botVsBot'] == true || modeArg == 'bot-vs-bot';
+    _isLocalMultiplayer = args?['localMultiplayer'] == true;
     final drillType = args?['drillType'] as String?;
     final gameMode = modeArg == 'doubles' ? GameMode.doubles : GameMode.singles;
 
@@ -126,11 +129,15 @@ class _GameScreenState extends State<GameScreen>
       isPracticeMode: _isPractice,
       drillType: drillType,
       gameMode: gameMode,
+      isLocalMultiplayer: _isLocalMultiplayer,
       settings: settings,
       difficultyOverride: diffOverride,
       audioService: _audioService,
     );
     _commands = MatchCommandController(game: _game!);
+    if (_isLocalMultiplayer) {
+      _opponentCommands = MatchCommandController(game: _game!, playerSlot: 1);
+    }
     if (_isBotVsBot) {
       _playerBot = BotAgent(
         game: _game!,
@@ -274,8 +281,18 @@ class _GameScreenState extends State<GameScreen>
   }
 
   // ── Input handlers ─────────────────────────────────────────
-  void _onJoystickMove(double x, double y) => _commands?.move(x, y);
-  void _onJoystickRelease() => _commands?.stopMoving();
+  MatchCommandController? get _activeTouchCommands {
+    final game = _game;
+    if (!_isLocalMultiplayer || game == null) return _commands;
+    if (game.state == GameState.waitingForServe) {
+      return game.isOpponentHumanServing ? _opponentCommands : _commands;
+    }
+    return game.ball.lastHitByPlayer ? _opponentCommands : _commands;
+  }
+
+  void _onJoystickMove(double x, double y) =>
+      _activeTouchCommands?.move(x, y);
+  void _onJoystickRelease() => _activeTouchCommands?.stopMoving();
 
   void _handleKeyEvent(KeyEvent event) {
     if (_game == null) return;
@@ -298,21 +315,43 @@ class _GameScreenState extends State<GameScreen>
     }
 
     if (event is KeyDownEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.space ||
-          event.logicalKey == LogicalKeyboardKey.keyJ) {
+      if (event.logicalKey == LogicalKeyboardKey.space) {
         if (_game!.state == GameState.waitingForServe &&
-            _game!.isHumanServing) {
+            identical(_game!.activeServer, _game!.player)) {
           _commands!.serve();
         } else {
           _commands!.shot(ShotType.normal);
         }
+      } else if (event.logicalKey == LogicalKeyboardKey.keyJ) {
+        _commands!.shot(ShotType.normal);
       } else if (event.logicalKey == LogicalKeyboardKey.keyK) {
         _commands!.shot(ShotType.power);
       } else if (event.logicalKey == LogicalKeyboardKey.keyL) {
         _commands!.shot(ShotType.lob);
       } else if (event.logicalKey == LogicalKeyboardKey.keyU) {
         _commands!.shot(ShotType.drop);
-      } else if (event.logicalKey == LogicalKeyboardKey.enter) {
+      } else if (_isLocalMultiplayer &&
+          event.logicalKey == LogicalKeyboardKey.enter) {
+        if (_game!.state == GameState.waitingForServe &&
+            _game!.isOpponentHumanServing) {
+          _opponentCommands!.serve();
+        } else {
+          _opponentCommands!.shot(ShotType.normal);
+        }
+      } else if (_isLocalMultiplayer &&
+          event.logicalKey == LogicalKeyboardKey.keyM) {
+        _opponentCommands!.shot(ShotType.normal);
+      } else if (_isLocalMultiplayer &&
+          event.logicalKey == LogicalKeyboardKey.keyN) {
+        _opponentCommands!.shot(ShotType.power);
+      } else if (_isLocalMultiplayer &&
+          event.logicalKey == LogicalKeyboardKey.keyB) {
+        _opponentCommands!.shot(ShotType.lob);
+      } else if (_isLocalMultiplayer &&
+          event.logicalKey == LogicalKeyboardKey.keyV) {
+        _opponentCommands!.shot(ShotType.drop);
+      } else if (!_isLocalMultiplayer &&
+          event.logicalKey == LogicalKeyboardKey.enter) {
         _commands!.serve();
       } else if (event.logicalKey == LogicalKeyboardKey.keyQ ||
           event.logicalKey == LogicalKeyboardKey.keyE) {
@@ -333,26 +372,28 @@ class _GameScreenState extends State<GameScreen>
       }
     }
 
-    // Continuous movement keys (WASD / Arrows)
+    // Continuous movement keys. Local mode keeps both command streams
+    // independent so two keyboard players can move simultaneously.
     final keys = HardwareKeyboard.instance.logicalKeysPressed;
-    double jx = 0;
-    double jy = 0;
-    if (keys.contains(LogicalKeyboardKey.arrowLeft) || keys.contains(LogicalKeyboardKey.keyA)) {
-      jx -= 1.0;
+    double p1x = 0, p1y = 0;
+    if (keys.contains(LogicalKeyboardKey.keyA)) p1x -= 1;
+    if (keys.contains(LogicalKeyboardKey.keyD)) p1x += 1;
+    if (keys.contains(LogicalKeyboardKey.keyW)) p1y -= 1;
+    if (keys.contains(LogicalKeyboardKey.keyS)) p1y += 1;
+    if (!_isLocalMultiplayer) {
+      if (keys.contains(LogicalKeyboardKey.arrowLeft)) p1x -= 1;
+      if (keys.contains(LogicalKeyboardKey.arrowRight)) p1x += 1;
+      if (keys.contains(LogicalKeyboardKey.arrowUp)) p1y -= 1;
+      if (keys.contains(LogicalKeyboardKey.arrowDown)) p1y += 1;
     }
-    if (keys.contains(LogicalKeyboardKey.arrowRight) || keys.contains(LogicalKeyboardKey.keyD)) {
-      jx += 1.0;
-    }
-    if (keys.contains(LogicalKeyboardKey.arrowUp) || keys.contains(LogicalKeyboardKey.keyW)) {
-      jy -= 1.0;
-    }
-    if (keys.contains(LogicalKeyboardKey.arrowDown) || keys.contains(LogicalKeyboardKey.keyS)) {
-      jy += 1.0;
-    }
-    if (jx != 0 || jy != 0) {
-      _commands!.move(jx, jy);
-    } else if (event is KeyUpEvent) {
-      _commands!.stopMoving();
+    _commands!.move(p1x, p1y);
+    if (_isLocalMultiplayer) {
+      double p2x = 0, p2y = 0;
+      if (keys.contains(LogicalKeyboardKey.arrowLeft)) p2x -= 1;
+      if (keys.contains(LogicalKeyboardKey.arrowRight)) p2x += 1;
+      if (keys.contains(LogicalKeyboardKey.arrowUp)) p2y -= 1;
+      if (keys.contains(LogicalKeyboardKey.arrowDown)) p2y += 1;
+      _opponentCommands!.move(p2x, p2y);
     }
   }
 
@@ -373,13 +414,13 @@ class _GameScreenState extends State<GameScreen>
     if (_swipeStart == null) return;
     final delta = d.localPosition - _swipeStart!;
     if (delta.distance > 20) {
-      _commands?.aim(delta);
+      _activeTouchCommands?.aim(delta);
     }
   }
 
   void _onSwipeEnd(DragEndDetails d) {
     _swipeStart = null;
-    _commands?.clearAim();
+    _activeTouchCommands?.clearAim();
   }
 
   void _onSpectatorScaleStart(ScaleStartDetails details) {
@@ -523,13 +564,17 @@ class _GameScreenState extends State<GameScreen>
                   isPractice: _isPractice,
                   modeName: _isPractice
                       ? 'PRACTICE'
-                      : (_isBotVsBot
+                      : (_isLocalMultiplayer
+                          ? 'LOCAL ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}'
+                          : (_isBotVsBot
                           ? 'BOT VS BOT'
                           : (game.gameMode == GameMode.doubles
                               ? 'DOUBLES'
-                              : 'SINGLES')),
-                  footer:
-                      _isBotVsBot ? null : _buildPlayerStatusCard(game),
+                              : 'SINGLES'))),
+                  opponentName: _isLocalMultiplayer ? 'PLAYER 2' : 'LORINE',
+                  footer: _isBotVsBot || _isLocalMultiplayer
+                      ? null
+                      : _buildPlayerStatusCard(game),
                 ),
               ),
             ),
@@ -561,6 +606,43 @@ class _GameScreenState extends State<GameScreen>
               left: 0,
               right: 0,
               child: Center(child: _FreeRoamHint()),
+            ),
+
+          if (_isLocalMultiplayer)
+            Positioned(
+              top: isLandscape ? 10 : 72,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _tickNotifier,
+                  builder: (_, __, ___) {
+                    final playerTwo = _activeTouchCommands == _opponentCommands;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xDC0B1930),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: playerTwo
+                              ? const Color(0xFFE85D2A)
+                              : const Color(0xFF38BDF8),
+                        ),
+                      ),
+                      child: Text(
+                        '${playerTwo ? 'P2' : 'P1'} TOUCH CONTROL',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
 
           // ── Virtual Joystick (bottom left) ────────────────
@@ -837,7 +919,7 @@ class _GameScreenState extends State<GameScreen>
             size: hitBtnSize,
             color: const Color(0xFF0284C7),
             glowColor: const Color(0x770284C7),
-            onTap: () => _commands?.serve(),
+            onTap: () => _activeTouchCommands?.serve(),
           ),
         ],
       );
@@ -858,7 +940,7 @@ class _GameScreenState extends State<GameScreen>
               size: smallBtnSize,
               color: const Color(0xFF06B6D4),
               glowColor: const Color(0x4406B6D4),
-              onTap: () => _commands?.shot(ShotType.drop),
+              onTap: () => _activeTouchCommands?.shot(ShotType.drop),
             ),
             SizedBox(width: btnSpacing),
             GameButton(
@@ -867,7 +949,7 @@ class _GameScreenState extends State<GameScreen>
               size: smallBtnSize,
               color: const Color(0xFF8B5CF6),
               glowColor: const Color(0x448B5CF6),
-              onTap: () => _commands?.shot(ShotType.lob),
+              onTap: () => _activeTouchCommands?.shot(ShotType.lob),
             ),
             SizedBox(width: btnSpacing),
             GameButton(
@@ -876,7 +958,7 @@ class _GameScreenState extends State<GameScreen>
               size: powerBtnSize,
               color: AppColors.power,
               glowColor: AppColors.powerGlow,
-              onTap: () => _commands?.shot(ShotType.power),
+              onTap: () => _activeTouchCommands?.shot(ShotType.power),
             ),
           ],
         ),
@@ -895,7 +977,7 @@ class _GameScreenState extends State<GameScreen>
               size: hitBtnSize,
               color: AppColors.primary,
               glowColor: AppColors.primaryGlow,
-              onTap: () => _commands?.shot(ShotType.normal),
+              onTap: () => _activeTouchCommands?.shot(ShotType.normal),
             ),
           ],
         ),
@@ -910,7 +992,7 @@ class _GameScreenState extends State<GameScreen>
       size: size,
       ultimateNotifier: _ultimateNotifier,
       onOpenSelector: () => _showUltimateSelectorModal(context, game),
-      onToggleArm: () => _commands?.toggleUltimate(),
+      onToggleArm: () => _activeTouchCommands?.toggleUltimate(),
       onArmToggled: () => setState(() {}),
     );
   }
@@ -1259,9 +1341,11 @@ class _GameScreenState extends State<GameScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
-                'SERVE TO HIGHLIGHTED BOX',
-                style: TextStyle(
+              Text(
+                game.isOpponentHumanServing
+                    ? 'PLAYER 2 SERVE'
+                    : 'SERVE TO HIGHLIGHTED BOX',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 10.5,
                   letterSpacing: 1.0,

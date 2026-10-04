@@ -63,6 +63,7 @@ class ServeTrajectoryPreview {
 class PickleballGame extends ChangeNotifier {
   // ── Mode ─────────────────────────────────────────────────────
   final GameMode gameMode;
+  final bool isLocalMultiplayer;
 
   // ── Game objects ─────────────────────────────────────────────
   final Player player;
@@ -75,6 +76,7 @@ class PickleballGame extends ChangeNotifier {
   // ── Controllers ──────────────────────────────────────────────
   late BallController ballController;
   late PlayerController playerController;
+  late PlayerController opponentPlayerController;
   late AIController aiController;
   AIController? partnerController;
   AIController? aiPartnerController;
@@ -103,8 +105,9 @@ class PickleballGame extends ChangeNotifier {
     return player.assignedRightSide == serverRight ? player : playerPartner!;
   }
 
-  bool get isHumanServing =>
-      scoreController.isPlayerServing && activeServer.isHuman;
+  bool get isHumanServing => activeServer.isHuman;
+  bool get isOpponentHumanServing =>
+      isLocalMultiplayer && identical(activeServer, ai);
 
   // ── Camera ───────────────────────────────────────────────────
   late PerspectiveCamera camera;
@@ -132,6 +135,12 @@ class PickleballGame extends ChangeNotifier {
   Offset? swipeDirection;
   double swingBufferTimer = 0;
   ShotType? bufferedShot;
+  double opponentJoystickX = 0;
+  double opponentJoystickY = 0;
+  bool opponentServePressed = false;
+  Offset? opponentSwipeDirection;
+  double opponentSwingBufferTimer = 0;
+  ShotType? opponentBufferedShot;
 
   // ── Ultimate Skill System ─────────────────────────────────────
   double ultimateCharge = 0.45; // 0.0 .. 1.0
@@ -178,12 +187,14 @@ class PickleballGame extends ChangeNotifier {
     this.isPracticeMode = false,
     this.drillType,
     this.gameMode = GameMode.singles,
+    this.isLocalMultiplayer = false,
     required this.settings,
     this.difficultyOverride,
     this.audioService,
   })  : player = Player(
           startPosition: Vec3(16.0, 0, CourtDimensions.playerStartZ),
           isHuman: true,
+          isNearSide: true,
           assignedRightSide: true,
         ),
         playerPartner = (gameMode == GameMode.doubles)
@@ -191,12 +202,14 @@ class PickleballGame extends ChangeNotifier {
                 startPosition: Vec3(-16.0, 0, CourtDimensions.playerStartZ),
                 isHuman: false,
                 isPartner: true,
+                isNearSide: true,
                 assignedRightSide: false,
               )
             : null,
         ai = Player(
           startPosition: Vec3(-16.0, 0, CourtDimensions.aiStartZ),
-          isHuman: false,
+          isHuman: isLocalMultiplayer,
+          isNearSide: false,
           assignedRightSide: true,
         ),
         aiPartner = (gameMode == GameMode.doubles)
@@ -204,6 +217,7 @@ class PickleballGame extends ChangeNotifier {
                 startPosition: Vec3(16.0, 0, CourtDimensions.aiStartZ),
                 isHuman: false,
                 isPartner: false,
+                isNearSide: false,
                 assignedRightSide: false,
               )
             : null,
@@ -237,6 +251,7 @@ class PickleballGame extends ChangeNotifier {
       settings: settings,
     );
     playerController = PlayerController(player: player);
+    opponentPlayerController = PlayerController(player: ai);
     aiController = AIController(
       ai: ai,
       ball: ball,
@@ -326,9 +341,14 @@ class PickleballGame extends ChangeNotifier {
       swingBufferTimer -= dt;
       if (swingBufferTimer <= 0) bufferedShot = null;
     }
+    if (opponentSwingBufferTimer > 0) {
+      opponentSwingBufferTimer -= dt;
+      if (opponentSwingBufferTimer <= 0) opponentBufferedShot = null;
+    }
 
     // Stamina regeneration
     player.regenStamina(dt * currentPlayerSkin.staminaRegenMultiplier);
+    ai.regenStamina(dt);
     playerPartner?.regenStamina(dt);
 
     // Decay screen shake
@@ -443,13 +463,33 @@ class PickleballGame extends ChangeNotifier {
 
   // ── State: Waiting for serve ───────────────────────────────────
   void _updateWaitingForServe(double dt) {
-    if (isHumanServing) {
+    if (identical(activeServer, player)) {
       _updatePlayerServePosition(dt);
+      if (isLocalMultiplayer) {
+        opponentPlayerController.updateMovement(
+          dt,
+          opponentJoystickX,
+          -opponentJoystickY,
+        );
+        ai.clampToCourt();
+      }
+    } else if (isOpponentHumanServing) {
+      _updateOpponentServePosition(dt);
+      playerController.updateMovement(dt, joystickX, joystickY);
+      player.clampToCourt();
     } else {
       // The human remains free to move while receiving or while their partner
       // is the active server.
       playerController.updateMovement(dt, joystickX, joystickY);
       player.clampToCourt();
+      if (isLocalMultiplayer && !identical(activeServer, ai)) {
+        opponentPlayerController.updateMovement(
+          dt,
+          opponentJoystickX,
+          -opponentJoystickY,
+        );
+        ai.clampToCourt();
+      }
     }
 
     // Position ball above server
@@ -470,7 +510,7 @@ class PickleballGame extends ChangeNotifier {
         server.position.z + 2,
       );
       // AI starts serving after a short natural delay
-      if (stateTimer > _aiServeDelay) {
+      if (!isOpponentHumanServing && stateTimer > _aiServeDelay) {
         _aiServe();
       }
     }
@@ -478,8 +518,35 @@ class PickleballGame extends ChangeNotifier {
     // Player presses serve
     if (servePressed && isHumanServing) {
       servePressed = false;
-      _playerServe();
+      if (identical(activeServer, player)) _playerServe();
     }
+    if (opponentServePressed && isOpponentHumanServing) {
+      opponentServePressed = false;
+      _aiServe();
+    }
+  }
+
+  void _updateOpponentServePosition(double dt) {
+    final serverRight = scoreController.serverShouldBeOnRight;
+    const sideMargin = 5.0;
+    const serveZ =
+        -CourtDimensions.halfLength - CourtDimensions.serveBaselineOffset;
+    opponentPlayerController.updateMovement(
+      dt,
+      opponentJoystickX,
+      -opponentJoystickY,
+    );
+    ai.position.x = serverRight
+        ? ai.position.x.clamp(
+            -CourtDimensions.halfWidth + sideMargin,
+            -sideMargin,
+          )
+        : ai.position.x.clamp(
+            sideMargin,
+            CourtDimensions.halfWidth - sideMargin,
+          );
+    ai.position.z = serveZ;
+    ai.velocity.z = 0;
   }
 
   void _updatePlayerServePosition(double dt) {
@@ -746,6 +813,14 @@ class PickleballGame extends ChangeNotifier {
       speedMultiplier: currentPlayerSkin.speedMultiplier,
     );
     player.clampToCourt();
+    if (isLocalMultiplayer) {
+      opponentPlayerController.updateMovement(
+        dt,
+        opponentJoystickX,
+        -opponentJoystickY,
+      );
+      ai.clampToCourt();
+    }
 
     // USA Pickleball NVZ Momentum Rule:
     // If player executed a volley and momentum carries them into NVZ or onto NVZ line
@@ -821,6 +896,18 @@ class PickleballGame extends ChangeNotifier {
       player.swingArm = 0;
     }
 
+    if (isLocalMultiplayer && opponentBufferedShot != null && ai.canSwing) {
+      final dir = _getOpponentAimDirection();
+      ai.isSwinging = true;
+      ai.swingCooldown = 0.40;
+      ai.isForehand = dir.dx <= 0;
+      ai.animState = ai.isForehand
+          ? PlayerAnimState.forehand
+          : PlayerAnimState.backhand;
+      ai.animTimer = 0;
+      ai.swingArm = 0;
+    }
+
     // Check if ball makes contact with swinging paddle
     if (player.isSwinging &&
         !ball.lastHitByPlayer &&
@@ -842,11 +929,29 @@ class PickleballGame extends ChangeNotifier {
       }
     }
 
+    if (isLocalMultiplayer &&
+        ai.isSwinging &&
+        ball.lastHitByPlayer &&
+        ball.state != BallState.dead) {
+      final distToBall = dist2D(
+        ball.position.x,
+        ball.position.z,
+        ai.position.x,
+        ai.position.z,
+      );
+      if (distToBall < 30 && ball.position.y < 42 && ball.position.z < 8) {
+        _executeOpponentHit(opponentBufferedShot ?? ShotType.normal);
+        opponentBufferedShot = null;
+        opponentSwingBufferTimer = 0;
+      }
+    }
+
     // Update player animation
     playerController.updateAnimation(dt);
+    if (isLocalMultiplayer) opponentPlayerController.updateAnimation(dt);
 
     // Update AI controllers
-    aiController.update(effectiveDt);
+    if (!isLocalMultiplayer) aiController.update(effectiveDt);
     partnerController?.update(effectiveDt);
     aiPartnerController?.update(effectiveDt);
 
@@ -1114,6 +1219,110 @@ class PickleballGame extends ChangeNotifier {
     );
   }
 
+  void _executeOpponentHit(ShotType shotType) {
+    if (gameMode == GameMode.doubles &&
+        ball.rallyHitCount == 0 &&
+        !identical(activeReceiver, ai)) {
+      scoreController.lastFaultDetail = 'WRONG RECEIVER FAULT!';
+      _handlePointResult(
+        PointResult.wrongReceiverFault,
+        playerFaulted: false,
+      );
+      return;
+    }
+    if (ball.rallyHitCount < 2 && !ball.hasBounced) {
+      _handlePointResult(PointResult.twoBounceFault, playerFaulted: false);
+      return;
+    }
+    if (!ball.hasBounced) {
+      if (ai.isInKitchen(includeFootMargin: true)) {
+        scoreController.lastFaultDetail = ai.isTouchingKitchenLine()
+            ? 'OPPONENT KITCHEN LINE TOUCH!'
+            : 'OPPONENT KITCHEN VOLLEY FAULT!';
+        _handlePointResult(PointResult.kitchenFault, playerFaulted: false);
+        return;
+      }
+      if (!ai.hasEstablishedOutsideKitchen) {
+        scoreController.lastFaultDetail =
+            'OPPONENT NVZ FAULT: FEET NOT ESTABLISHED!';
+        _handlePointResult(PointResult.kitchenFault, playerFaulted: false);
+        return;
+      }
+      ai.kitchenMomentumFlag = true;
+    }
+
+    var activeShot = shotType == ShotType.ultimate ? ShotType.power : shotType;
+    double forwardSpeed;
+    double upSpeed;
+    switch (activeShot) {
+      case ShotType.power:
+        if (!ai.useStamina(StaminaConstants.powerShotCost)) {
+          activeShot = ShotType.normal;
+        }
+        forwardSpeed = activeShot == ShotType.power ? 165 : 130;
+        upSpeed = activeShot == ShotType.power ? 38 : 40;
+        break;
+      case ShotType.lob:
+        if (!ai.useStamina(StaminaConstants.lobShotCost)) {
+          activeShot = ShotType.normal;
+        }
+        forwardSpeed = activeShot == ShotType.lob ? 95 : 130;
+        upSpeed = activeShot == ShotType.lob ? 68 : 40;
+        break;
+      case ShotType.drop:
+        if (!ai.useStamina(StaminaConstants.dropShotCost)) {
+          activeShot = ShotType.normal;
+        }
+        forwardSpeed = activeShot == ShotType.drop ? 82 : 130;
+        upSpeed = activeShot == ShotType.drop ? 36 : 40;
+        break;
+      case ShotType.smash:
+        forwardSpeed = 210;
+        upSpeed = 12;
+        break;
+      case ShotType.normal:
+      case ShotType.ultimate:
+        forwardSpeed = 130;
+        upSpeed = 40;
+        break;
+    }
+
+    final deepRecoveryFactor = ((-ball.position.z -
+                CourtDimensions.playerStartZ) /
+            (CourtDimensions.playerMaxZ - CourtDimensions.playerStartZ))
+        .clamp(0.0, 1.0)
+        .toDouble();
+    if (deepRecoveryFactor > 0 && activeShot != ShotType.smash) {
+      forwardSpeed *= 1.0 +
+          (activeShot == ShotType.lob
+              ? 0.24
+              : (activeShot == ShotType.power ? 0.18 : 0.15)) *
+              deepRecoveryFactor;
+      upSpeed += (activeShot == ShotType.lob ? 8 : 15) * deepRecoveryFactor;
+    }
+
+    final dir = _getOpponentAimDirection();
+    final aimDirX = dir.dx.clamp(-0.85, 0.85);
+    final aimDirZ = math.sqrt(math.max(0.05, 1.0 - aimDirX * aimDirX));
+    ball.velocity = Vec3(
+      aimDirX * forwardSpeed,
+      upSpeed,
+      aimDirZ * forwardSpeed,
+    );
+    ball.state = BallState.inFlight;
+    ball.lastHitByPlayer = false;
+    ball.bounceCount = 0;
+    ball.secondBounceGraceTimer = 0;
+    ball.hasBounced = false;
+    ball.isServe = false;
+    ball.impactFlash = activeShot == ShotType.power ? 1.0 : 0.7;
+    ball.spinRate = activeShot == ShotType.drop ? -500 : 500;
+    ball.shotType = activeShot;
+    ball.rallyHitCount++;
+    final isPower = activeShot == ShotType.power || activeShot == ShotType.smash;
+    _onAIHit(isPower);
+  }
+
   // ── VFX event hooks ────────────────────────────────────────────
   void _onAIHit(bool isPower) {
     audioService?.playHit(isPower: isPower);
@@ -1135,6 +1344,15 @@ class PickleballGame extends ChangeNotifier {
   Offset _getAimDirection() {
     final proposed = swipeDirection ?? Offset(joystickX * 0.6, -1);
     return ShotTargeting.constrainReturnDirection(proposed, ball.position.x);
+  }
+
+  Offset _getOpponentAimDirection() {
+    final proposed = opponentSwipeDirection ?? Offset(opponentJoystickX * 0.6, 1);
+    final constrained = ShotTargeting.constrainReturnDirection(
+      Offset(proposed.dx, -1),
+      ball.position.x,
+    );
+    return Offset(constrained.dx, 1);
   }
 
   // ── State: Point scored ─────────────────────────────────────────
@@ -1358,6 +1576,17 @@ class PickleballGame extends ChangeNotifier {
     joystickY = y;
   }
 
+  void setOpponentJoystick(double x, double y) {
+    opponentJoystickX = x;
+    opponentJoystickY = y;
+  }
+
+  void queueOpponentShot(ShotType type) {
+    if (!isLocalMultiplayer) return;
+    opponentBufferedShot = type;
+    opponentSwingBufferTimer = 0.35;
+  }
+
   void queueShot(ShotType type) {
     bufferedShot = type;
     swingBufferTimer = 0.35;
@@ -1385,6 +1614,8 @@ class PickleballGame extends ChangeNotifier {
 
   void setServePressed(bool v) => servePressed = v;
   void setSwipe(Offset? dir) => swipeDirection = dir;
+  void setOpponentServePressed(bool v) => opponentServePressed = v;
+  void setOpponentSwipe(Offset? dir) => opponentSwipeDirection = dir;
 
   void setUltimatePressed(bool v) {
     ultimatePressed = v;
