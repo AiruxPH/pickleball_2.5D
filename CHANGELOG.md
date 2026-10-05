@@ -720,3 +720,7 @@
 - Connected the online multiplayer bootstrap to the generated `firebase_options.dart` configuration so deployed web builds initialize Firebase without requiring manual `FIREBASE_*` build defines.
 - Preserved optional Dart-define overrides for alternate Firebase environments.
 - Added the active `asia-southeast1` Realtime Database URL to the generated web, Android, and iOS Firebase options, fixing the web SDK's `Cannot parse Firebase url` failure.
+
+### 2026-10-06 - Online sync permission and error-loop fix
+- Replaced parent-relative Realtime Database ownership checks with absolute room paths, allowing authenticated hosts to publish snapshots and remove processed client actions reliably.
+- Added an in-flight guard and failure circuit breaker to online snapshot publishing so one rejected write cannot spawn an unbounded 10 Hz console error loop or repeated UI state churn.

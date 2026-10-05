@@ -34,6 +34,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
   String? _uid;
   MatchLobby? _lobby;
   DatabaseReference? _room;
+  bool _snapshotWriteEnabled = true;
+  bool _snapshotWriteInFlight = false;
 
   final _startController =
       StreamController<Map<String, dynamic>>.broadcast();
@@ -93,6 +95,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
     await leaveRoom();
     if (!await initialize()) return;
     _role = OnlineRole.host;
+    _snapshotWriteEnabled = true;
+    _snapshotWriteInFlight = false;
     _status = OnlineStatus.creating;
     _roomCode = _generateRoomCode();
     _lobby = MatchLobby.online(_roomCode, format: format);
@@ -256,8 +260,26 @@ class OnlineMultiplayerService extends ChangeNotifier {
   }
 
   Future<void> sendStateSync(LanStateSnapshot snapshot) async {
-    if (!isHost || _room == null) return;
-    await _room!.child('snapshot').set(snapshot.toJson());
+    if (!isHost ||
+        _room == null ||
+        !_snapshotWriteEnabled ||
+        _snapshotWriteInFlight) {
+      return;
+    }
+    _snapshotWriteInFlight = true;
+    try {
+      await _room!.child('snapshot').set(snapshot.toJson());
+    } catch (error) {
+      // A frame-driven caller must never create an unbounded stream of
+      // rejected futures. Disable sync until the next room connection.
+      _snapshotWriteEnabled = false;
+      _status = OnlineStatus.error;
+      _errorMessage = 'Online state sync failed: $error';
+      debugPrint('[OnlineMultiplayer] $_errorMessage');
+      notifyListeners();
+    } finally {
+      _snapshotWriteInFlight = false;
+    }
   }
 
   Future<void> leaveRoom() async {
@@ -276,6 +298,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _lobby = null;
     _roomCode = '';
     _role = OnlineRole.none;
+    _snapshotWriteEnabled = true;
+    _snapshotWriteInFlight = false;
     _status = FirebaseBootstrap.isReady
         ? OnlineStatus.idle
         : OnlineStatus.unavailable;
