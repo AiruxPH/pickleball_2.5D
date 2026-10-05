@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../models/game_settings.dart';
+import '../models/player.dart';
 import '../utils/constants.dart';
-import '../utils/game_math.dart';
 import 'match_command_controller.dart';
 import 'match_observation.dart';
 import 'pickleball_game.dart';
@@ -106,25 +106,33 @@ class BotAgent {
       -CourtDimensions.halfWidth + 6,
       CourtDimensions.halfWidth - 6,
     );
+    final bouncedInOwnKitchen = ball.hasBounced &&
+        ball.lastBounceZ >= 0 &&
+        ball.lastBounceZ <= CourtDimensions.kitchenDepth;
+    const kitchenSafety = Player.footRadius + 1.0;
     final targetZ = (landing.dy + 3).clamp(
-      CourtDimensions.kitchenDepth + 3,
+      bouncedInOwnKitchen ? 0.0 : CourtDimensions.kitchenDepth + kitchenSafety,
       CourtDimensions.halfLength - 6,
     );
     _moveToward(observation, targetX.toDouble(), targetZ.toDouble());
 
-    final mustBounce = ball.rallyHitCount < 2 && !ball.hasBounced;
-    final distance = dist2D(
-      player.position.x,
-      player.position.z,
-      ball.position.x,
-      ball.position.z,
-    );
+    final mustBounce = ball.mustBounceBeforeHit && !ball.hasBounced;
+    final lateral = (ball.position.x - player.position.x).abs();
+    final forward = player.position.z - ball.position.z;
+    final insideContactEnvelope = lateral <= 10 &&
+        forward >= -5 &&
+        forward <= 10 &&
+        ball.position.y >= PhysicsConstants.ballRadius &&
+        ball.position.y <= CourtDimensions.playerHeight + 8;
+    final legalKitchenContact = !player.isInKitchen || bouncedInOwnKitchen;
+    final legalVolleyStance =
+        ball.hasBounced || player.hasEstablishedOutsideKitchen;
     if (mustBounce ||
         _shotCooldown > 0 ||
         !player.canSwing ||
-        distance > 27 ||
-        ball.position.y > 40 ||
-        ball.position.z < -8) {
+        !insideContactEnvelope ||
+        !legalKitchenContact ||
+        !legalVolleyStance) {
       return;
     }
 

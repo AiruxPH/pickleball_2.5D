@@ -56,6 +56,12 @@ class PerspectiveCamera {
   /// Vertical field of view in degrees
   double fov;
 
+  /// Preferred screen-up direction in world space.
+  ///
+  /// Normal gameplay uses world height. A vertical overhead camera instead
+  /// uses court depth so its basis remains well-defined while looking down.
+  Vec3 up;
+
   // Cached frame basis vectors and perspective coefficients
   // to avoid recalculating basis and allocating Vec3s hundreds of times per frame
   double _fwdX = 0, _fwdY = 0, _fwdZ = -1;
@@ -72,7 +78,8 @@ class PerspectiveCamera {
     required this.target,
     required this.screenSize,
     this.fov = CameraConstants.defaultFOV,
-  }) {
+    Vec3? up,
+  }) : up = up?.copy() ?? Vec3(0, 1, 0) {
     prepareFrame();
   }
 
@@ -92,11 +99,19 @@ class PerspectiveCamera {
       _fwdZ = -1;
     }
 
-    // right = fwd x worldUp(0, 1, 0) = (-fwd.z, 0, fwd.x)
-    final rx = -_fwdZ;
-    const ry = 0.0;
-    final rz = _fwdX;
-    final rLen = math.sqrt(rx * rx + rz * rz);
+    // right = forward x preferredUp. The configurable up vector lets a true
+    // vertical overhead camera avoid the world-up singularity.
+    var rx = _fwdY * up.z - _fwdZ * up.y;
+    var ry = _fwdZ * up.x - _fwdX * up.z;
+    var rz = _fwdX * up.y - _fwdY * up.x;
+    var rLen = math.sqrt(rx * rx + ry * ry + rz * rz);
+    if (rLen <= 0.0001) {
+      final fallbackUp = _fwdY.abs() > 0.9 ? Vec3(0, 0, -1) : Vec3(0, 1, 0);
+      rx = _fwdY * fallbackUp.z - _fwdZ * fallbackUp.y;
+      ry = _fwdZ * fallbackUp.x - _fwdX * fallbackUp.z;
+      rz = _fwdX * fallbackUp.y - _fwdY * fallbackUp.x;
+      rLen = math.sqrt(rx * rx + ry * ry + rz * rz);
+    }
     if (rLen > 0.0001) {
       _rightX = rx / rLen;
       _rightY = ry;
@@ -173,9 +188,15 @@ class PerspectiveCamera {
   /// in world units, so line widths and textures foreshorten correctly.
   /// Only valid while the whole drawn region is in front of the camera.
   Float64List planeToScreenMatrix(
-    double ox, double oy, double oz,
-    double ux, double uy, double uz,
-    double vx, double vy, double vz,
+    double ox,
+    double oy,
+    double oz,
+    double ux,
+    double uy,
+    double uz,
+    double vx,
+    double vy,
+    double vz,
   ) {
     if (!_framePrepared) prepareFrame();
 
@@ -221,8 +242,7 @@ class PerspectiveCamera {
   }
 
   /// Ground plane (y = 0) mapping: canvas (u, v) = world (x, z).
-  Float64List groundMatrix() =>
-      planeToScreenMatrix(0, 0, 0, 1, 0, 0, 0, 0, 1);
+  Float64List groundMatrix() => planeToScreenMatrix(0, 0, 0, 1, 0, 0, 0, 0, 1);
 
   /// Net plane (z = 0) mapping: canvas (u, v) = world (x, y).
   Float64List netPlaneMatrix() =>
@@ -242,6 +262,24 @@ class PerspectiveCamera {
     if (dz <= 0) return 0;
     const refDist = 100.0;
     return (refDist / dz).clamp(0.2, 3.0);
+  }
+
+  /// Perspective scale at [worldPoint], expressed as screen pixels per world
+  /// unit. Unlike projecting a vertical segment, this does not collapse when
+  /// the camera looks straight down.
+  double pixelsPerWorldUnit(Vec3 worldPoint) => pixelsPerWorldUnitCoords(
+        worldPoint.x,
+        worldPoint.y,
+        worldPoint.z,
+      );
+
+  double pixelsPerWorldUnitCoords(double wx, double wy, double wz) {
+    if (!_framePrepared) prepareFrame();
+    final depth = (wx - position.x) * _fwdX +
+        (wy - position.y) * _fwdY +
+        (wz - position.z) * _fwdZ;
+    if (depth <= 0.1) return 0;
+    return _halfScreenHeight * _invHalfH / depth;
   }
 }
 

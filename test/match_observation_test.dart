@@ -12,7 +12,10 @@ void main() {
     game.player.position = Vec3(4, 0, 60);
     game.ball
       ..position = Vec3(-3, 12, 8)
-      ..velocity = Vec3(7, -2, 30);
+      ..velocity = Vec3(7, -2, 30)
+      ..rallyHitCount = 1
+      ..lastBounceZ = 6;
+    game.player.hasEstablishedOutsideKitchen = false;
 
     final observation = MatchObservation.fromGame(game);
 
@@ -28,5 +31,8 @@ void main() {
     expect(observation.ball.position.y, 12);
     expect(observation.ball.position.z, 8);
     expect(observation.ball.velocity.z, 30);
+    expect(observation.ball.mustBounceBeforeHit, isTrue);
+    expect(observation.ball.lastBounceZ, 6);
+    expect(observation.nearPlayer.hasEstablishedOutsideKitchen, isFalse);
   });
 }

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -34,13 +35,13 @@ void main() {
       expect(controller.cycleSpectatorView(), CameraView.baseline);
     });
 
-    test('sideline view moves camera laterally and adjusts its FOV', () {
+    test('sideline view is a true lateral broadcast angle', () {
       controller.setView(CameraView.sideline);
       controller.update(1, 1);
 
-      expect(camera.position.x, greaterThan(100));
-      expect(camera.position.z, greaterThan(100));
-      expect(camera.fov, closeTo(58, 0.5));
+      expect(camera.position.x, greaterThan(115));
+      expect(camera.position.z.abs(), lessThan(2));
+      expect(camera.fov, closeTo(60, 0.5));
     });
 
     test('player follow preserves viewport-selected FOV', () {
@@ -50,24 +51,25 @@ void main() {
       expect(camera.fov, 47);
     });
 
-    test('free roam clamps pitch and zoom to safe stadium bounds', () {
+    test('free roam wraps through 360 degrees while clamping pitch and zoom',
+        () {
       controller.setView(CameraView.freeRoam);
       controller.adjustFreeRoam(
-        orbitDx: 10000,
+        orbitDx: -(math.pi / 0.008),
         orbitDy: 10000,
         zoomFactor: 100,
       );
 
-      expect(controller.freeRoamYaw, -1);
+      expect(controller.freeRoamYaw.abs(), closeTo(math.pi, 1e-6));
       expect(controller.freeRoamPitch, 0.26);
       expect(controller.freeRoamDistance, 110);
 
       controller.adjustFreeRoam(
-        orbitDx: -10000,
+        orbitDx: -(math.pi / 0.008),
         orbitDy: -10000,
         zoomFactor: 0.001,
       );
-      expect(controller.freeRoamYaw, 1);
+      expect(controller.freeRoamYaw, closeTo(0, 1e-6));
       expect(controller.freeRoamPitch, 1.12);
       expect(controller.freeRoamDistance, 260);
     });
@@ -80,6 +82,10 @@ void main() {
       controller.setView(CameraView.overhead);
       controller.update(1, 1);
       expect(camera.position.y, greaterThan(210));
+      expect(camera.position.z.abs(), lessThan(2));
+      camera.prepareFrame();
+      expect(camera.projectCoords(0, 0, -80), isNotNull);
+      expect(camera.projectCoords(0, 0, 80), isNotNull);
     });
   });
 }

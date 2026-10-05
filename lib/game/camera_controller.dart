@@ -59,15 +59,10 @@ class CameraController {
     double zoomFactor = 1,
   }) {
     if (view != CameraView.freeRoam) return;
-    // The renderer uses camera-facing 2.5D character art and fixed court
-    // layers. Avoid unsupported edge-on angles where those layers collapse.
-    _freeRoamYaw =
-        (_freeRoamYaw - orbitDx * 0.008).clamp(-1.0, 1.0);
-    _freeRoamPitch =
-        (_freeRoamPitch - orbitDy * 0.006).clamp(0.26, 1.12);
+    _freeRoamYaw = _wrapAngle(_freeRoamYaw - orbitDx * 0.008);
+    _freeRoamPitch = (_freeRoamPitch - orbitDy * 0.006).clamp(0.26, 1.12);
     if (zoomFactor.isFinite && zoomFactor > 0) {
-      _freeRoamDistance =
-          (_freeRoamDistance / zoomFactor).clamp(110.0, 260.0);
+      _freeRoamDistance = (_freeRoamDistance / zoomFactor).clamp(110.0, 260.0);
     }
   }
 
@@ -98,8 +93,7 @@ class CameraController {
   }
 
   void update(double dt, double zoomFactor) {
-    final posBlend =
-        1.0 - math.exp(-CameraConstants.cameraLerpSpeed * dt);
+    final posBlend = 1.0 - math.exp(-CameraConstants.cameraLerpSpeed * dt);
     final targetBlend =
         1.0 - math.exp(-CameraConstants.cameraLerpSpeed * 1.5 * dt);
     final pose = _desiredPose(zoomFactor);
@@ -109,6 +103,7 @@ class CameraController {
 
     camera.position = _smoothCamPos;
     camera.target = _smoothTarget;
+    camera.up = pose.up?.copy() ?? Vec3(0, 1, 0);
     final desiredFov = pose.fov;
     if (desiredFov != null) {
       camera.fov += (desiredFov - camera.fov) * posBlend;
@@ -149,37 +144,38 @@ class CameraController {
         );
       case CameraView.sideline:
         return _CameraPose(
-          // Three-quarter broadcast view: a true 90-degree side view exposes
-          // edge-on artifacts in the game's layered 2.5D renderer.
-          position: Vec3(105, 75, 105),
+          position: Vec3(120, 69, 0),
           target: Vec3(
             ball.position.x * 0.10,
-            (ball.position.y * 0.12).clamp(3.0, 11.0),
-            ball.position.z * 0.12 - 3,
+            (ball.position.y * 0.12).clamp(4.0, 10.0),
+            (ball.position.z * 0.12).clamp(-8.0, 8.0),
           ),
-          fov: 58,
+          fov: 60,
         );
       case CameraView.overhead:
         return _CameraPose(
-          // The Z offset avoids a world-up singularity while retaining a
-          // tactical full-court view.
-          position: Vec3(0, 225, 55),
-          target: Vec3(ball.position.x * 0.1, 0, ball.position.z * 0.08 - 5),
-          fov: 64,
+          position: Vec3(0, 230, 0),
+          target: Vec3(0, 0, 0),
+          up: Vec3(0, 0, -1),
+          fov: 60,
         );
       case CameraView.freeRoam:
         final horizontal = math.cos(_freeRoamPitch) * _freeRoamDistance;
         return _CameraPose(
           position: Vec3(
             _freeRoamTarget.x + math.sin(_freeRoamYaw) * horizontal,
-            _freeRoamTarget.y +
-                math.sin(_freeRoamPitch) * _freeRoamDistance,
+            _freeRoamTarget.y + math.sin(_freeRoamPitch) * _freeRoamDistance,
             _freeRoamTarget.z + math.cos(_freeRoamYaw) * horizontal,
           ),
           target: _freeRoamTarget.copy(),
           fov: 52,
         );
     }
+  }
+
+  static double _wrapAngle(double value) {
+    final wrapped = (value + math.pi) % (math.pi * 2);
+    return wrapped < 0 ? wrapped + math.pi : wrapped - math.pi;
   }
 }
 
@@ -188,9 +184,11 @@ class _CameraPose {
     required this.position,
     required this.target,
     this.fov,
+    this.up,
   });
 
   final Vec3 position;
   final Vec3 target;
   final double? fov;
+  final Vec3? up;
 }

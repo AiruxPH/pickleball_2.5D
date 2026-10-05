@@ -6,6 +6,7 @@ import 'package:pickleball_3d/models/pickleball.dart';
 import 'package:pickleball_3d/models/court.dart';
 import 'package:pickleball_3d/game/ai_controller.dart';
 import 'package:pickleball_3d/game/pickleball_game.dart';
+import 'package:pickleball_3d/utils/constants.dart';
 import 'package:pickleball_3d/utils/game_math.dart';
 
 void main() {
@@ -41,13 +42,18 @@ void main() {
         }
       }
 
-      expect(aiHit, isTrue, reason: 'AI must reach and hit the return of serve');
-      expect(game.ball.netCollision, isFalse, reason: 'AI return must not hit the net');
-      expect(landedOnPlayerSide, isTrue, reason: 'AI return must land in the player half (z > 0)');
-      expect(game.ball.position.z, greaterThan(15.0), reason: 'AI return must land deep beyond NVZ');
+      expect(aiHit, isTrue,
+          reason: 'AI must reach and hit the return of serve');
+      expect(game.ball.netCollision, isFalse,
+          reason: 'AI return must not hit the net');
+      expect(landedOnPlayerSide, isTrue,
+          reason: 'AI return must land in the player half (z > 0)');
+      expect(game.ball.position.z, greaterThan(15.0),
+          reason: 'AI return must land deep beyond NVZ');
     });
 
-    test('Medium AI cleanly returns player serve over net onto player court', () {
+    test('Medium AI cleanly returns player serve over net onto player court',
+        () {
       final settings = GameSettings();
       settings.difficulty = AIDifficulty.medium;
 
@@ -73,8 +79,10 @@ void main() {
       }
 
       expect(aiHit, isTrue, reason: 'Medium AI must hit the return');
-      expect(game.ball.netCollision, isFalse, reason: 'Medium AI return must clear net');
-      expect(landedOnPlayerSide, isTrue, reason: 'Return must land on player side');
+      expect(game.ball.netCollision, isFalse,
+          reason: 'Medium AI return must clear net');
+      expect(landedOnPlayerSide, isTrue,
+          reason: 'Return must land on player side');
     });
 
     test('AI retrieves bounced balls inside the kitchen', () {
@@ -104,8 +112,14 @@ void main() {
         if (!ball.lastHitByPlayer) break;
       }
 
-      expect(ball.lastHitByPlayer, isFalse, reason: 'AI must step in and return bounced kitchen ball');
-      expect(ball.velocity.z, greaterThan(80.0), reason: 'Return must head back over net toward player side');
+      expect(ball.lastHitByPlayer, isFalse,
+          reason: 'AI must step in and return bounced kitchen ball');
+      expect(ball.velocity.z, greaterThan(0),
+          reason: 'Return must head back over net toward player side');
+      expect(aiCtrl.lastShotPlan, isNotNull);
+      expect(aiCtrl.lastShotPlan!.predictedNetClearance, greaterThan(0));
+      expect(aiCtrl.lastShotPlan!.predictedLanding.z,
+          inInclusiveRange(0, CourtDimensions.halfLength));
     });
 
     test('AI waits for the serve to bounce before returning it', () {
@@ -162,7 +176,7 @@ void main() {
       final settings = GameSettings()..difficulty = AIDifficulty.hard;
       final ai = Player(startPosition: Vec3(0, 0, -31), isHuman: false);
       final ball = Pickleball()
-        ..position = Vec3(0, 6, -14)
+        ..position = Vec3(0, 6, -22)
         ..velocity = Vec3(0, -4, -10)
         ..state = BallState.inFlight
         ..rallyHitCount = 3

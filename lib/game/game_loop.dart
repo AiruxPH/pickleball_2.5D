@@ -9,6 +9,7 @@ import '../models/player.dart';
 import '../models/ultimate_skill.dart';
 import 'character_renderer.dart';
 import 'sprite_character_renderer.dart';
+import 'render_metrics.dart';
 import 'vfx.dart';
 import '../utils/constants.dart';
 import '../utils/game_math.dart';
@@ -2150,8 +2151,7 @@ class CourtPainter extends CustomPainter {
         cam.projectCoords(ball.position.x, ball.position.y, ball.position.z);
     if (screenPos == null) return;
 
-    final scale = cam.depthScale(ball.position).clamp(0.4, 2.5);
-    final radius = PhysicsConstants.ballRadius * 2.3 * scale;
+    final radius = RenderMetrics.ballRadius(cam, ball.position);
     final lowEnd = game.settings.isLowEndMode;
 
     if (lowEnd) {

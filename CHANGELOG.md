@@ -527,3 +527,15 @@
 - Applied the same smash, dink, and lob context rules to the observation-driven near-side bot and preserved smash intent through the shared command gateway.
 - Replaced direction-only AI launches with drag-compensated ballistic targeting and kept tactical targets inside the opponent court.
 - Added regression coverage for court ratios, net collision, kitchen-safe volleys, contextual shot selection, and in-bounds landings.
+
+### 2026-10-05 - Camera readability and patient net-safe bot play
+- Adapted the proven perspective, free-roam, contact-window, and net-clearance techniques from the parallel pickleball project without modifying it or migrating this renderer to Flame.
+- Added orientation-independent pixels-per-world-unit projection, a configurable camera up vector, a true lateral sideline view, a stable vertical overhead view, and unrestricted 360-degree free-roam yaw.
+- Added presentation-only render metrics so the regulation ball retains a four-pixel minimum radius and six-foot character billboards remain readable from overhead and distant views without changing collisions.
+- Made sprite athletes choose front, back, left, and right poses relative to the active camera, including side and rear free-roam views.
+- Replaced the far-side bot's oversized circular reach with a directional paddle contact envelope, delayed same-tick bounce returns, and kept non-volley movement behind the kitchen line until a legal kitchen bounce.
+- Added deterministic shot planning that simulates production gravity and drag, verifies shot-specific net clearance, and accepts only in-bounds opponent-court landings for dinks, drives, lobs, smashes, and safe fallbacks.
+- Extended immutable bot observations with bounce obligations, last-bounce position, kitchen occupancy, and established-volley stance while preserving command-only bot output.
+- Applied regulation-net clearance assistance to low player contacts and retained deep-shot pace while preventing ordinary returns from sailing beyond the opponent baseline.
+- Added camera, render-scale, directional-sprite, trajectory, contact-timing, observation, kitchen-play, and compact how-to layout regression coverage.
+- Verification: `flutter test` passed all 146 tests and `flutter analyze` reported no issues. Dart hot reload/restart was not triggered because no Dart MCP/DTD runtime connector was available in this session.

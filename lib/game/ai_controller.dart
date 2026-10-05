@@ -5,6 +5,7 @@ import '../models/court.dart';
 import '../models/game_settings.dart';
 import '../utils/constants.dart';
 import '../utils/game_math.dart';
+import 'ai_shot_planner.dart';
 import 'shot_targeting.dart';
 
 /// ─────────────────────────────────────────────────────────────
@@ -42,6 +43,14 @@ class AIController {
   double _reactionTimer = 0;
   Vec3 _targetPosition = Vec3(0, 0, CourtDimensions.aiStartZ);
   bool _hasPredictedTarget = false;
+  int _observedBounceCount = 0;
+  bool _ballBouncedThisTick = false;
+  AIShotPlan? lastShotPlan;
+
+  static const double contactRadiusX = 10.0;
+  static const double contactReachForward = 10.0;
+  static const double contactReachBack = 5.0;
+  static const double maximumContactHeight = CourtDimensions.playerHeight + 8.0;
 
   final math.Random _rng = math.Random();
 
@@ -116,6 +125,8 @@ class AIController {
   }
 
   void update(double dt) {
+    _ballBouncedThisTick = ball.bounceCount != _observedBounceCount;
+    _observedBounceCount = ball.bounceCount;
     // In practice mode, AI has infinite stamina and never tires
     if (isPracticeMode && !ai.isPartner) {
       ai.stamina = StaminaConstants.maxStamina;
@@ -212,6 +223,9 @@ class AIController {
     _state = AIState.idle;
     _reactionTimer = 0;
     _hasPredictedTarget = false;
+    _observedBounceCount = ball.bounceCount;
+    _ballBouncedThisTick = false;
+    lastShotPlan = null;
     ai.velocity
       ..x = 0
       ..y = 0
@@ -280,9 +294,7 @@ class AIController {
     // Head toward predicted landing spot while ball is in flight, then track bounced ball directly
     final targetX = ball.hasBounced
         ? ball.position.x
-        : (isPracticeMode || difficulty == AIDifficulty.hard
-            ? ball.position.x
-            : lerp(_targetPosition.x, ball.position.x, 0.85));
+        : lerp(_targetPosition.x, ball.position.x, 0.35);
 
     final targetZ = ball.hasBounced
         ? (ai.isPartner ? ball.position.z + 3.0 : ball.position.z - 3.0)
@@ -291,25 +303,25 @@ class AIController {
     // Keep the bot clear of the NVZ unless this ball bounced in its own NVZ.
     // A bounce elsewhere still permits a groundstroke, but not an unnecessary
     // step onto the kitchen or its boundary line.
+    const kitchenMargin = Player.footRadius + 1.0;
     final clampedZ = mayEnterKitchen
         ? targetZ
         : (ai.isPartner
-            ? math.max(targetZ, CourtDimensions.kitchenDepth + 2.5)
-            : math.min(targetZ, -CourtDimensions.kitchenDepth - 2.5));
+            ? math.max(
+                targetZ,
+                CourtDimensions.kitchenDepth + kitchenMargin,
+              )
+            : math.min(
+                targetZ,
+                -CourtDimensions.kitchenDepth - kitchenMargin,
+              ));
 
     final approachSpeed = isPracticeMode ? 165.0 : effectiveSpeed * 1.15;
     _moveToward(Vec3(targetX, 0, clampedZ), dt, approachSpeed);
 
-    // Check if close enough to swing
-    final distToBall = dist2D(
-      ai.position.x,
-      ai.position.z,
-      ball.position.x,
-      ball.position.z,
-    );
-
     // Two-bounce rule check
     if (mustWaitBounce) return;
+    if (_ballBouncedThisTick) return;
 
     // Never strike while touching the NVZ unless the current ball bounced
     // there. For a volley, both feet must additionally be established outside.
@@ -320,13 +332,7 @@ class AIController {
       return;
     }
 
-    final canHitZ = ai.isPartner ? ball.position.z > -8 : ball.position.z < 8;
-    final reach = isPracticeMode ? 34.0 : 32.0;
-    final maxHitY = isPracticeMode ? 44.0 : 40.0;
-    if (distToBall < reach &&
-        ball.position.y < maxHitY &&
-        canHitZ &&
-        ai.canSwing) {
+    if (canContactBall() && ai.canSwing) {
       _state = AIState.swing;
     }
 
@@ -339,10 +345,30 @@ class AIController {
     }
   }
 
+  bool canContactBall() {
+    final lateral = (ball.position.x - ai.position.x).abs();
+    final forward = ai.isPartner
+        ? ai.position.z - ball.position.z
+        : ball.position.z - ai.position.z;
+    final movingTowardPlayer =
+        ai.isPartner ? ball.velocity.z > 0 : ball.velocity.z < 0;
+    return movingTowardPlayer &&
+        lateral <= contactRadiusX &&
+        forward >= -contactReachBack &&
+        forward <= contactReachForward &&
+        ball.position.y >= PhysicsConstants.ballRadius &&
+        ball.position.y <= maximumContactHeight;
+  }
+
   // ── Swing: hit the ball with tactical shot selection ────────────
   void _updateSwing(double dt) {
     if (!ai.canSwing) {
       return; // wait until swing cooldown finishes, do not abort
+    }
+
+    if (_ballBouncedThisTick || !canContactBall()) {
+      _state = AIState.approach;
+      return;
     }
 
     final mayEnterKitchen = _ballBouncedInOwnKitchen;
@@ -600,31 +626,37 @@ class AIController {
     // depth to the opponent's half for the team actually making the shot.
     targetZ = isPartner ? -targetZ.abs() : targetZ.abs();
 
-    // Accurate directional velocity computation toward (aimX, targetZ)
-    final deltaX = aimX - ball.position.x;
-    final deltaZ = targetZ - ball.position.z;
-    final heightAboveGround =
-        math.max(0.0, ball.position.y - PhysicsConstants.ballRadius);
-    final discriminant =
-        upPower * upPower + 2 * PhysicsConstants.gravity * heightAboveGround;
-    final flightTime =
-        (upPower + math.sqrt(discriminant)) / PhysicsConstants.gravity;
-    const dragCompensation = 1.08;
-    var launchX = deltaX / flightTime * dragCompensation;
-    var launchZ = deltaZ / flightTime * dragCompensation;
-    final launchSpeed = math.sqrt(launchX * launchX + launchZ * launchZ);
-    if (launchSpeed > forwardPower) {
-      final scale = forwardPower / launchSpeed;
-      launchX *= scale;
-      launchZ *= scale;
-    }
-
-    // Launch ball cleanly
-    ball.velocity = Vec3(
-      launchX,
-      upPower,
-      launchZ,
+    final target = Vec3(aimX, PhysicsConstants.ballRadius, targetZ);
+    var shotPlan = AIShotPlanner.plan(
+      start: ball.position,
+      target: target,
+      type: chosenShot,
+      preferredHorizontalSpeed: forwardPower,
+      preferredVerticalSpeed: upPower,
     );
+    if (shotPlan == null) {
+      chosenShot = ShotType.normal;
+      final safeTarget = Vec3(
+        0,
+        PhysicsConstants.ballRadius,
+        isPartner ? -52.0 : 52.0,
+      );
+      shotPlan = AIShotPlanner.plan(
+        start: ball.position,
+        target: safeTarget,
+        type: chosenShot,
+        preferredHorizontalSpeed: PhysicsConstants.normalHitPower,
+        preferredVerticalSpeed: 44.0,
+      );
+    }
+    if (shotPlan == null) {
+      _state = AIState.approach;
+      return;
+    }
+    lastShotPlan = shotPlan;
+
+    // Launch the exact trajectory that was validated against drag and net sag.
+    ball.velocity = shotPlan.launchVelocity.copy();
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = isPartner;
     ball.bounceCount = 0;

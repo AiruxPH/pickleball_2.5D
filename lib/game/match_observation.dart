@@ -17,6 +17,8 @@ final class PlayerObservation {
     required this.canSwing,
     required this.stamina,
     required this.score,
+    this.isInKitchen = false,
+    this.hasEstablishedOutsideKitchen = true,
   });
 
   final ObservedVector position;
@@ -24,6 +26,8 @@ final class PlayerObservation {
   final bool canSwing;
   final double stamina;
   final int score;
+  final bool isInKitchen;
+  final bool hasEstablishedOutsideKitchen;
 }
 
 /// Read-only ball facts relevant to tactical decisions.
@@ -35,6 +39,8 @@ final class BallObservation {
     required this.rallyHitCount,
     required this.hasBounced,
     required this.isInPlay,
+    this.mustBounceBeforeHit = false,
+    this.lastBounceZ = 0,
   });
 
   final ObservedVector position;
@@ -43,6 +49,8 @@ final class BallObservation {
   final int rallyHitCount;
   final bool hasBounced;
   final bool isInPlay;
+  final bool mustBounceBeforeHit;
+  final double lastBounceZ;
 }
 
 /// Immutable public state presented to players, bots, replay tools, and tests.
@@ -79,6 +87,8 @@ final class MatchObservation {
         canSwing: player.canSwing,
         stamina: player.stamina,
         score: player.score,
+        isInKitchen: player.isInKitchen(includeFootMargin: true),
+        hasEstablishedOutsideKitchen: player.hasEstablishedOutsideKitchen,
       ),
       farPlayer: PlayerObservation(
         position: ObservedVector(
@@ -94,6 +104,8 @@ final class MatchObservation {
         canSwing: opponent.canSwing,
         stamina: opponent.stamina,
         score: opponent.score,
+        isInKitchen: opponent.isInKitchen(includeFootMargin: true),
+        hasEstablishedOutsideKitchen: opponent.hasEstablishedOutsideKitchen,
       ),
       ball: BallObservation(
         position: ObservedVector(
@@ -110,6 +122,8 @@ final class MatchObservation {
         rallyHitCount: ball.rallyHitCount,
         hasBounced: ball.hasBounced,
         isInPlay: ball.isInPlay,
+        mustBounceBeforeHit: ball.mustBounceBeforeHit,
+        lastBounceZ: ball.lastBounceZ,
       ),
       controlledPlayerServing: identical(game.activeServer, game.player),
       serverShouldBeOnRight: game.scoreController.serverShouldBeOnRight,

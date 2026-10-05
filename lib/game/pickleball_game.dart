@@ -1126,23 +1126,35 @@ class PickleballGame extends ChangeNotifier {
     // Compute directional unit vector with normalized horizontal speed
     final aimDirX = dir.dx.clamp(-0.85, 0.85);
     final aimDirZ = -math.sqrt(math.max(0.05, 1.0 - aimDirX * aimDirX));
-    if (deepRecoveryFactor > 0 &&
-        activeShot != ShotType.smash &&
-        activeShot != ShotType.ultimate) {
-      final assistedForwardZ =
-          math.max(1.0, aimDirZ.abs() * forwardSpeed * 0.88);
-      final timeToNet = ball.position.z / assistedForwardZ;
+    if (ball.position.z > 0 && aimDirZ < 0) {
+      final conservativeForwardZ =
+          math.max(1.0, aimDirZ.abs() * forwardSpeed * 0.82);
+      final timeToNet = ball.position.z / conservativeForwardZ;
       const targetNetHeight =
           CourtDimensions.netHeight + PhysicsConstants.ballRadius + 4.0;
       final minimumUpSpeed = (targetNetHeight -
                   ball.position.y +
                   0.5 * PhysicsConstants.gravity * timeToNet * timeToNet) /
               timeToNet +
-          4.0 * deepRecoveryFactor;
-      upSpeed = math.max(
-        upSpeed,
-        minimumUpSpeed.clamp(0.0, 82.0).toDouble(),
-      );
+          2.0;
+      upSpeed = math.max(upSpeed, minimumUpSpeed.clamp(0.0, 82.0).toDouble());
+
+      // Once the safe lift is known, trim excessive pace so the corresponding
+      // arc lands in the opponent court instead of sailing through the fence.
+      if (activeShot != ShotType.smash && activeShot != ShotType.ultimate) {
+        final heightAboveGround =
+            math.max(0.0, ball.position.y - PhysicsConstants.ballRadius);
+        final discriminant = upSpeed * upSpeed +
+            2 * PhysicsConstants.gravity * heightAboveGround;
+        final flightTime =
+            (upSpeed + math.sqrt(discriminant)) / PhysicsConstants.gravity;
+        final targetZ = activeShot == ShotType.drop ? -16.0 : -55.0;
+        final requiredForward =
+            (ball.position.z - targetZ).abs() / flightTime * 1.12;
+        if (deepRecoveryFactor == 0) {
+          forwardSpeed = math.min(forwardSpeed, requiredForward);
+        }
+      }
     }
     ball.velocity = Vec3(
       aimDirX * forwardSpeed,

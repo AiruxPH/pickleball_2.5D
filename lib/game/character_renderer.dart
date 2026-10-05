@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/shop_items.dart';
-import '../utils/constants.dart';
 import '../utils/game_math.dart';
+import 'render_metrics.dart';
 
 /// ─────────────────────────────────────────────────────────────────────────────
 /// CharacterRenderer
@@ -80,15 +80,7 @@ class CharacterRenderer {
     if (cam != null) {
       final screenPos = cam.project(player.position);
       if (screenPos == null) return;
-      final headPos = cam.projectCoords(
-        player.position.x,
-        player.position.y + CourtDimensions.playerHeight,
-        player.position.z,
-      );
-      if (headPos == null) return;
-      scale =
-          ((headPos - screenPos).distance / CourtDimensions.characterArtHeight)
-              .clamp(0.05, 5.0);
+      scale = RenderMetrics.characterScale(cam, player.position);
 
       canvas.save();
       canvas.translate(screenPos.dx, screenPos.dy);

@@ -22,7 +22,7 @@ void main() {
       // Human serving from right box (x > 0)
       // Opponent AI court is z in [-88, 0], AI Kitchen is [-28, 0]
       // Valid landing must be in AI right box (which is x < 0 from player perspective, z < -28)
-      
+
       // Inside Kitchen on AI side (fault)
       expect(court.isValidServiceBox(-15, -15, true), isFalse,
           reason: 'Serve inside kitchen should be a fault');
@@ -86,7 +86,8 @@ void main() {
       game.dispose();
     });
 
-    test('Player and AI serve balls reset completely outside each baseline', () {
+    test('Player and AI serve balls reset completely outside each baseline',
+        () {
       final ball = Pickleball();
 
       ball.resetForPlayerServe(fromRight: true);
@@ -290,10 +291,13 @@ void main() {
       ball.velocity = Vec3(0, -30, 0);
       ball.state = BallState.inFlight;
 
-      controller.update(0.1); // Ball hits ground
+      for (var i = 0; i < 3 && !ball.hasBounced; i++) {
+        controller.update(0.1);
+      }
 
       expect(ball.velocity.y, greaterThan(0),
-          reason: 'Ball vertical velocity must be positive after ground contact');
+          reason:
+              'Ball vertical velocity must be positive after ground contact');
       expect(ball.hasBounced, isTrue);
       expect(ball.bounceCount, 1);
     });
@@ -310,7 +314,8 @@ void main() {
       game.update(0.016); // Processes serve
 
       expect(game.ball.state, BallState.inFlight);
-      expect(game.ball.velocity.z, lessThan(0), reason: 'Serve must travel toward AI');
+      expect(game.ball.velocity.z, lessThan(0),
+          reason: 'Serve must travel toward AI');
 
       // Simulate flight until ground contact
       const dt = 0.016;
@@ -319,17 +324,25 @@ void main() {
         if (game.ball.hasBounced) break;
       }
 
-      expect(game.ball.hasBounced, isTrue, reason: 'Serve should reach the ground');
-      expect(game.court.isInsideCourt(game.ball.position.x, game.ball.lastBounceZ), isTrue,
+      expect(game.ball.hasBounced, isTrue,
+          reason: 'Serve should reach the ground');
+      expect(
+          game.court.isInsideCourt(game.ball.position.x, game.ball.lastBounceZ),
+          isTrue,
           reason: 'Serve must not overshoot court bounds');
-      expect(game.court.isValidServiceBox(game.ball.position.x, game.ball.lastBounceZ, true), isTrue,
-          reason: 'Serve must land legally in the AI diagonal box past the kitchen');
+      expect(
+          game.court.isValidServiceBox(
+              game.ball.position.x, game.ball.lastBounceZ, true),
+          isTrue,
+          reason:
+              'Serve must land legally in the AI diagonal box past the kitchen');
     });
 
     test('Legal winner awards point to the striker', () {
       final player = Player(startPosition: Vec3(16, 0, 60), isHuman: true);
       final ai = Player(startPosition: Vec3(-16, 0, -60), isHuman: false);
-      final scoreCtrl = ScoreController(player: player, ai: ai, isPracticeMode: false);
+      final scoreCtrl =
+          ScoreController(player: player, ai: ai, isPracticeMode: false);
       final court = Court();
       final ball = Pickleball();
 
@@ -349,7 +362,8 @@ void main() {
       ball.bounceCount = 2;
       final result = scoreCtrl.checkPoint(ball, court);
       expect(result, PointResult.playerPoint,
-          reason: 'When ball bounces twice on AI side, player must be awarded the point');
+          reason:
+              'When ball bounces twice on AI side, player must be awarded the point');
     });
   });
 
@@ -383,7 +397,8 @@ void main() {
       expect(game.isUltimateArmed, isFalse);
     });
 
-    test('All 4 Ultimate Skills exist with complete stats and unique perks', () {
+    test('All 4 Ultimate Skills exist with complete stats and unique perks',
+        () {
       expect(kAllUltimateSkills.length, 4);
 
       for (final skill in kAllUltimateSkills) {
@@ -441,9 +456,12 @@ void main() {
       for (int i = 0; i < 15; i++) {
         scoreCtrl.awardPlayerPoint();
       }
-      expect(player.score, 0, reason: 'Player score must not increment in training mode');
-      expect(ai.score, 0, reason: 'AI score must not increment in training mode');
-      expect(scoreCtrl.isGameOver, isFalse, reason: 'Training mode should never end from score');
+      expect(player.score, 0,
+          reason: 'Player score must not increment in training mode');
+      expect(ai.score, 0,
+          reason: 'AI score must not increment in training mode');
+      expect(scoreCtrl.isGameOver, isFalse,
+          reason: 'Training mode should never end from score');
 
       // Award AI points multiple times
       for (int i = 0; i < 15; i++) {
@@ -520,7 +538,8 @@ void main() {
       ai.useStamina(0.8);
       expect(ai.stamina, lessThan(1.0));
       aiCtrl.update(0.016);
-      expect(ai.stamina, 1.0, reason: 'AI must have infinite stamina in practice mode');
+      expect(ai.stamina, 1.0,
+          reason: 'AI must have infinite stamina in practice mode');
     });
   });
 
@@ -560,7 +579,9 @@ void main() {
       audioService.dispose();
     });
 
-    test('PickleballGame triggers hit and bounce sound effects via AudioService', () {
+    test(
+        'PickleballGame triggers hit and bounce sound effects via AudioService',
+        () {
       final fakeAudio = _FakeAudioService();
       final settings = GameSettings();
       final game = PickleballGame(
@@ -575,8 +596,10 @@ void main() {
       // 1. Serve triggers paddle hit sound
       game.setServePressed(true);
       game.update(0.016);
-      expect(fakeAudio.hitCount, 1, reason: 'Serving the ball must play paddle hit SFX');
-      expect(fakeAudio.powerHitCount, 0, reason: 'Serve is a normal hit, not a power smash');
+      expect(fakeAudio.hitCount, 1,
+          reason: 'Serving the ball must play paddle hit SFX');
+      expect(fakeAudio.powerHitCount, 0,
+          reason: 'Serve is a normal hit, not a power smash');
 
       // 2. Ball flight to ground triggers court bounce sound
       for (int i = 0; i < 140; i++) {
@@ -587,7 +610,9 @@ void main() {
   });
 
   group('Official USA Pickleball Rulebook Specifications', () {
-    test('Sideout scoring: only serving team scores; receiving rally win causes sideout', () {
+    test(
+        'Sideout scoring: only serving team scores; receiving rally win causes sideout',
+        () {
       final player = Player(startPosition: Vec3(16, 0, 60), isHuman: true);
       final ai = Player(startPosition: Vec3(-16, 0, -60), isHuman: false);
       final scoreCtrl = ScoreController(
@@ -608,9 +633,12 @@ void main() {
 
       // Opponent (AI - receiving team) wins next rally -> sideout! AI serves, but AI score remains 0
       expect(scoreCtrl.awardAIPoint(), isFalse);
-      expect(ai.score, 0, reason: 'Receiving team does not score a point on sideout');
-      expect(scoreCtrl.isPlayerServing, isFalse, reason: 'Serve passes to AI (sideout)');
-      expect(scoreCtrl.serverNumber, 1, reason: 'After sideout, new serving team starts with server 1');
+      expect(ai.score, 0,
+          reason: 'Receiving team does not score a point on sideout');
+      expect(scoreCtrl.isPlayerServing, isFalse,
+          reason: 'Serve passes to AI (sideout)');
+      expect(scoreCtrl.serverNumber, 1,
+          reason: 'After sideout, new serving team starts with server 1');
 
       // AI serving wins rally -> AI scores a point
       scoreCtrl.awardAIPoint();
@@ -745,7 +773,9 @@ void main() {
       expect(scoreCtrl.serverNumber, 1);
     });
 
-    test('Kitchen Momentum Rule: momentum flag faults when entering NVZ after a volley', () {
+    test(
+        'Kitchen Momentum Rule: momentum flag faults when entering NVZ after a volley',
+        () {
       final player = Player(
         startPosition: Vec3(0, 0, 35), // Outside kitchen (>28)
         isHuman: true,
@@ -773,7 +803,8 @@ void main() {
     // ─────────────────────────────────────────────────────────────────────────
     // Kitchen (Non-Volley Zone / NVZ) Comprehensive Rules & Mechanics
     // ─────────────────────────────────────────────────────────────────────────
-    test('NVZ Dimensions: 7ft each side of net, 14ft total area around net', () {
+    test('NVZ Dimensions: 7ft each side of net, 14ft total area around net',
+        () {
       final court = Court();
       // 1 game unit = 0.25ft (4 units/ft). 7ft = 28 units.
       expect(court.kitchenDepth, 28.0);
@@ -783,7 +814,8 @@ void main() {
           reason: 'Total NVZ depth must be 14 feet (56 world units)');
     });
 
-    test('Kitchen Line is part of the Kitchen (touching line is NVZ contact)', () {
+    test('Kitchen Line is part of the Kitchen (touching line is NVZ contact)',
+        () {
       final playerOnLine = Player(
         startPosition: Vec3(0, 0, 28.0), // Directly on kitchen line
         isHuman: true,
@@ -806,7 +838,8 @@ void main() {
       expect(playerDeep.isTouchingKitchenLine(), isFalse);
     });
 
-    test('Fault: Volleying while inside Kitchen or touching line is a fault', () {
+    test('Fault: Volleying while inside Kitchen or touching line is a fault',
+        () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings(),
@@ -860,7 +893,8 @@ void main() {
       expect(game.scoreController.isPlayerServing, isFalse);
     });
 
-    test('Untouched second bounce is called after the recovery grace window', () {
+    test('Untouched second bounce is called after the recovery grace window',
+        () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings()..difficulty = AIDifficulty.easy,
@@ -896,7 +930,8 @@ void main() {
       expect(game.lastMessage, contains('DOUBLE BOUNCE'));
     });
 
-    test('Queued player swing may recover inside second-bounce grace window', () {
+    test('Queued player swing may recover inside second-bounce grace window',
+        () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings(),
@@ -1011,7 +1046,8 @@ void main() {
           reason: 'Overturned serving point becomes a sideout');
     });
 
-    test('Fault: Volleying while foot touches the Kitchen line is a violation', () {
+    test('Fault: Volleying while foot touches the Kitchen line is a violation',
+        () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings(),
@@ -1035,7 +1071,8 @@ void main() {
       expect(game.scoreController.lastFaultDetail, contains('KITCHEN'));
     });
 
-    test('Legal: Ball bounces inside Kitchen -> step inside -> hit -> legal', () {
+    test('Legal: Ball bounces inside Kitchen -> step inside -> hit -> legal',
+        () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings(),
@@ -1056,12 +1093,17 @@ void main() {
       game.setHitPressed(true);
       game.update(0.016);
 
-      expect(game.ball.lastHitByPlayer, isTrue, reason: 'Hit must execute legally');
-      expect(game.player.kitchenMomentumFlag, isFalse, reason: 'No momentum flag on bounced shot');
-      expect(game.state, isNot(GameState.pointScored), reason: 'Rally continues legally');
+      expect(game.ball.lastHitByPlayer, isTrue,
+          reason: 'Hit must execute legally');
+      expect(game.player.kitchenMomentumFlag, isFalse,
+          reason: 'No momentum flag on bounced shot');
+      expect(game.state, isNot(GameState.pointScored),
+          reason: 'Rally continues legally');
     });
 
-    test('Fault: Volley outside Kitchen -> momentum carries into Kitchen -> fault', () {
+    test(
+        'Fault: Volley outside Kitchen -> momentum carries into Kitchen -> fault',
+        () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings(),
@@ -1082,7 +1124,8 @@ void main() {
       game.setHitPressed(true);
       game.update(0.016);
 
-      expect(game.player.kitchenMomentumFlag, isTrue, reason: 'Momentum flag armed on volley');
+      expect(game.player.kitchenMomentumFlag, isTrue,
+          reason: 'Momentum flag armed on volley');
 
       // Momentum carries player forward into Kitchen (z = 25)
       game.player.position.z = 25;
@@ -1091,7 +1134,9 @@ void main() {
       expect(game.lastMessage, contains('MOMENTUM'));
     });
 
-    test('Momentum fault applies even if rally has already ended (point overturned)', () {
+    test(
+        'Momentum fault applies even if rally has already ended (point overturned)',
+        () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings(),
@@ -1128,7 +1173,8 @@ void main() {
 
       expect(game.state, GameState.pointScored);
       expect(game.player.score, 3, reason: 'Initially awarded 3rd point');
-      expect(game.player.kitchenMomentumFlag, isTrue, reason: 'Momentum flag kept during dead ball');
+      expect(game.player.kitchenMomentumFlag, isTrue,
+          reason: 'Momentum flag kept during dead ball');
 
       // During follow-through, momentum carries player into Kitchen
       game.player.position.z = 25;
@@ -1139,7 +1185,9 @@ void main() {
       expect(game.lastMessage, contains('OVERTURNED'));
     });
 
-    test('Both feet must be established outside Kitchen after leaving before volleying', () {
+    test(
+        'Both feet must be established outside Kitchen after leaving before volleying',
+        () {
       final player = Player(
         startPosition: Vec3(0, 0, 15), // Inside kitchen
         isHuman: true,
@@ -1155,7 +1203,8 @@ void main() {
       // 0.016s outside: feet not established yet
       player.updateKitchenStatus(0.016);
       expect(player.hasEstablishedOutsideKitchen, isFalse);
-      expect(player.canVolley(), isFalse, reason: 'Must establish feet outside before volleying');
+      expect(player.canVolley(), isFalse,
+          reason: 'Must establish feet outside before volleying');
 
       // 0.25s outside: feet established
       player.updateKitchenStatus(0.25);
@@ -1163,7 +1212,9 @@ void main() {
       expect(player.canVolley(), isTrue, reason: 'Legally permitted to volley');
     });
 
-    test('Serve must clear the Kitchen: touching the Kitchen line is short and a fault', () {
+    test(
+        'Serve must clear the Kitchen: touching the Kitchen line is short and a fault',
+        () {
       final court = Court();
 
       // Serve on AI side kitchen line (z = -28.0) -> FAULT
@@ -1183,7 +1234,9 @@ void main() {
           reason: 'Serve clearing kitchen diagonally is legal');
     });
 
-    test('Swept Net Collision: detects fast ball crossing z=0 below net height without tunneling', () {
+    test(
+        'Swept Net Collision: detects fast ball crossing z=0 below net height without tunneling',
+        () {
       final ball = Pickleball();
       final player = Player(startPosition: Vec3(0, 0, 60), isHuman: true);
       final ai = Player(startPosition: Vec3(0, 0, -60), isHuman: false);
@@ -1203,11 +1256,15 @@ void main() {
       ball.state = BallState.inFlight;
 
       final collision = physics.update(0.016);
-      expect(collision.netHit, isTrue, reason: 'Fast ball crossing net plane below net height must trigger net collision');
+      expect(collision.netHit, isTrue,
+          reason:
+              'Fast ball crossing net plane below net height must trigger net collision');
       expect(ball.netCollision, isTrue);
     });
 
-    test('Player power shot cleanly clears the net and lands in bounds on opponent side', () {
+    test(
+        'Player power shot cleanly clears the net and lands in bounds on opponent side',
+        () {
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: GameSettings(),
@@ -1226,14 +1283,16 @@ void main() {
       expect(game.ball.hasBounced, isTrue);
 
       // Move player close to ball and trigger power shot
-      game.player.position = Vec3(game.ball.position.x, 0, game.ball.position.z + 10);
+      game.player.position =
+          Vec3(game.ball.position.x, 0, game.ball.position.z + 10);
       game.setPowerPressed(true);
       game.update(0.016);
 
       // Verify player executed hit
       expect(game.ball.lastHitByPlayer, isTrue);
       expect(game.ball.shotType, ShotType.power);
-      expect(game.ball.velocity.z, lessThan(0), reason: 'Ball should travel toward opponent');
+      expect(game.ball.velocity.z, lessThan(0),
+          reason: 'Ball should travel toward opponent');
 
       // Trace ball flight until it reaches the net plane (z <= 0)
       bool reachedNet = false;
@@ -1262,8 +1321,11 @@ void main() {
       }
 
       expect(game.ball.hasBounced, isTrue);
-      expect(game.ball.lastBounceZ, lessThan(0), reason: 'Ball must bounce on opponent side');
-      expect(game.court.isInsideCourt(game.ball.position.x, game.ball.lastBounceZ), isTrue,
+      expect(game.ball.lastBounceZ, lessThan(0),
+          reason: 'Ball must bounce on opponent side');
+      expect(
+          game.court.isInsideCourt(game.ball.position.x, game.ball.lastBounceZ),
+          isTrue,
           reason: 'Power shot must land in bounds on opponent side, not OUT');
     });
   });

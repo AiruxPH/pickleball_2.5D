@@ -2,9 +2,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../services/character_sprite_manager.dart';
-import '../utils/constants.dart';
 import '../utils/game_math.dart';
 import 'character_renderer.dart';
+import 'render_metrics.dart';
+
+enum SpriteFacing { front, back, left, right }
 
 /// ─────────────────────────────────────────────────────────────
 /// SpriteCharacterRenderer
@@ -50,17 +52,10 @@ class SpriteCharacterRenderer {
 
     final screenPos = cam.project(player.position);
     if (screenPos == null) return true; // behind camera: nothing to draw
-    final headPos = cam.projectCoords(
-      player.position.x,
-      player.position.y + CourtDimensions.playerHeight,
-      player.position.z,
-    );
-    if (headPos == null) return true;
-    final scale =
-        ((headPos - screenPos).distance / CourtDimensions.characterArtHeight)
-            .clamp(0.05, 5.0);
+    final scale = RenderMetrics.characterScale(cam, player.position);
 
-    final pose = nearTeam ? _backViewPose(player) : _frontViewPose(player);
+    final facing = facingForCamera(player, cam);
+    final pose = _poseFor(player, nearTeam, facing);
     final src = atlas.frameRect(pose.anim, pose.frame);
     if (src == null) return false;
 
@@ -110,37 +105,67 @@ class SpriteCharacterRenderer {
   }
 
   // ── Near team: back view (swings use the sheet's swing animation) ─────
-  static _Pose _backViewPose(Player p) {
-    if (p.isSwinging) return _swingPose(p);
-    if (p.runBlend > 0.3) {
-      return _Pose('backpedal', _strideFrame(p), 1.0, 0);
+  // ── Far team: front view ─────────────────────────────────────
+  static SpriteFacing facingForCamera(Player player, PerspectiveCamera cam) {
+    var dx = player.velocity.x;
+    var dz = player.velocity.z;
+    if (math.sqrt(dx * dx + dz * dz) < 4) {
+      dx = 0;
+      dz = player.isNearSide ? -1 : 1;
     }
-    return const _Pose('idle', 1, 1.0, 0); // "Up" (back) idle
+
+    final feet = cam.project(player.position);
+    final ahead = cam.projectCoords(
+      player.position.x + dx,
+      player.position.y,
+      player.position.z + dz,
+    );
+    if (feet == null || ahead == null) {
+      return player.isNearSide ? SpriteFacing.back : SpriteFacing.front;
+    }
+    final screenDelta = ahead - feet;
+    if (screenDelta.dx.abs() > screenDelta.dy.abs()) {
+      return screenDelta.dx < 0 ? SpriteFacing.left : SpriteFacing.right;
+    }
+    return screenDelta.dy < 0 ? SpriteFacing.back : SpriteFacing.front;
   }
 
-  // ── Far team: front view ─────────────────────────────────────
-  static _Pose _frontViewPose(Player p) {
-    // The girl's action frames face screen-right; mirror when heading left.
-    final flip = p.facingFlip >= 0 ? -1.0 : 1.0;
-
-    if (p.isSwinging) return _swingPose(p);
-
-    final vx = p.velocity.x, vz = p.velocity.z;
-    final speed = math.sqrt(vx * vx + vz * vz);
-    if (p.runBlend > 0.3 && speed > 4) {
-      // Opponents stand at negative z: moving further away is a backpedal
-      final anim = vz < -8 && vz.abs() > vx.abs()
-          ? 'backpedal'
-          : speed > 60
-              ? 'run'
-              : speed > 28
-                  ? 'jog'
-                  : 'walk';
-      return _Pose(anim, _strideFrame(p), flip, 0);
+  static _Pose _poseFor(Player p, bool boyAtlas, SpriteFacing facing) {
+    final horizontalFlip = facing == SpriteFacing.left ? -1.0 : 1.0;
+    if (p.isSwinging) {
+      final swing = _swingPose(p);
+      return _Pose(swing.anim, swing.frame, swing.flip * horizontalFlip, 0);
     }
 
-    // Idle loop at ~5 fps
-    return _Pose('idle', (p.animTimer * 5).floor(), flip, 0);
+    final speed = math.sqrt(
+      p.velocity.x * p.velocity.x + p.velocity.z * p.velocity.z,
+    );
+    if (p.runBlend > 0.3 && speed > 4) {
+      final anim = speed > 60
+          ? 'run'
+          : speed > 28
+              ? 'jog'
+              : 'walk';
+      return _Pose(anim, _strideFrame(p), horizontalFlip, 0);
+    }
+
+    if (boyAtlas) {
+      final frame = switch (facing) {
+        SpriteFacing.front => 0,
+        SpriteFacing.back => 1,
+        SpriteFacing.left => 2,
+        SpriteFacing.right => 3,
+      };
+      return _Pose('idle', frame, 1, 0);
+    }
+
+    final frame = switch (facing) {
+      SpriteFacing.front => 0,
+      SpriteFacing.right => 1,
+      SpriteFacing.back => 2,
+      SpriteFacing.left => 3,
+    };
+    return _Pose('turnaround', frame, 1, 0);
   }
 }
 
