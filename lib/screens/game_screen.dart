@@ -10,6 +10,7 @@ import '../game/camera_controller.dart';
 import '../game/game_loop.dart';
 import '../game/game_presentation.dart';
 import '../game/match_command_controller.dart';
+import '../game/match_observation.dart';
 import '../game/pickleball_game.dart';
 import '../models/game_settings.dart';
 import '../models/ultimate_skill.dart';
@@ -193,7 +194,7 @@ class _GameScreenState extends State<GameScreen>
     }
     if (_isBotVsBot) {
       _playerBot = BotAgent(
-        game: _game!,
+        observe: () => MatchObservation.fromGame(_game!),
         commands: _commands!,
         difficulty: diffOverride ?? settings.difficulty,
       );

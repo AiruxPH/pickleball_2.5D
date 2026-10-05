@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pickleball_3d/game/bot_agent.dart';
 import 'package:pickleball_3d/game/match_command_controller.dart';
+import 'package:pickleball_3d/game/match_observation.dart';
 import 'package:pickleball_3d/game/pickleball_game.dart';
 import 'package:pickleball_3d/models/game_settings.dart';
 import 'package:pickleball_3d/models/pickleball.dart';
@@ -23,7 +24,7 @@ void main() {
         difficultyOverride: AIDifficulty.hard,
       );
       agent = BotAgent(
-        game: game,
+        observe: () => MatchObservation.fromGame(game),
         commands: MatchCommandController(game: game),
         difficulty: AIDifficulty.hard,
       );
@@ -35,7 +36,8 @@ void main() {
       expect(game.servePressed, isTrue);
     });
 
-    test('moves toward an incoming ball without mutating position directly', () {
+    test('moves toward an incoming ball without mutating position directly',
+        () {
       game.state = GameState.rally;
       game.ball
         ..state = BallState.inFlight
@@ -70,5 +72,72 @@ void main() {
       expect(game.powerPressed, isTrue);
       expect(game.bufferedShot, ShotType.power);
     });
+
+    test('decides from a standalone observation with command-only output', () {
+      final commands = _RecordingCommandSink();
+      const observation = MatchObservation(
+        state: GameState.rally,
+        nearPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, 60),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        farPlayer: PlayerObservation(
+          position: ObservedVector(16, 0, -60),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        ball: BallObservation(
+          position: ObservedVector(0, 22, 60),
+          velocity: ObservedVector(0, -4, 20),
+          lastHitByNearSide: false,
+          rallyHitCount: 2,
+          hasBounced: true,
+          isInPlay: true,
+        ),
+        controlledPlayerServing: false,
+        serverShouldBeOnRight: true,
+      );
+      final isolatedAgent = BotAgent(
+        observe: () => observation,
+        commands: commands,
+        difficulty: AIDifficulty.hard,
+      );
+
+      isolatedAgent.update(0.1);
+
+      expect(commands.lastShot, ShotType.power);
+      expect(commands.aimDirection, isNotNull);
+    });
   });
+}
+
+final class _RecordingCommandSink implements MatchCommandSink {
+  Offset? aimDirection;
+  ShotType? lastShot;
+
+  @override
+  void aim(Offset direction) => aimDirection = direction;
+
+  @override
+  void clearAim() => aimDirection = null;
+
+  @override
+  void move(double x, double y) {}
+
+  @override
+  void serve() {}
+
+  @override
+  void shot(ShotType type) => lastShot = type;
+
+  @override
+  void stopMoving() {}
+
+  @override
+  void toggleUltimate() {}
 }

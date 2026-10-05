@@ -67,12 +67,24 @@ class MatchCommand {
 
 typedef MatchCommandObserver = void Function(MatchCommand command);
 
+/// Capability exposed to input sources. It permits commands, not direct
+/// access to mutable simulation state.
+abstract interface class MatchCommandSink {
+  void move(double x, double y);
+  void stopMoving();
+  void aim(Offset direction);
+  void clearAim();
+  void serve();
+  void shot(ShotType type);
+  void toggleUltimate();
+}
+
 /// The single input gateway for a match.
 ///
 /// Keeping input translation outside [PickleballGame] lets future bot,
 /// replay, local multiplayer, and online sources issue the same commands as
 /// the current UI without gaining direct access to physics or scoring state.
-class MatchCommandController {
+class MatchCommandController implements MatchCommandSink {
   MatchCommandController({
     required this.game,
     this.playerSlot = 0,
@@ -86,13 +98,15 @@ class MatchCommandController {
   void dispatch(MatchCommand command) {
     switch (command.type) {
       case MatchCommandType.movement:
-        _isOpponent ? game.setOpponentJoystick(
-          _safeAxis(command.x),
-          _safeAxis(command.y),
-        ) : game.setJoystick(
-          _safeAxis(command.x),
-          _safeAxis(command.y),
-        );
+        _isOpponent
+            ? game.setOpponentJoystick(
+                _safeAxis(command.x),
+                _safeAxis(command.y),
+              )
+            : game.setJoystick(
+                _safeAxis(command.x),
+                _safeAxis(command.y),
+              );
         break;
       case MatchCommandType.aim:
         final x = command.x;
@@ -125,19 +139,26 @@ class MatchCommandController {
     onDispatched?.call(command);
   }
 
+  @override
   void move(double x, double y) => dispatch(MatchCommand.movement(x, y));
 
+  @override
   void stopMoving() => dispatch(const MatchCommand.movement(0, 0));
 
+  @override
   void aim(Offset direction) =>
       dispatch(MatchCommand.aim(direction.dx, direction.dy));
 
+  @override
   void clearAim() => dispatch(const MatchCommand.clearAim());
 
+  @override
   void serve() => dispatch(const MatchCommand.serve());
 
+  @override
   void shot(ShotType type) => dispatch(MatchCommand.shot(type));
 
+  @override
   void toggleUltimate() => dispatch(const MatchCommand.toggleUltimate());
 
   bool get _isOpponent => playerSlot == 1;

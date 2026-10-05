@@ -1,0 +1,127 @@
+import 'pickleball_game.dart';
+
+/// Immutable world-space position or velocity exposed to decision systems.
+final class ObservedVector {
+  const ObservedVector(this.x, this.y, this.z);
+
+  final double x;
+  final double y;
+  final double z;
+}
+
+/// Read-only player facts relevant to tactical decisions.
+final class PlayerObservation {
+  const PlayerObservation({
+    required this.position,
+    required this.velocity,
+    required this.canSwing,
+    required this.stamina,
+    required this.score,
+  });
+
+  final ObservedVector position;
+  final ObservedVector velocity;
+  final bool canSwing;
+  final double stamina;
+  final int score;
+}
+
+/// Read-only ball facts relevant to tactical decisions.
+final class BallObservation {
+  const BallObservation({
+    required this.position,
+    required this.velocity,
+    required this.lastHitByNearSide,
+    required this.rallyHitCount,
+    required this.hasBounced,
+    required this.isInPlay,
+  });
+
+  final ObservedVector position;
+  final ObservedVector velocity;
+  final bool lastHitByNearSide;
+  final int rallyHitCount;
+  final bool hasBounced;
+  final bool isInPlay;
+}
+
+/// Immutable public state presented to players, bots, replay tools, and tests.
+///
+/// Every value is copied from the simulation. No mutable model or controller
+/// reference crosses this boundary.
+final class MatchObservation {
+  const MatchObservation({
+    required this.state,
+    required this.nearPlayer,
+    required this.farPlayer,
+    required this.ball,
+    required this.controlledPlayerServing,
+    required this.serverShouldBeOnRight,
+  });
+
+  factory MatchObservation.fromGame(PickleballGame game) {
+    final player = game.player;
+    final opponent = game.ai;
+    final ball = game.ball;
+    return MatchObservation(
+      state: game.state,
+      nearPlayer: PlayerObservation(
+        position: ObservedVector(
+          player.position.x,
+          player.position.y,
+          player.position.z,
+        ),
+        velocity: ObservedVector(
+          player.velocity.x,
+          player.velocity.y,
+          player.velocity.z,
+        ),
+        canSwing: player.canSwing,
+        stamina: player.stamina,
+        score: player.score,
+      ),
+      farPlayer: PlayerObservation(
+        position: ObservedVector(
+          opponent.position.x,
+          opponent.position.y,
+          opponent.position.z,
+        ),
+        velocity: ObservedVector(
+          opponent.velocity.x,
+          opponent.velocity.y,
+          opponent.velocity.z,
+        ),
+        canSwing: opponent.canSwing,
+        stamina: opponent.stamina,
+        score: opponent.score,
+      ),
+      ball: BallObservation(
+        position: ObservedVector(
+          ball.position.x,
+          ball.position.y,
+          ball.position.z,
+        ),
+        velocity: ObservedVector(
+          ball.velocity.x,
+          ball.velocity.y,
+          ball.velocity.z,
+        ),
+        lastHitByNearSide: ball.lastHitByPlayer,
+        rallyHitCount: ball.rallyHitCount,
+        hasBounced: ball.hasBounced,
+        isInPlay: ball.isInPlay,
+      ),
+      controlledPlayerServing: identical(game.activeServer, game.player),
+      serverShouldBeOnRight: game.scoreController.serverShouldBeOnRight,
+    );
+  }
+
+  final GameState state;
+  final PlayerObservation nearPlayer;
+  final PlayerObservation farPlayer;
+  final BallObservation ball;
+  final bool controlledPlayerServing;
+  final bool serverShouldBeOnRight;
+}
+
+typedef MatchObserver = MatchObservation Function();

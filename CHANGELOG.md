@@ -512,3 +512,9 @@
 - Moved camera resizing, spectator controls, and rendering updates into `GameScreen`, leaving gameplay in fixed world-space coordinates.
 - Changed gameplay advancement to a fixed 120 Hz simulation step independent of rendering frame rate.
 - Added a regression test that aggressively resizes, rotates, zooms, and distorts the camera while proving the resulting simulation state remains identical.
+
+### 2026-10-05 - Read-only bot observation boundary
+- Added immutable world-space match, player, and ball observations that copy decision-relevant values without exposing mutable simulation models or controllers.
+- Migrated `BotAgent` from direct `PickleballGame` access to a fresh observation callback for every decision tick.
+- Added a narrow `MatchCommandSink` capability so decision agents can emit commands without gaining access to the command controller's mutable game reference.
+- Added regression coverage proving captured observations remain unchanged when the live simulation is mutated afterward.
