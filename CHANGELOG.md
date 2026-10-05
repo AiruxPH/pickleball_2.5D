@@ -2,6 +2,18 @@
 
 ## 2026-10-05
 
+### 2026-10-05 — Simulation, rules, dimensions, and UI audit
+- **Reason of Change:** Record the requested verification of match isolation, pickleball rules, regulation dimensions, responsive layouts, and game-UI principles.
+- **Review Findings:**
+  1. Simulation state is world-space and viewport-independent; `GamePresentation` and `CourtPainter` own the camera/projection, and the presentation-separation regression confirms camera and viewport changes do not alter match results. Each `GameScreen` constructs its own `PickleballGame`, although matches are not separate native 3D engine scenes because rendering uses Flutter `CustomPaint` with a perspective projection.
+  2. The implemented competitive rules include traditional side-out scoring, 11 points win by 2, diagonal serves, baseline/server-side constraints, the two-bounce rule, Non-Volley Zone and momentum faults, in/out and net faults, singles service changes, and doubles server rotation including the 0-0-2 opening exception. This is strong gameplay coverage, but not a claim that every administrative edge case in the complete official rulebook is modeled.
+  3. World geometry uses one regulation conversion of four units per foot: a 20 ft by 44 ft court, 7 ft NVZ, 36 in net posts with a 34 in center, 2 in lines, a six-foot character reference, and a 2.94 in ball diameter.
+  4. Screens broadly use `MediaQuery`, `LayoutBuilder`, `SafeArea`, flexible/expanded regions, fitted content, lists, and scrolling. Compact layout regressions currently cover the shop, how-to-play screen, and selected mode layouts, so universal no-overflow behavior on every device and accessibility text scale is not yet proven. The full suite also emitted a non-fatal compact-shop hit-test warning for the `PLAYERS` tab, indicating that tappability/obscuration deserves a focused follow-up.
+  5. The in-match UI follows core game-UI principles through hierarchy, feedback, consistent controls, readable world-object minimums, safe-area placement, pause support, and low-cost repaint separation. Formal accessibility and usability coverage remains incomplete, especially semantics, contrast validation, dynamic text scaling, minimum touch-target assertions, and systematic device-matrix tests.
+- **Verification:**
+  - Complete Flutter suite passed (153/153 tests); one non-fatal compact-shop hit-test warning was observed.
+  - `flutter analyze` completed with no issues.
+
 ### 2026-10-05 19:01:33+08:00
 - **Reason of Change:** Give both players in Bot vs Bot matches independent, context-aware decisions by adapting the useful agent concepts from the read-only reference `pickle_ball_game/lib/bot_agent.dart`.
 - **Cause of Error:** Spectator matches previously combined two unrelated control systems: a command-bound `BotAgent` controlled the near player while the normal direct `AIController` controlled the far player. The near bot also used fixed recovery and aim behavior with no identity, personality, seeded variation, or side-aware perspective. When both players were moved onto the command boundary, the far-side multiplayer shot executor's fixed velocity could still produce a net fault.
