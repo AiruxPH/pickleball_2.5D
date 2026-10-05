@@ -305,53 +305,72 @@ class _HowToPlayScreenState extends State<HowToPlayScreen>
                           ],
                         ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'LESSON ${(_currentPage + 1).toString().padLeft(2, '0')}',
-                            style: TextStyle(
-                              color: page.color,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxHeight < 230;
+
+                          return SingleChildScrollView(
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'LESSON ${(_currentPage + 1).toString().padLeft(2, '0')}',
+                                    style: TextStyle(
+                                      color: page.color,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 2,
+                                    ),
+                                  ),
+                                  SizedBox(height: compact ? 8 : 12),
+                                  Container(
+                                    width: 82,
+                                    height: 82,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(22),
+                                      color: page.color.withAlpha(22),
+                                      border: Border.all(
+                                        color: page.color.withAlpha(120),
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      page.icon,
+                                      color: page.color,
+                                      size: 42,
+                                    ),
+                                  ),
+                                  SizedBox(height: compact ? 12 : 18),
+                                  Text(
+                                    page.title,
+                                    style: const TextStyle(
+                                      fontFamily: AppFonts.orbitron,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                      letterSpacing: 3,
+                                    ),
+                                  ),
+                                  SizedBox(height: compact ? 6 : 8),
+                                  const Text(
+                                    'Master the fundamentals, then take them onto the court.',
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                      height: 1.45,
+                                    ),
+                                  ),
+                                  SizedBox(height: compact ? 10 : 18),
+                                  _buildDots(page),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            width: 82,
-                            height: 82,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(22),
-                              color: page.color.withAlpha(22),
-                              border: Border.all(color: page.color.withAlpha(120)),
-                            ),
-                            child: Icon(page.icon, color: page.color, size: 42),
-                          ),
-                          const SizedBox(height: 18),
-                          Text(
-                            page.title,
-                            style: const TextStyle(
-                              fontFamily: AppFonts.orbitron,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 3,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Master the fundamentals, then take them onto the court.',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                              height: 1.45,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _buildDots(page),
-                        ],
+                          );
+                        },
                       ),
                     ),
                   ),

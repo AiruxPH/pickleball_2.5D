@@ -501,3 +501,7 @@
 - Delayed game-over finalization while volley momentum remains unresolved, allowing a game-winning point to be legally overturned.
 - Cleared stale fault details between rallies and replaced singles `S1` labeling with a neutral `SERVE` indicator.
 - Added regression coverage for singles/doubles service state, kitchen and two-bounce fault ownership, sideout scoring, and final-point NVZ overturns.
+
+### 2026-10-05 - Compact landscape how-to layout fix
+- Made the landscape lesson summary adapt its vertical spacing when the available content height is below 230 pixels.
+- Added a scroll fallback for unusually short landscape windows and enlarged accessibility text, preventing the lesson column from producing a bottom RenderFlex overflow.
