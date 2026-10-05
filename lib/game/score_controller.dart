@@ -108,12 +108,17 @@ class ScoreController {
     }
 
     if (!ball.isServe && ball.hasBounced && ball.bounceCount == 1) {
+      final bounceZ = ball.lastBounceZ != 0
+          ? ball.lastBounceZ
+          : (ball.playerSideBounce ? ball.position.z : -ball.position.z.abs());
       final inCourt = court.isInsideCourt(
         ball.position.x,
-        ball.lastBounceZ,
+        bounceZ,
       );
-      final onAiSide = ball.lastBounceZ < 0;
-      final onPlayerSide = ball.lastBounceZ > 0;
+      final onAiSide =
+          ball.lastBounceZ != 0 ? ball.lastBounceZ < 0 : !ball.playerSideBounce;
+      final onPlayerSide =
+          ball.lastBounceZ != 0 ? ball.lastBounceZ > 0 : ball.playerSideBounce;
 
       if (ball.lastHitByPlayer && !onAiSide) {
         ball.state = BallState.dead;

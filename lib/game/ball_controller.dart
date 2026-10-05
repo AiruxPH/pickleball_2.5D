@@ -84,9 +84,11 @@ class BallController {
         onBounce?.call();
       }
 
-      ball.bounceCount++;
-      if (ball.bounceCount == 2) {
-        ball.secondBounceGraceTimer = 0.12;
+      if (ball.bounceCount < 2) {
+        ball.bounceCount++;
+        if (ball.bounceCount == 2) {
+          ball.secondBounceGraceTimer = 0.12;
+        }
       }
       ball.hasBounced = true;
       ball.lastBounceZ = ball.position.z;

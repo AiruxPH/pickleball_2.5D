@@ -53,7 +53,7 @@ void main() {
     test('free roam clamps pitch and zoom to safe stadium bounds', () {
       controller.setView(CameraView.freeRoam);
       controller.adjustFreeRoam(
-        orbitDx: 40,
+        orbitDx: 10000,
         orbitDy: 10000,
         zoomFactor: 100,
       );
@@ -62,7 +62,12 @@ void main() {
       expect(controller.freeRoamPitch, 0.26);
       expect(controller.freeRoamDistance, 110);
 
-      controller.adjustFreeRoam(orbitDy: -10000, zoomFactor: 0.001);
+      controller.adjustFreeRoam(
+        orbitDx: -10000,
+        orbitDy: -10000,
+        zoomFactor: 0.001,
+      );
+      expect(controller.freeRoamYaw, 1);
       expect(controller.freeRoamPitch, 1.12);
       expect(controller.freeRoamDistance, 260);
     });

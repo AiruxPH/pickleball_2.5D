@@ -1381,7 +1381,9 @@ class PickleballGame extends ChangeNotifier {
             ? scoreController.lastFaultDetail
             : '${scoreController.lastFaultDetail}  •  SIDE OUT';
       }
-      return scored ? fallback : 'SIDE OUT!';
+      return scored
+          ? fallback
+          : (fallback.isNotEmpty ? '$fallback  •  SIDE OUT' : 'SIDE OUT!');
     }
 
     String msg = '';
