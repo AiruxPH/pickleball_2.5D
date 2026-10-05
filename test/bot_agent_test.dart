@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -141,6 +142,137 @@ void main() {
       expect(returnedServe, isTrue,
           reason: 'The near-side bot must not miss a served ball between '
               'reaction ticks');
+    });
+
+    test('far-side bot owns an independent mirrored decision path', () {
+      final versusGame = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+        isLocalMultiplayer: true,
+      );
+      final farAgent = BotAgent(
+        observe: () => MatchObservation.fromGame(versusGame),
+        commands: MatchCommandController(game: versusGame, playerSlot: 1),
+        difficulty: AIDifficulty.hard,
+        id: 'far-bot',
+        side: BotCourtSide.far,
+        personality: BotPersonality.aggressive,
+        randomSeed: 22,
+      );
+      versusGame.state = GameState.rally;
+      versusGame.ball
+        ..state = BallState.inFlight
+        ..lastHitByPlayer = true
+        ..rallyHitCount = 2
+        ..hasBounced = true
+        ..position = Vec3(
+          versusGame.ai.position.x,
+          18,
+          versusGame.ai.position.z,
+        )
+        ..velocity = Vec3(0, -3, -20);
+
+      farAgent.update(1 / 120);
+
+      expect(versusGame.opponentBufferedShot, isNotNull);
+      expect(versusGame.bufferedShot, isNull,
+          reason: 'The far bot must command only its own player slot');
+    });
+
+    test('personalities produce individual shot decisions', () {
+      const observation = MatchObservation(
+        state: GameState.rally,
+        nearPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, 50),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        farPlayer: PlayerObservation(
+          position: ObservedVector(16, 0, -55),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        ball: BallObservation(
+          position: ObservedVector(0, 22, 50),
+          velocity: ObservedVector(0, -4, 20),
+          lastHitByNearSide: false,
+          rallyHitCount: 2,
+          hasBounced: true,
+          isInPlay: true,
+        ),
+        controlledPlayerServing: false,
+        serverShouldBeOnRight: true,
+      );
+      final patientCommands = _RecordingCommandSink();
+      final aggressiveCommands = _RecordingCommandSink();
+      final patient = BotAgent(
+        observe: () => observation,
+        commands: patientCommands,
+        difficulty: AIDifficulty.medium,
+        personality: BotPersonality.patient,
+        randomSeed: 1,
+      );
+      final aggressive = BotAgent(
+        observe: () => observation,
+        commands: aggressiveCommands,
+        difficulty: AIDifficulty.medium,
+        personality: BotPersonality.aggressive,
+        randomSeed: 2,
+      );
+
+      patient.update(1 / 120);
+      aggressive.update(1 / 120);
+
+      expect(patientCommands.lastShot, ShotType.normal);
+      expect(aggressiveCommands.lastShot, ShotType.smash);
+      expect(patient.plannedAim, isNot(aggressive.plannedAim));
+    });
+
+    test('two side-aware agents complete the opening three shots', () {
+      final versusGame = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+        isLocalMultiplayer: true,
+        difficultyOverride: AIDifficulty.medium,
+      );
+      final nearAgent = BotAgent(
+        observe: () => MatchObservation.fromGame(versusGame),
+        commands: MatchCommandController(game: versusGame),
+        difficulty: AIDifficulty.medium,
+        id: 'near-counterpuncher',
+        personality: BotPersonality.patient,
+        randomSeed: 1103,
+      );
+      final farAgent = BotAgent(
+        observe: () => MatchObservation.fromGame(versusGame),
+        commands: MatchCommandController(game: versusGame, playerSlot: 1),
+        difficulty: AIDifficulty.medium,
+        id: 'far-attacker',
+        side: BotCourtSide.far,
+        personality: BotPersonality.aggressive,
+        randomSeed: 2909,
+      );
+
+      var longestRally = 0;
+      for (var i = 0; i < 2400 && longestRally < 2; i++) {
+        nearAgent.update(1 / 120);
+        farAgent.update(1 / 120);
+        versusGame.update(1 / 120);
+        longestRally = math.max(longestRally, versusGame.ball.rallyHitCount);
+      }
+
+      expect(longestRally, greaterThanOrEqualTo(2),
+          reason: 'Both independent agents must serve and legally return the '
+              'first two-bounce exchanges; state=${versusGame.state}, '
+              'message=${versusGame.lastMessage}, '
+              'fault=${versusGame.scoreController.lastFaultDetail}, '
+              'ball=${versusGame.ball.position}, '
+              'near=${versusGame.player.position}, '
+              'far=${versusGame.ai.position}');
     });
   });
 }

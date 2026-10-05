@@ -8,6 +8,44 @@ import 'match_command_controller.dart';
 import 'match_observation.dart';
 import 'pickleball_game.dart';
 
+enum BotCourtSide { near, far }
+
+/// Stable traits that make two bots at the same difficulty play differently.
+final class BotPersonality {
+  const BotPersonality({
+    required this.name,
+    required this.aggressionAdjustment,
+    required this.recoveryDepth,
+    required this.aimSpread,
+  });
+
+  final String name;
+  final double aggressionAdjustment;
+  final double recoveryDepth;
+  final double aimSpread;
+
+  static const patient = BotPersonality(
+    name: 'Counterpuncher',
+    aggressionAdjustment: -0.22,
+    recoveryDepth: 52,
+    aimSpread: 0.08,
+  );
+
+  static const balanced = BotPersonality(
+    name: 'All Court',
+    aggressionAdjustment: 0,
+    recoveryDepth: 46,
+    aimSpread: 0.06,
+  );
+
+  static const aggressive = BotPersonality(
+    name: 'Attacker',
+    aggressionAdjustment: 0.25,
+    recoveryDepth: 35,
+    aimSpread: 0.1,
+  );
+}
+
 /// Decision-only controller for the near-side player.
 ///
 /// The agent observes public match state and emits regular [MatchCommand]s.
@@ -17,16 +55,39 @@ class BotAgent {
     required this.observe,
     required this.commands,
     required this.difficulty,
-  });
+    this.id = 'bot',
+    this.side = BotCourtSide.near,
+    this.personality = BotPersonality.balanced,
+    int randomSeed = 0,
+  }) : _random = math.Random(randomSeed);
 
   final MatchObserver observe;
   final MatchCommandSink commands;
   final AIDifficulty difficulty;
+  final String id;
+  final BotCourtSide side;
+  final BotPersonality personality;
+  final math.Random _random;
 
   double _serveTimer = 0;
   double _thinkTimer = 0;
   double _shotCooldown = 0;
+  ShotType _plannedShot = ShotType.normal;
+  Offset _plannedAim = const Offset(0, -1);
+  bool _hasShotPlan = false;
   GameState? _previousState;
+
+  ShotType get plannedShot => _plannedShot;
+  Offset get plannedAim => _plannedAim;
+
+  double get aggression {
+    final base = switch (difficulty) {
+      AIDifficulty.easy => 0.25,
+      AIDifficulty.medium => 0.48,
+      AIDifficulty.hard => 0.72,
+    };
+    return (base + personality.aggressionAdjustment).clamp(0.0, 1.0);
+  }
 
   double get reactionTime {
     switch (difficulty) {
@@ -46,6 +107,7 @@ class BotAgent {
       _serveTimer = 0;
       _thinkTimer = 0;
       _shotCooldown = 0;
+      _hasShotPlan = false;
       commands.clearAim();
     }
 
@@ -75,14 +137,17 @@ class BotAgent {
   }
 
   void _updateBeforeServe(MatchObservation observation, double dt) {
-    final targetX = observation.serverShouldBeOnRight ? 16.0 : -16.0;
+    final targetX = side == BotCourtSide.near
+        ? (observation.serverShouldBeOnRight ? 16.0 : -16.0)
+        : (observation.serverShouldBeOnRight ? -16.0 : 16.0);
+    final player = _controlledPlayer(observation);
     _moveToward(
       observation,
       targetX,
-      observation.nearPlayer.position.z,
+      _localZ(player.position.z),
     );
 
-    if (!observation.controlledPlayerServing) return;
+    if (!_controlledPlayerServing(observation)) return;
 
     _serveTimer += dt;
     final delay = 0.55 + reactionTime;
@@ -95,12 +160,13 @@ class BotAgent {
 
   void _updateRally(MatchObservation observation) {
     final ball = observation.ball;
-    final ballIncoming =
-        !ball.lastHitByNearSide && (ball.position.z > 0 || ball.velocity.z > 0);
+    final opponent = _opponentPlayer(observation);
+    final ballIncoming = _isBallIncoming(ball);
 
     if (!ballIncoming) {
-      final recoveryX = observation.farPlayer.position.x >= 0 ? -12.0 : 12.0;
-      _moveToward(observation, recoveryX, CourtDimensions.playerStartZ);
+      final recoveryX = opponent.position.x >= 0 ? -12.0 : 12.0;
+      _moveToward(observation, recoveryX, personality.recoveryDepth);
+      _hasShotPlan = false;
       commands.clearAim();
       return;
     }
@@ -119,6 +185,7 @@ class BotAgent {
       CourtDimensions.halfLength - 6,
     );
     _moveToward(observation, targetX.toDouble(), targetZ.toDouble());
+    _planReturn(observation);
 
     if (_shotCooldown <= 0) {
       commands.clearAim();
@@ -127,17 +194,19 @@ class BotAgent {
 
   bool _tryReturnBall(MatchObservation observation) {
     final ball = observation.ball;
-    final player = observation.nearPlayer;
-    final ballIncoming =
-        !ball.lastHitByNearSide && (ball.position.z > 0 || ball.velocity.z > 0);
+    final player = _controlledPlayer(observation);
+    final ballIncoming = _isBallIncoming(ball);
     if (!ballIncoming) return false;
 
+    final localBallZ = _localZ(ball.position.z);
+    final localPlayerZ = _localZ(player.position.z);
+    final localBounceZ = _localZ(ball.lastBounceZ);
     final bouncedInOwnKitchen = ball.hasBounced &&
-        ball.lastBounceZ >= 0 &&
-        ball.lastBounceZ <= CourtDimensions.kitchenDepth;
+        localBounceZ >= 0 &&
+        localBounceZ <= CourtDimensions.kitchenDepth;
     final mustBounce = ball.mustBounceBeforeHit && !ball.hasBounced;
     final lateral = (ball.position.x - player.position.x).abs();
-    final forward = player.position.z - ball.position.z;
+    final forward = localPlayerZ - localBallZ;
     final insideContactEnvelope = lateral <= 10 &&
         forward >= -5 &&
         forward <= 10 &&
@@ -155,26 +224,56 @@ class BotAgent {
       return false;
     }
 
-    final openSide = observation.farPlayer.position.x >= 0 ? -0.68 : 0.68;
-    commands.aim(Offset(openSide, -1));
-    commands.shot(_chooseShot(observation));
+    if (!_hasShotPlan) _planReturn(observation);
+    commands.aim(_plannedAim);
+    commands.shot(_plannedShot);
     _shotCooldown = 0.48;
+    _hasShotPlan = false;
     return true;
   }
 
+  void _planReturn(MatchObservation observation) {
+    final opponent = _opponentPlayer(observation);
+    _plannedShot = _chooseShot(observation);
+    final openDirection = opponent.position.x >= 0 ? -1.0 : 1.0;
+    final width = 0.38 + aggression * 0.36;
+    final difficultySpread = switch (difficulty) {
+      AIDifficulty.easy => 1.35,
+      AIDifficulty.medium => 0.8,
+      AIDifficulty.hard => 0.4,
+    };
+    final variation = (_random.nextDouble() - 0.5) *
+        2 *
+        personality.aimSpread *
+        difficultySpread;
+    final aimX = (openDirection * width + variation).clamp(-0.82, 0.82);
+    _plannedAim = Offset(aimX.toDouble(), -1);
+    _hasShotPlan = true;
+  }
+
   ShotType _chooseShot(MatchObservation observation) {
-    if (difficulty == AIDifficulty.hard &&
+    final player = _controlledPlayer(observation);
+    final opponent = _opponentPlayer(observation);
+    final playerZ = _localZ(player.position.z);
+    final opponentZ = _localZ(opponent.position.z);
+
+    if (aggression >= 0.55 &&
         observation.ball.position.y > CourtDimensions.netHeight + 5) {
       return ShotType.smash;
     }
     if (difficulty != AIDifficulty.easy &&
-        observation.farPlayer.position.z < CourtDimensions.aiStartZ - 5 &&
-        observation.nearPlayer.position.z < CourtDimensions.kitchenDepth + 14) {
+        opponentZ < CourtDimensions.aiStartZ - 5 &&
+        playerZ < CourtDimensions.kitchenDepth + 14) {
       return ShotType.drop;
     }
     if (difficulty != AIDifficulty.easy &&
-        observation.farPlayer.position.z > -CourtDimensions.kitchenDepth - 12) {
+        opponentZ > -CourtDimensions.kitchenDepth - 12 &&
+        aggression < 0.68) {
       return ShotType.lob;
+    }
+    if (aggression >= 0.68 &&
+        observation.ball.position.y > CourtDimensions.netHeight - 4) {
+      return ShotType.power;
     }
     return ShotType.normal;
   }
@@ -186,17 +285,23 @@ class BotAgent {
     var vx = ball.velocity.x;
     var vy = ball.velocity.y;
     var vz = ball.velocity.z;
-    const step = 0.025;
+    const step = 1 / 120;
 
-    for (var i = 0; i < 180 && y > PhysicsConstants.ballRadius; i++) {
+    for (var i = 0; i < 600 && y > PhysicsConstants.ballRadius; i++) {
+      vy -= PhysicsConstants.gravity * step;
+      final speed = math.sqrt(vx * vx + vy * vy + vz * vz);
+      if (speed > 0.1) {
+        final drag = (1 - PhysicsConstants.ballDragCoefficient * speed * step)
+            .clamp(0.0, 1.0);
+        vx *= drag;
+        vy *= drag;
+        vz *= drag;
+      }
       x += vx * step;
       y += vy * step;
       z += vz * step;
-      vy -= PhysicsConstants.gravity * step;
-      vx *= 0.999;
-      vz *= 0.999;
     }
-    return Offset(x, z);
+    return Offset(x, _localZ(z));
   }
 
   void _moveToward(
@@ -204,8 +309,9 @@ class BotAgent {
     double targetX,
     double targetZ,
   ) {
-    final dx = targetX - observation.nearPlayer.position.x;
-    final dz = targetZ - observation.nearPlayer.position.z;
+    final player = _controlledPlayer(observation);
+    final dx = targetX - player.position.x;
+    final dz = targetZ - _localZ(player.position.z);
     final distance = math.sqrt(dx * dx + dz * dz);
     if (distance < 2) {
       commands.stopMoving();
@@ -216,4 +322,30 @@ class BotAgent {
       (dz / 18).clamp(-1.0, 1.0).toDouble(),
     );
   }
+
+  PlayerObservation _controlledPlayer(MatchObservation observation) =>
+      side == BotCourtSide.near
+          ? observation.nearPlayer
+          : observation.farPlayer;
+
+  PlayerObservation _opponentPlayer(MatchObservation observation) =>
+      side == BotCourtSide.near
+          ? observation.farPlayer
+          : observation.nearPlayer;
+
+  bool _controlledPlayerServing(MatchObservation observation) =>
+      side == BotCourtSide.near
+          ? observation.controlledPlayerServing
+          : !observation.controlledPlayerServing;
+
+  bool _isBallIncoming(BallObservation ball) {
+    final lastHitByControlled = side == BotCourtSide.near
+        ? ball.lastHitByNearSide
+        : !ball.lastHitByNearSide;
+    final z = _localZ(ball.position.z);
+    final vz = _localZ(ball.velocity.z);
+    return !lastHitByControlled && (z > 0 || vz > 0);
+  }
+
+  double _localZ(double worldZ) => side == BotCourtSide.near ? worldZ : -worldZ;
 }

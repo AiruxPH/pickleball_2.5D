@@ -12,6 +12,7 @@ import '../game/score_controller.dart';
 import '../game/ball_controller.dart';
 import '../game/player_controller.dart';
 import '../game/ai_controller.dart';
+import '../game/ai_shot_planner.dart';
 import '../game/physics_controller.dart';
 import '../game/game_presentation.dart';
 import '../game/shot_targeting.dart';
@@ -1271,12 +1272,35 @@ class PickleballGame extends ChangeNotifier {
 
     final dir = _getOpponentAimDirection();
     final aimDirX = dir.dx.clamp(-0.85, 0.85);
-    final aimDirZ = math.sqrt(math.max(0.05, 1.0 - aimDirX * aimDirX));
-    ball.velocity = Vec3(
-      aimDirX * forwardSpeed,
-      upSpeed,
-      aimDirZ * forwardSpeed,
+    final targetZ = switch (activeShot) {
+      ShotType.drop => 16.0,
+      ShotType.smash || ShotType.power => 50.0,
+      _ => 55.0,
+    };
+    final targetX = (aimDirX * CourtDimensions.halfWidth * 0.88).clamp(
+      -CourtDimensions.halfWidth + 3,
+      CourtDimensions.halfWidth - 3,
     );
+    var shotPlan = AIShotPlanner.plan(
+      start: ball.position,
+      target: Vec3(targetX.toDouble(), PhysicsConstants.ballRadius, targetZ),
+      type: activeShot,
+      preferredHorizontalSpeed: forwardSpeed,
+      preferredVerticalSpeed: upSpeed,
+    );
+    shotPlan ??= AIShotPlanner.plan(
+      start: ball.position,
+      target: Vec3(0, PhysicsConstants.ballRadius, 48),
+      type: ShotType.normal,
+      preferredHorizontalSpeed: 115,
+      preferredVerticalSpeed: 42,
+    );
+    ball.velocity = shotPlan?.launchVelocity ??
+        Vec3(
+          aimDirX * forwardSpeed,
+          upSpeed,
+          math.sqrt(math.max(0.05, 1.0 - aimDirX * aimDirX)) * forwardSpeed,
+        );
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = false;
     ball.bounceCount = 0;

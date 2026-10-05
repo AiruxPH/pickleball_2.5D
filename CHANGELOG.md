@@ -2,6 +2,31 @@
 
 ## 2026-10-05
 
+### 2026-10-05 19:01:33+08:00
+- **Reason of Change:** Give both players in Bot vs Bot matches independent, context-aware decisions by adapting the useful agent concepts from the read-only reference `pickle_ball_game/lib/bot_agent.dart`.
+- **Cause of Error:** Spectator matches previously combined two unrelated control systems: a command-bound `BotAgent` controlled the near player while the normal direct `AIController` controlled the far player. The near bot also used fixed recovery and aim behavior with no identity, personality, seeded variation, or side-aware perspective. When both players were moved onto the command boundary, the far-side multiplayer shot executor's fixed velocity could still produce a net fault.
+- **Fix Applied:**
+  1. [bot_agent.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/bot_agent.dart):
+     - Added near/far court-side identity and normalized far-side observations into a local player-centric perspective.
+     - Added independent bot IDs, deterministic random seeds, personality traits, aggression, recovery depth, aim spread, cached shot plans, and separate reaction/cooldown state.
+     - Added patient, balanced, and aggressive play styles that independently choose safe returns, drives, lobs, drops, and smashes from ball height and opponent position.
+     - Replaced the approximate landing prediction with the production 120 Hz gravity and quadratic-drag integration.
+     - Preserved per-tick legal contact reflexes, the two-bounce rule, kitchen restrictions, and command-only output.
+  2. [game_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/game_screen.dart):
+     - Bot vs Bot now creates two separate side-aware `BotAgent` instances with different identities, personalities, seeds, targets, plans, and command sinks.
+     - Runs spectator matches through the local two-player simulation path so neither bot bypasses the shared command boundary.
+  3. [pickleball_game.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/pickleball_game.dart):
+     - Routed far-side command-driven shots through `AIShotPlanner` using the production drag model.
+     - Added a validated safe-return fallback so an independently selected shot still clears the net and lands in court.
+  4. [bot_agent_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/bot_agent_test.dart):
+     - Added coverage for mirrored far-side ownership, personality-specific decisions, isolated command slots, and a complete autonomous serve/return/third-shot exchange at 120 Hz.
+- **Verification:**
+  - Focused bot, rally, and rules suites passed (62/62 tests).
+  - Complete Flutter suite passed (153/153 tests).
+  - `flutter analyze` completed with no issues.
+  - `git diff --check` passed.
+  - The reference project was read only; no files or assets were copied or modified.
+
 ### 2026-10-05 18:48:00+08:00
 - **Reason of Change:** Fix the autonomous near-side bot failing to return a served ball.
 - **Cause of Error:** `BotAgent` checked both tactical decisions and the narrow paddle-contact envelope only on its difficulty-dependent thinking interval. On easy difficulty that interval is 0.28 seconds, allowing a serve to pass completely through the legal contact window between checks even though the fixed simulation runs at 120 Hz.

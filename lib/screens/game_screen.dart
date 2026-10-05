@@ -47,6 +47,7 @@ class _GameScreenState extends State<GameScreen>
   MatchCommandController? _commands;
   MatchCommandController? _opponentCommands;
   BotAgent? _playerBot;
+  BotAgent? _opponentBot;
   Ticker? _ticker;
   Duration _lastTime = Duration.zero;
   bool _gameInitialized = false;
@@ -144,7 +145,7 @@ class _GameScreenState extends State<GameScreen>
       isPracticeMode: _isPractice,
       drillType: drillType,
       gameMode: gameMode,
-      isLocalMultiplayer: _isLocalMultiplayer,
+      isLocalMultiplayer: _isLocalMultiplayer || _isBotVsBot,
       settings: settings,
       difficultyOverride: diffOverride,
       audioService: _audioService,
@@ -165,7 +166,7 @@ class _GameScreenState extends State<GameScreen>
         }
       },
     );
-    if (_isLocalMultiplayer) {
+    if (_isLocalMultiplayer || _isBotVsBot) {
       _opponentCommands = MatchCommandController(
         game: _game!,
         playerSlot: 1,
@@ -197,6 +198,18 @@ class _GameScreenState extends State<GameScreen>
         observe: () => MatchObservation.fromGame(_game!),
         commands: _commands!,
         difficulty: diffOverride ?? settings.difficulty,
+        id: 'near-counterpuncher',
+        personality: BotPersonality.patient,
+        randomSeed: 1103,
+      );
+      _opponentBot = BotAgent(
+        observe: () => MatchObservation.fromGame(_game!),
+        commands: _opponentCommands!,
+        difficulty: diffOverride ?? settings.difficulty,
+        id: 'far-attacker',
+        side: BotCourtSide.far,
+        personality: BotPersonality.aggressive,
+        randomSeed: 2909,
       );
       _presentation!.cameraController.setView(CameraView.baseline);
     }
@@ -236,6 +249,7 @@ class _GameScreenState extends State<GameScreen>
         (_simulationAccumulator + clampedDt).clamp(0.0, 0.25);
     while (_simulationAccumulator >= _simulationStep) {
       _playerBot?.update(_simulationStep);
+      _opponentBot?.update(_simulationStep);
       _game?.update(_simulationStep);
       _simulationAccumulator -= _simulationStep;
     }
