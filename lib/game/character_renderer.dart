@@ -103,10 +103,11 @@ class CharacterRenderer {
 
     // ── 2. Ground Shadows (drawn in ground space: unaffected by bob/lean) ─────
     if (showShadow) {
-      drawGroundShadows(canvas, isAI, stepBob, isLowEnd);
+      drawGroundShadows(canvas, isAI, stepBob, isLowEnd, isGrounded: cam != null);
     }
 
-    canvas.translate(0, -stepBob);
+    final groundOffset = cam != null ? -34.0 : 0.0;
+    canvas.translate(0, groundOffset - stepBob);
 
     // Lateral banking lean
     canvas.rotate(player.smoothedLean);
@@ -210,15 +211,17 @@ class CharacterRenderer {
   /// Soft contact shadow under the feet plus a faint long shadow cast away
   /// from the arena floodlights. Shrinks/lightens as the body lifts.
   static void drawGroundShadows(
-      Canvas canvas, bool isAI, double stepBob, bool isLowEnd) {
+      Canvas canvas, bool isAI, double stepBob, bool isLowEnd,
+      {bool isGrounded = true}) {
     final lift = (stepBob.abs() * 0.035).clamp(0.0, 0.3);
     final w = (isAI ? 21.0 : 19.0) * (1.0 - lift);
     final h = (isAI ? 6.2 : 5.6) * (1.0 - lift);
+    final shadowY = isGrounded ? 0.0 : 33.0;
 
     // Long directional floodlight shadow (up-right on screen = away from light)
     if (!isLowEnd) {
       canvas.save();
-      canvas.translate(15.0, 29.0);
+      canvas.translate(12.0, shadowY - 4.0);
       canvas.rotate(-0.22);
       canvas.scale(30.0, 6.5);
       canvas.drawCircle(Offset.zero, 1.0, _castShadowPaint);
@@ -227,7 +230,7 @@ class CharacterRenderer {
 
     // Ambient-occlusion contact shadow
     canvas.save();
-    canvas.translate(0, 33.0);
+    canvas.translate(0, shadowY);
     canvas.scale(w, h);
     canvas.drawCircle(Offset.zero, 1.0, _contactShadowPaint);
     canvas.restore();

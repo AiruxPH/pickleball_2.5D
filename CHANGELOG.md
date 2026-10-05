@@ -2,6 +2,19 @@
 
 ## 2026-10-05
 
+### 2026-10-05 21:49:00+08:00
+- **Reason of Change:** Fix character foot anchoring and ground shadow projection in `SpriteCharacterRenderer` and `CharacterRenderer` to eliminate the visual illusion of characters touching the Non-Volley Zone (NVZ / Kitchen) line while in legal standing positions, and resolve background floor bleed-through.
+- **Cause of Error:**
+  1. `lib/game/sprite_character_renderer.dart`: Added an artificial `_feetY = 34.0` offset to the sprite destination rectangle `dst.top`. Because `atlas.anchorY` was already anchored precisely at the athlete's shoes (y=202 of 216), this added +34px downward screen displacement from the true ground contact coordinate $(X, 0, Z)$. In a forward/down-tilted perspective projection, shifting downward on screen pushes far-side characters forward toward the net, creating the false visual appearance of stepping onto the kitchen line.
+  2. `lib/game/character_renderer.dart`: Contact shadows and directional cast shadows were translated downwards by `(0, 33.0)` and `(15.0, 29.0)` instead of anchoring at the ground contact point `(0, 0.0)`.
+  3. Static background image artifact (`court_7.jpg`): The 2D backdrop has a perspective court baked onto its floor. When switching camera angles (Sideline at 90°, Overhead at top-down, or Free Roam), the static 2D court bleeds through around the 3D court apron, creating a dual-court visual collision.
+- **Fix Applied:**
+  1. [sprite_character_renderer.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/sprite_character_renderer.dart): Set `_feetY = 0.0` so the sprite anchor aligns with `screenPos` $(X, 0, Z)$ on the court surface.
+  2. [character_renderer.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/character_renderer.dart): Updated `drawGroundShadows` with `isGrounded` default true, positioning contact shadow at `(0, 0.0)` and directional shadow at `(12.0, -4.0)`. Shifted procedural body by `groundOffset = -34.0` when rendered in-game (`cam != null`), placing athletic soles flush with the floor.
+- **Verification:**
+  - `dart analyze` / `analyze_files` passed with 0 errors and 0 warnings.
+  - Complete test suite passed (163/163 tests).
+
 ### 2026-10-05 21:13:30+08:00
 - **Reason of Change:** Clean up unused import warnings in `pickleball_game.dart` and `player_shot_mechanics_test.dart` identified in the problems tab.
 - **Cause of Error:**

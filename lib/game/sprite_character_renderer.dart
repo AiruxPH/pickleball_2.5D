@@ -28,7 +28,7 @@ class SpriteCharacterRenderer {
   /// Sprite height in the same local units the procedural athlete uses
   /// (head top ≈ -48, feet ≈ +34 at depth scale 1).
   static const double _bodyUnits = 84.0;
-  static const double _feetY = 34.0;
+  static const double _feetY = 0.0;
 
   static final Paint _spritePaint = Paint()
     ..filterQuality = FilterQuality.medium
