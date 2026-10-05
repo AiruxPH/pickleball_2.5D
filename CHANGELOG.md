@@ -2,6 +2,33 @@
 
 ## 2026-10-05
 
+### 2026-10-05 23:11:00+08:00
+- **Reason of Change:** Integrate dynamic 360-degree equirectangular panorama court environment rendering across all camera views (Baseline, Sideline, Overhead, Player Follow, and Free Roam), and update asset paths for newly provided court images.
+- **Cause of Error:**
+  1. `lib/utils/constants.dart`: Legacy asset references `court_7.jpg` and `court_1.png` were renamed/replaced in `assets/images/courts/` with `court_7.png` and `court_1.jpg`, risking missing asset runtime exceptions.
+  2. Previously, `GameScreen` used a frozen 2D `Image.asset(fit: BoxFit.cover)`, which remained statically locked when switching to sideline broadcast views (90° yaw) or free roam orbit, causing perspective mismatch with the rotating 3D court.
+- **Features Implemented & Sliced per Rule 2:**
+  1. [constants.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/utils/constants.dart):
+     - Corrected `assetPath` references for `CourtTheme.tournament` (`court_7.png`) and `CourtTheme.beach` (`court_1.jpg`).
+     - Added `panoramaAssetPath` getter mapping court themes to their respective 360-degree panorama backdrops (`court_7_panorama.png`, `court_1_panorama.jpg`, `court_2_panorama.jpg`, `court_5_panorama.jpg`, `grassland_panorama.jpg`, `starry_night_panorama.jpg`).
+  2. [game_math.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/utils/game_math.dart):
+     - Added `forwardX`, `forwardY`, `forwardZ`, `lookYaw`, and `lookPitch` angle getters on `PerspectiveCamera`.
+  3. [panorama_slice.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/panorama/panorama_slice.dart):
+     - Created immutable slice data model representing single or split-wrapped rectangular UV projections.
+  4. [panorama_uv_calculator.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/panorama/panorama_uv_calculator.dart):
+     - Implemented mathematical projection from camera yaw, pitch, and FOV into equirectangular UV source rectangles with seamless 360° horizontal seam wrapping.
+  5. [court_panorama_manager.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/panorama/court_panorama_manager.dart):
+     - Preloads and caches hardware-decoded `ui.Image` panoramas in GPU memory.
+  6. [panorama_backdrop_painter.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/panorama/panorama_backdrop_painter.dart):
+     - Lightweight `CustomPainter` rendering smooth 360° viewport slices at 120+ FPS.
+  7. [court_backdrop_view.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/panorama/court_backdrop_view.dart):
+     - Responsive backdrop widget in [game_screen.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/screens/game_screen.dart) connecting the camera projection to the panorama painter with automatic fallback to static 2D artwork.
+  8. [panorama_uv_calculator_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/panorama_uv_calculator_test.dart):
+     - Unit test suite covering center mapping, 90° sideline yaw shift, pitch clamp, and 360° seam split wrapping (5/5 tests passing).
+- **Verification:**
+  - `dart analyze` / `analyze_files` passed with 0 errors and 0 warnings.
+  - Complete test suite passed (168/168 tests).
+
 ### 2026-10-05 21:49:00+08:00
 - **Reason of Change:** Fix character foot anchoring and ground shadow projection in `SpriteCharacterRenderer` and `CharacterRenderer` to eliminate the visual illusion of characters touching the Non-Volley Zone (NVZ / Kitchen) line while in legal standing positions, and resolve background floor bleed-through.
 - **Cause of Error:**
