@@ -1,6 +1,7 @@
 {
   "projects": {
-    "alpha": "pickleball-simulator"
+    "alpha": "pickleball-simulator",
+    "default": "pickleball-simulator"
   },
   "targets": {},
   "etags": {}
