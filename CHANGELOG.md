@@ -719,3 +719,4 @@
 ### 2026-10-06 - Firebase web initialization fix
 - Connected the online multiplayer bootstrap to the generated `firebase_options.dart` configuration so deployed web builds initialize Firebase without requiring manual `FIREBASE_*` build defines.
 - Preserved optional Dart-define overrides for alternate Firebase environments.
+- Added the active `asia-southeast1` Realtime Database URL to the generated web, Android, and iOS Firebase options, fixing the web SDK's `Cannot parse Firebase url` failure.

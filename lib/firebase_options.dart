@@ -52,6 +52,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1009997802044',
     projectId: 'pickleball-simulator',
     authDomain: 'pickleball-simulator.firebaseapp.com',
+    databaseURL:
+        'https://pickleball-simulator-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'pickleball-simulator.firebasestorage.app',
     measurementId: 'G-57EP1LQYB7',
   );
@@ -61,6 +63,8 @@ class DefaultFirebaseOptions {
     appId: '1:1009997802044:android:0579cab974652a3820b139',
     messagingSenderId: '1009997802044',
     projectId: 'pickleball-simulator',
+    databaseURL:
+        'https://pickleball-simulator-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'pickleball-simulator.firebasestorage.app',
   );
   static const FirebaseOptions ios = FirebaseOptions(
@@ -68,6 +72,8 @@ class DefaultFirebaseOptions {
     appId: '1:1009997802044:ios:49da4d4b392b04f420b139',
     messagingSenderId: '1009997802044',
     projectId: 'pickleball-simulator',
+    databaseURL:
+        'https://pickleball-simulator-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'pickleball-simulator.firebasestorage.app',
     iosBundleId: 'com.example.myApp',
   );
