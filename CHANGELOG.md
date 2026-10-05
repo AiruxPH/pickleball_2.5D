@@ -2,6 +2,27 @@
 
 ## 2026-10-05
 
+### 2026-10-05 — Match UX, equipment skills, mode flow, controls, and court presentation
+- **Reason of Change:** Apply the requested match-exit, control, loadout, achievements, mode-selection, profile, settings, career, and court-rendering refinements.
+- **Changes Applied:**
+  1. Added a guarded mid-match exit flow for system back and the pause-menu Main Menu action. The match pauses while the confirmation is open and resumes if leaving is cancelled.
+  2. Removed all reachable in-match and mode-selection special-skill selection. Special shots are now paddle perks: Lightning Smash → Thunder Strike, Phantom Shot → Night Shift, Fireball Drop → Inferno X Pro, and Ice Shot → Glacier Titanium. Paddles without a perk do not charge or show the special action.
+  3. Preserved and emphasized tactile action-button feedback through the shared animated press-scale, glow, haptic, and click-audio behavior used by Hit, Power, Lob, and Drop.
+  4. Added persistent dynamic/fixed joystick preference, a touch-origin dynamic joystick, and a paused-match Customize Controls workflow. The joystick and action cluster can be dragged and their normalized positions are saved.
+  5. Reworked Mode Select into a mode-only grid. Difficulty, court, and Bot-vs-Bot 1v1/2v2 format now appear only after selecting a mode in a setup dialog. Quick Match and the separate special-shot selector were removed.
+  6. Removed global AI Difficulty from Settings; difficulty remains a per-match selection. Settings now exposes dynamic/fixed joystick style.
+  7. Added persistent achievement seen-state, so the red notification badge clears after opening Achievements and only returns for a newly unlocked achievement.
+  8. Scaled the player-profile dialog down by 10% on mobile screens.
+  9. Changed Career Mode to a Story Mode “Coming Soon” presentation while preserving the existing career data model for future work.
+  10. Continued using the existing `assets/images/courts/` theme imagery and panoramic variants in matches. Alternate camera views now blur/overscan the backdrop, panoramas retain camera-linked movement, and static fallbacks animate scale subtly during view changes.
+  11. Restored the regulation 2-inch court-line width instead of the exaggerated width that expanded into white slabs at oblique sideline angles.
+  12. Updated mode-selection and paddle regression tests for the new flow and equipment mapping.
+- **Verification:**
+  - `flutter analyze` completed with no issues.
+  - Focused mode-selection, shop/loadout, and widget suites passed (24/24 tests).
+  - Complete Flutter suite passed (169/169 tests); the pre-existing compact-Shop `PLAYERS` hit-test warning remains non-fatal.
+  - The Dart MCP hot-reload/restart service was not available in this session; no running app could be connected through DTD.
+
 ### 2026-10-05 23:11:00+08:00
 - **Reason of Change:** Integrate dynamic 360-degree equirectangular panorama court environment rendering across all camera views (Baseline, Sideline, Overhead, Player Follow, and Free Roam), and update asset paths for newly provided court images.
 - **Cause of Error:**

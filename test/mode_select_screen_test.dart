@@ -66,7 +66,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('SELECT MODE'), findsOneWidget);
-    expect(find.text('QUICK MATCH'), findsOneWidget);
+    expect(find.text('QUICK MATCH'), findsNothing);
     expect(find.text('SINGLES 1v1'), findsOneWidget);
     expect(find.text('DOUBLES 2v2'), findsOneWidget);
     expect(find.text('BOT VS BOT'), findsOneWidget);
@@ -85,7 +85,8 @@ void main() {
 
     await tester.tap(find.text('BOT VS BOT'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('PLAY NOW'));
+    expect(find.text('MATCH FORMAT'), findsOneWidget);
+    await tester.tap(find.text('START MATCH'));
     await tester.pumpAndSettle();
 
     expect(
@@ -103,7 +104,7 @@ void main() {
     await tester.pumpWidget(await buildTestWidget(size: const Size(1280, 720)));
     await tester.pumpAndSettle();
 
-    // Initially Quick Match (index 0) is selected, so DIFFICULTY should NOT be shown
+    // Further choices stay hidden until a mode card is selected.
     expect(find.text('DIFFICULTY'), findsNothing);
 
     // Tap on DOUBLES 2v2
@@ -134,8 +135,8 @@ void main() {
     await tester.tap(find.text('HARD'));
     await tester.pumpAndSettle();
 
-    // Tap PLAY NOW
-    await tester.tap(find.text('PLAY NOW'));
+    // Tap the setup dialog's start action.
+    await tester.tap(find.text('START MATCH'));
     await tester.pumpAndSettle();
 
     // Verify destination received doubles mode and difficulty 3 (Hard)
@@ -151,12 +152,12 @@ void main() {
     await tester.pumpWidget(await buildTestWidget(size: const Size(1280, 720)));
     await tester.pumpAndSettle();
 
-    expect(find.text('PLAY NOW'), findsOneWidget);
+    expect(find.text('START MATCH'), findsNothing);
 
     await tester.tap(find.text('SINGLES 1v1'));
     await tester.pumpAndSettle();
 
-    expect(find.text('PLAY NOW'), findsOneWidget);
+    expect(find.text('START MATCH'), findsOneWidget);
   });
 
   testWidgets('Portrait layout renders DOUBLES 2v2 and shows difficulty when tapped',
@@ -184,6 +185,9 @@ void main() {
     addTearDown(() => tester.view.resetPhysicalSize());
 
     await tester.pumpWidget(await buildTestWidget(size: const Size(1280, 720)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('SINGLES 1v1'));
     await tester.pumpAndSettle();
 
     expect(find.text('SELECT COURT'), findsOneWidget);

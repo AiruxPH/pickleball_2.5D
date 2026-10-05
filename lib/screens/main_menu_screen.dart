@@ -157,8 +157,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             child: _reveal(
               MenuBottomNav(
                 ui: ui,
-                hasAchievementBadge:
-                    settings?.unlockedAchievements.isNotEmpty ?? false,
+                hasAchievementBadge: settings?.hasUnseenAchievements ?? false,
                 onLeaderboard: _onLeaderboard,
                 onAchievements: _onAchievements,
               ),

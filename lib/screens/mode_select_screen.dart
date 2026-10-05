@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/game_settings.dart';
-import '../models/ultimate_skill.dart';
 import '../utils/constants.dart';
 import '../services/settings_service.dart';
 import '../widgets/menu_backdrop.dart';
@@ -25,14 +24,13 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
   late AnimationController _enterCtrl;
   late Animation<double> _fadeAnim;
 
-  int _selectedModeIndex = 0; // Quick, Singles, Doubles, Bot vs Bot, Local
+  int _selectedModeIndex = 0;
+  bool _botVsBotDoubles = false;
   int _selectedCourtIndex = 0;
   int _selectedDiffIndex = 1; // 0=Easy, 1=Medium, 2=Hard
   bool _initialized = false;
 
   final List<_ModeOption> _modes = const [
-    _ModeOption('QUICK MATCH', 'Jump right in with your usual settings',
-        Icons.flash_on_rounded, TilePalette.gold),
     _ModeOption('SINGLES 1v1', 'Choose difficulty & court',
         Icons.person_rounded, TilePalette.blue),
     _ModeOption('DOUBLES 2v2', 'Team up with AI partner vs AI duo',
@@ -64,13 +62,13 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
       if (args != null && args['mode'] != null) {
         final mode = args['mode'] as String;
         if (mode == 'singles') {
-          _selectedModeIndex = 1;
+          _selectedModeIndex = 0;
         } else if (mode == 'doubles') {
-          _selectedModeIndex = 2;
+          _selectedModeIndex = 1;
         } else if (mode == 'bot-vs-bot') {
-          _selectedModeIndex = 3;
+          _selectedModeIndex = 2;
         } else if (mode == 'local') {
-          _selectedModeIndex = 4;
+          _selectedModeIndex = 3;
         }
       }
     }
@@ -90,14 +88,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
     settings.courtTheme = court;
 
     switch (_selectedModeIndex) {
-      case 0: // Quick Match: uses current user difficulty setting
-        context.read<SettingsService>().save(settings);
-        Navigator.pushReplacementNamed(context, '/game', arguments: {
-          'mode': 'singles',
-          'difficulty': settings.difficulty.index + 1
-        });
-        break;
-      case 1: // Singles
+      case 0: // Singles
         final diffs = [
           AIDifficulty.easy,
           AIDifficulty.medium,
@@ -110,7 +101,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           'difficulty': _selectedDiffIndex + 1
         });
         break;
-      case 2: // Doubles
+      case 1: // Doubles
         final diffs = [
           AIDifficulty.easy,
           AIDifficulty.medium,
@@ -123,7 +114,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           'difficulty': _selectedDiffIndex + 1
         });
         break;
-      case 3: // Bot vs Bot spectator match
+      case 2: // Bot vs Bot spectator match
         final diffs = [
           AIDifficulty.easy,
           AIDifficulty.medium,
@@ -134,10 +125,11 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         Navigator.pushReplacementNamed(context, '/game', arguments: {
           'mode': 'bot-vs-bot',
           'botVsBot': true,
+          'gameMode': _botVsBotDoubles ? 'doubles' : 'singles',
           'difficulty': _selectedDiffIndex + 1
         });
         break;
-      case 4: // Local shared-screen lobby
+      case 3: // Local shared-screen lobby
         context.read<SettingsService>().save(settings);
         Navigator.pushReplacementNamed(context, '/local-lobby');
         break;
@@ -146,25 +138,108 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<GameSettings>();
     final m = MenuMetrics.of(context);
 
     return FadeTransition(
       opacity: _fadeAnim,
       child: MenuScreen(
         title: 'SELECT MODE',
-        body: m.landscape
-            ? _buildLandscapeLayout(settings, m.contentUi)
-            : _buildPortraitLayout(settings, m.contentUi),
+        body: _buildModeGrid(m.contentUi, m.landscape),
       ),
     );
   }
 
-  bool get _showDifficulty =>
-      _selectedModeIndex == 1 ||
-      _selectedModeIndex == 2 ||
-      _selectedModeIndex == 3;
+  Widget _buildModeGrid(double ui, bool landscape) {
+    return GridView.builder(
+      padding: EdgeInsets.all(16 * ui),
+      itemCount: _modes.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: landscape ? 4 : 2,
+        mainAxisSpacing: 14 * ui,
+        crossAxisSpacing: 14 * ui,
+        childAspectRatio: landscape ? 1.2 : 1.0,
+      ),
+      itemBuilder: (_, i) {
+        final mode = _modes[i];
+        return MenuSelectTile(
+          selected: false,
+          palette: mode.palette,
+          icon: mode.icon,
+          title: mode.label,
+          subtitle: mode.subtitle,
+          onTap: () => _showModeSetup(i, ui),
+        );
+      },
+    );
+  }
 
+  Future<void> _showModeSetup(int index, double ui) async {
+    setState(() => _selectedModeIndex = index);
+    if (index == 3) {
+      _onPlay();
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, refreshDialog) => Dialog(
+          backgroundColor: const Color(0xFF0F1E36),
+          insetPadding: const EdgeInsets.all(18),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720, maxHeight: 620),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(18 * ui),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_modes[index].label, style: menuTitleStyle(20 * ui)),
+                  SizedBox(height: 16 * ui),
+                  if (index == 2) ...[
+                    _buildSectionLabel('MATCH FORMAT', Icons.groups_rounded),
+                    SizedBox(height: 8 * ui),
+                    MenuSegmented<bool>(
+                      current: _botVsBotDoubles,
+                      segments: const [
+                        MenuSegment(false, '1v1'),
+                        MenuSegment(true, '2v2'),
+                      ],
+                      onChanged: (value) {
+                        _botVsBotDoubles = value;
+                        refreshDialog(() {});
+                      },
+                    ),
+                    SizedBox(height: 14 * ui),
+                  ],
+                  _buildSectionLabel('DIFFICULTY', Icons.speed_rounded),
+                  SizedBox(height: 8 * ui),
+                  _buildDifficultyPicker(),
+                  SizedBox(height: 16 * ui),
+                  _buildSectionLabel('SELECT COURT', Icons.stadium_rounded),
+                  SizedBox(height: 8 * ui),
+                  _buildCourtPicker(ui),
+                  SizedBox(height: 20 * ui),
+                  MenuPrimaryButton(
+                    label: 'START MATCH',
+                    icon: Icons.play_arrow_rounded,
+                    palette: TilePalette.gold,
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _onPlay();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool get _showDifficulty => _selectedModeIndex < 3;
+
+  // ignore: unused_element
   Widget _buildPortraitLayout(GameSettings settings, double ui) {
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(14 * ui, 8 * ui, 14 * ui, 24 * ui),
@@ -174,6 +249,10 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           _buildSectionLabel('GAME MODE', Icons.sports_tennis_rounded),
           SizedBox(height: 10 * ui),
           ..._buildModeCards(ui),
+          if (_selectedModeIndex == 2) ...[
+            SizedBox(height: 10 * ui),
+            _buildBotFormatPicker(),
+          ],
           if (_showDifficulty) ...[
             SizedBox(height: 14 * ui),
             _buildSectionLabel('DIFFICULTY', Icons.speed_rounded),
@@ -184,10 +263,6 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           _buildSectionLabel('SELECT COURT', Icons.stadium_rounded),
           SizedBox(height: 10 * ui),
           _buildCourtPicker(ui),
-          SizedBox(height: 18 * ui),
-          _buildSectionLabel('SPECIAL SHOT', Icons.bolt_rounded),
-          SizedBox(height: 10 * ui),
-          _buildUltimatePicker(settings, ui),
           SizedBox(height: 22 * ui),
           _buildPlayButton(),
         ],
@@ -195,6 +270,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildLandscapeLayout(GameSettings settings, double ui) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -210,6 +286,10 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
                 _buildSectionLabel('GAME MODE', Icons.sports_tennis_rounded),
                 SizedBox(height: 10 * ui),
                 ..._buildModeCards(ui),
+                if (_selectedModeIndex == 2) ...[
+                  SizedBox(height: 8 * ui),
+                  _buildBotFormatPicker(),
+                ],
                 if (_showDifficulty) ...[
                   SizedBox(height: 6 * ui),
                   _buildSectionLabel('DIFFICULTY', Icons.speed_rounded),
@@ -238,10 +318,6 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
                           _buildSectionLabel('SELECT COURT', Icons.stadium_rounded),
                           SizedBox(height: 10 * ui),
                           _buildCourtPicker(ui),
-                          SizedBox(height: 16 * ui),
-                          _buildSectionLabel('SPECIAL SHOT', Icons.bolt_rounded),
-                          SizedBox(height: 10 * ui),
-                          _buildUltimatePicker(settings, ui),
                         ],
                       ),
                     ),
@@ -301,6 +377,18 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         settings.difficulty = diffs[i];
         context.read<SettingsService>().save(settings);
       },
+    );
+  }
+
+  Widget _buildBotFormatPicker() {
+    return MenuSegmented<bool>(
+      height: 44,
+      current: _botVsBotDoubles,
+      segments: const [
+        MenuSegment(false, '1v1', icon: Icons.person_rounded),
+        MenuSegment(true, '2v2', icon: Icons.groups_rounded),
+      ],
+      onChanged: (value) => setState(() => _botVsBotDoubles = value),
     );
   }
 
@@ -457,33 +545,6 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildUltimatePicker(GameSettings settings, double ui) {
-    final current = settings.equippedUltimate;
-    return SizedBox(
-      height: 70 * ui,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: kAllUltimateSkills.length,
-        separatorBuilder: (_, __) => SizedBox(width: 10 * ui),
-        itemBuilder: (_, i) {
-          final skill = kAllUltimateSkills[i];
-          return SizedBox(
-            width: 214 * ui,
-            child: MenuSelectTile(
-              selected: skill.type == current,
-              palette: TilePalette.from(skill.primaryColor),
-              icon: skill.icon,
-              title: skill.name,
-              subtitle: skill.shortName,
-              titleSize: 14,
-              onTap: () => settings.equipUltimate(skill.type),
-            ),
-          );
-        },
       ),
     );
   }

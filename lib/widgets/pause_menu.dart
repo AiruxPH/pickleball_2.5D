@@ -15,6 +15,7 @@ class PauseMenu extends StatefulWidget {
   final VoidCallback onResume;
   final VoidCallback onRestart;
   final VoidCallback onSettings;
+  final VoidCallback onCustomizeControls;
   final VoidCallback onMainMenu;
 
   const PauseMenu({
@@ -22,6 +23,7 @@ class PauseMenu extends StatefulWidget {
     required this.onResume,
     required this.onRestart,
     required this.onSettings,
+    required this.onCustomizeControls,
     required this.onMainMenu,
   });
 
@@ -94,6 +96,8 @@ class _PauseMenuState extends State<PauseMenu>
                 MenuButton(label: 'RESTART MATCH', onTap: widget.onRestart),
                 const SizedBox(height: 12),
                 MenuButton(label: 'SETTINGS', onTap: widget.onSettings),
+                const SizedBox(height: 12),
+                MenuButton(label: 'CUSTOMIZE CONTROLS', onTap: widget.onCustomizeControls),
                 const SizedBox(height: 12),
                 MenuButton(label: 'KITCHEN (NVZ) RULES', onTap: () => _showKitchenRules(context)),
                 const SizedBox(height: 12),
@@ -169,6 +173,13 @@ class _PauseMenuState extends State<PauseMenu>
                         child: _CompactPauseButton(
                           label: 'SETTINGS',
                           onTap: widget.onSettings,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CompactPauseButton(
+                          label: 'CONTROLS',
+                          onTap: widget.onCustomizeControls,
                         ),
                       ),
                       const SizedBox(width: 10),

@@ -150,9 +150,11 @@ class PickleballGame extends ChangeNotifier {
 
   UltimateType get equippedUltimate => settings.equippedUltimate;
   UltimateSkill get currentUltimate => getUltimateByType(equippedUltimate);
-  bool get isUltimateReady => ultimateCharge >= 1.0;
+  bool get isUltimateReady =>
+      settings.hasEquippedPaddleSkill && ultimateCharge >= 1.0;
 
   void addUltimateCharge(double amount) {
+    if (!settings.hasEquippedPaddleSkill) return;
     final oldVal = ultimateCharge;
     ultimateCharge = (ultimateCharge + amount).clamp(0.0, 1.0);
     if (oldVal < 1.0 && ultimateCharge >= 1.0) {

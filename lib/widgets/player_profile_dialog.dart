@@ -87,17 +87,19 @@ class _PlayerProfileDialogState extends State<PlayerProfileDialog> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<GameSettings>();
-    final ui = MenuMetrics.of(context).contentUi;
+    final screenSize = MediaQuery.of(context).size;
+    final isMobile = screenSize.shortestSide < 600;
+    final ui = MenuMetrics.of(context).contentUi * (isMobile ? 0.9 : 1.0);
     final xpProgress = settings.playerMaxXp > 0
         ? (settings.playerXp / settings.playerMaxXp).clamp(0.0, 1.0)
         : 0.0;
     final winRate = settings.matchesPlayed > 0
         ? (settings.matchesWon * 100 / settings.matchesPlayed).round()
         : 0;
-    final screenHeight = MediaQuery.of(context).size.height;
+    final screenHeight = screenSize.height;
     final avatarSize = 78.0 * ui;
     // Landscape screens: two columns so nothing needs scrolling
-    final screenWidth = MediaQuery.of(context).size.width;
+    final screenWidth = screenSize.width;
     final wide = screenWidth > screenHeight && screenWidth > 700;
 
     return Dialog(

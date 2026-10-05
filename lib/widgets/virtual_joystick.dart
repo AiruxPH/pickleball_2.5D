@@ -34,6 +34,91 @@ class VirtualJoystick extends StatefulWidget {
   State<VirtualJoystick> createState() => _VirtualJoystickState();
 }
 
+/// A floating joystick that appears wherever the player first touches its
+/// control zone, then disappears on release.
+class DynamicJoystick extends StatefulWidget {
+  const DynamicJoystick({
+    super.key,
+    required this.onMove,
+    required this.onRelease,
+    this.size = 116,
+    this.sensitivity = 1,
+  });
+
+  final void Function(double x, double y) onMove;
+  final VoidCallback onRelease;
+  final double size;
+  final double sensitivity;
+
+  @override
+  State<DynamicJoystick> createState() => _DynamicJoystickState();
+}
+
+class _DynamicJoystickState extends State<DynamicJoystick> {
+  Offset? _origin;
+  Offset _delta = Offset.zero;
+
+  void _update(Offset point) {
+    final origin = _origin;
+    if (origin == null) return;
+    final radius = widget.size * 0.36;
+    final raw = point - origin;
+    final distance = raw.distance;
+    _delta = distance > radius ? raw / distance * radius : raw;
+    widget.onMove(
+      (_delta.dx / radius * widget.sensitivity).clamp(-1.0, 1.0),
+      (_delta.dy / radius * widget.sensitivity).clamp(-1.0, 1.0),
+    );
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onPanStart: (details) {
+        _origin = details.localPosition;
+        _delta = Offset.zero;
+        setState(() {});
+      },
+      onPanUpdate: (details) => _update(details.localPosition),
+      onPanEnd: (_) {
+        _origin = null;
+        _delta = Offset.zero;
+        widget.onRelease();
+        setState(() {});
+      },
+      onPanCancel: () {
+        _origin = null;
+        _delta = Offset.zero;
+        widget.onRelease();
+        setState(() {});
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (_origin case final origin?)
+            Positioned(
+              left: origin.dx - widget.size / 2,
+              top: origin.dy - widget.size / 2,
+              child: IgnorePointer(
+                child: Transform.translate(
+                  offset: _delta,
+                  child: VirtualJoystick(
+                    size: widget.size,
+                    sensitivity: widget.sensitivity,
+                    onMove: (_, __) {},
+                    onRelease: () {},
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _VirtualJoystickState extends State<VirtualJoystick>
     with SingleTickerProviderStateMixin {
   Offset _knobPos = Offset.zero;

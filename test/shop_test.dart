@@ -4,11 +4,23 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pickleball_3d/models/game_settings.dart';
 import 'package:pickleball_3d/models/shop_items.dart';
+import 'package:pickleball_3d/models/ultimate_skill.dart';
 import 'package:pickleball_3d/screens/shop_screen.dart';
 import 'package:pickleball_3d/services/settings_service.dart';
 
 void main() {
   group('Pro Shop Catalog & Items', () {
+    test('signature skills are bound only to their assigned paddles', () {
+      expect(getPaddleById('paddle_thunder').specialSkill,
+          UltimateType.thunderbolt);
+      expect(getPaddleById('paddle_cyber').specialSkill,
+          UltimateType.ghostPhantom);
+      expect(getPaddleById('paddle_inferno').specialSkill,
+          UltimateType.dragonMeteor);
+      expect(getPaddleById('paddle_glacier').specialSkill,
+          UltimateType.frostbite);
+      expect(getPaddleById('paddle_standard').specialSkill, isNull);
+    });
     test('Paddle catalog has curated tiers and valid stats', () {
       expect(kPaddleCatalog.length, greaterThanOrEqualTo(6));
       for (final paddle in kPaddleCatalog) {

@@ -21,6 +21,7 @@ import '../widgets/game_button.dart';
 import '../widgets/scoreboard.dart';
 import '../widgets/pause_menu.dart';
 import '../services/audio_service.dart';
+import '../services/settings_service.dart';
 import '../services/character_sprite_manager.dart';
 
 /// ─────────────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ class _GameScreenState extends State<GameScreen>
   int _currentRally = 0;
   double _matchDuration = 0;
   bool _wasDown09 = false;
+  bool _customizingControls = false;
 
   @override
   void didChangeDependencies() {
@@ -125,7 +127,9 @@ class _GameScreenState extends State<GameScreen>
     _isLocalMultiplayer =
         args?['localMultiplayer'] == true || _isLanMultiplayer;
     final drillType = args?['drillType'] as String?;
-    final gameMode = modeArg == 'doubles' ? GameMode.doubles : GameMode.singles;
+    final gameMode = modeArg == 'doubles' || args?['gameMode'] == 'doubles'
+        ? GameMode.doubles
+        : GameMode.singles;
 
     AIDifficulty? diffOverride;
     final diffArg = args?['difficulty'];
@@ -628,9 +632,14 @@ class _GameScreenState extends State<GameScreen>
     // Keep camera updated with current viewport size & aspect ratio
     _presentation!.resize(size);
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: KeyboardListener(
+    return PopScope(
+      canPop: game.state == GameState.gameOver,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestLeaveMatch();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: KeyboardListener(
         focusNode: _focusNode,
         autofocus: true,
         onKeyEvent: _handleKeyEvent,
@@ -692,12 +701,52 @@ class _GameScreenState extends State<GameScreen>
             ],
           ),
         ),
+        ),
       ),
     );
   }
 
+  Future<void> _requestLeaveMatch() async {
+    final game = _game;
+    if (game == null) return;
+    final wasPaused = game.isPaused;
+    if (!wasPaused) game.pause();
+    final leave = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: const Color(0xFF0F1E36),
+            title: const Text('LEAVE MATCH?',
+                style: TextStyle(color: Colors.white,
+                    fontWeight: FontWeight.w900)),
+            content: const Text(
+              'Your current match progress will be lost.',
+              style: TextStyle(color: Color(0xFFCBD5E1)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('KEEP PLAYING'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('LEAVE'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!mounted) return;
+    if (leave) {
+      Navigator.pushNamedAndRemoveUntil(context, '/menu', (_) => false);
+    } else if (!wasPaused) {
+      game.resume();
+      setState(() {});
+    }
+  }
+
   Widget _buildHUD(PickleballGame game, {required bool isLandscape}) {
     final size = MediaQuery.of(context).size;
+    final settings = context.watch<GameSettings>();
     // In landscape, derive joystick & button sizing from screen height
     // so controls are always comfortably thumb-sized regardless of device
     final joystickSize = isLandscape
@@ -820,31 +869,101 @@ class _GameScreenState extends State<GameScreen>
             ),
 
           // ── Virtual Joystick (bottom left) ────────────────
-          if (!_isBotVsBot)
+          if (!_isBotVsBot && settings.dynamicJoystick && !_customizingControls)
             Positioned(
-              bottom: isLandscape ? 8 : 28,
-              left: isLandscape ? 16 : 20,
-              child: VirtualJoystick(
+              left: 0,
+              top: size.height * 0.28,
+              bottom: 0,
+              width: size.width * 0.48,
+              child: DynamicJoystick(
                 size: joystickSize,
                 onMove: _onJoystickMove,
                 onRelease: _onJoystickRelease,
-                sensitivity: context.read<GameSettings>().joystickSensitivity,
+                sensitivity: settings.joystickSensitivity,
+              ),
+            ),
+          if (!_isBotVsBot &&
+              (!settings.dynamicJoystick || _customizingControls))
+            Positioned(
+              left: _customizingControls
+                  ? settings.joystickHudPosition.dx * size.width - joystickSize / 2
+                  : (isLandscape ? 16 : 20),
+              top: _customizingControls
+                  ? settings.joystickHudPosition.dy * size.height - joystickSize / 2
+                  : null,
+              bottom: _customizingControls ? null : (isLandscape ? 8 : 28),
+              child: GestureDetector(
+                onPanUpdate: _customizingControls
+                    ? (details) {
+                        final next = settings.joystickHudPosition + Offset(
+                          details.delta.dx / size.width,
+                          details.delta.dy / size.height,
+                        );
+                        settings.setJoystickHudPosition(next);
+                      }
+                    : null,
+                child: IgnorePointer(
+                  ignoring: _customizingControls,
+                  child: VirtualJoystick(
+                    size: joystickSize,
+                    onMove: _onJoystickMove,
+                    onRelease: _onJoystickRelease,
+                    sensitivity: settings.joystickSensitivity,
+                  ),
+                ),
               ),
             ),
 
           // ── Compact Ergonomic Action Buttons (bottom right) ──
           if (!_isBotVsBot)
             Positioned(
-              bottom: isLandscape ? 8 : 24,
-              right: isLandscape ? 16 : 16,
-              child: RepaintBoundary(
-                child: ValueListenableBuilder<GameState>(
-                  valueListenable: _stateNotifier,
-                  builder: (_, __, ___) => _buildActionButtons(
-                    game,
-                    isLandscape: isLandscape,
-                    screenHeight: size.height,
+              left: _customizingControls
+                  ? settings.actionsHudPosition.dx * size.width - 90
+                  : null,
+              top: _customizingControls
+                  ? settings.actionsHudPosition.dy * size.height - 70
+                  : null,
+              bottom: _customizingControls ? null : (isLandscape ? 8 : 24),
+              right: _customizingControls ? null : 16,
+              child: GestureDetector(
+                onPanUpdate: _customizingControls
+                    ? (details) {
+                        final next = settings.actionsHudPosition + Offset(
+                          details.delta.dx / size.width,
+                          details.delta.dy / size.height,
+                        );
+                        settings.setActionsHudPosition(next);
+                      }
+                    : null,
+                child: IgnorePointer(
+                  ignoring: _customizingControls,
+                  child: RepaintBoundary(
+                    child: ValueListenableBuilder<GameState>(
+                      valueListenable: _stateNotifier,
+                      builder: (_, __, ___) => _buildActionButtons(
+                        game,
+                        isLandscape: isLandscape,
+                        screenHeight: size.height,
+                      ),
+                    ),
                   ),
+                ),
+              ),
+            ),
+          if (_customizingControls)
+            Positioned(
+              top: 10,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    context.read<SettingsService>().save(settings);
+                    setState(() => _customizingControls = false);
+                    game.resume();
+                  },
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('SAVE CONTROL LAYOUT'),
                 ),
               ),
             ),
@@ -868,7 +987,6 @@ class _GameScreenState extends State<GameScreen>
               final ultSkill = game.currentUltimate;
 
               return GestureDetector(
-                onTap: () => _showUltimateSelectorModal(context, game),
                 behavior: HitTestBehavior.opaque,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1159,17 +1277,21 @@ class _GameScreenState extends State<GameScreen>
 
   // ── Ultimate Action Button ────────────────────────────────────
   Widget _buildUltimateButton(PickleballGame game, {double size = 54.0}) {
+    if (!game.settings.hasEquippedPaddleSkill) {
+      return const SizedBox.shrink();
+    }
     return _UltimateButtonWidget(
       game: game,
       size: size,
       ultimateNotifier: _ultimateNotifier,
-      onOpenSelector: () => _showUltimateSelectorModal(context, game),
       onToggleArm: () => _activeTouchCommands?.toggleUltimate(),
       onArmToggled: () => setState(() {}),
     );
   }
 
   // ── Ultimate Skill Selector Modal ─────────────────────────────
+  // Retained temporarily for save compatibility; there is no UI path to it.
+  // ignore: unused_element
   void _showUltimateSelectorModal(BuildContext context, PickleballGame game) {
     final settings = context.read<GameSettings>();
 
@@ -1464,7 +1586,11 @@ class _GameScreenState extends State<GameScreen>
         _audioService?.startMatchMusic();
       }),
       onSettings: () => Navigator.pushNamed(context, '/settings'),
-      onMainMenu: () => Navigator.pushReplacementNamed(context, '/menu'),
+      onCustomizeControls: () => setState(() {
+        _customizingControls = true;
+        game.resume();
+      }),
+      onMainMenu: _requestLeaveMatch,
     );
   }
 
@@ -1635,7 +1761,6 @@ class _UltimateButtonWidget extends StatefulWidget {
   final PickleballGame game;
   final double size;
   final ValueNotifier<double> ultimateNotifier;
-  final VoidCallback onOpenSelector;
   final VoidCallback onToggleArm;
   final VoidCallback onArmToggled;
 
@@ -1643,7 +1768,6 @@ class _UltimateButtonWidget extends StatefulWidget {
     required this.game,
     required this.size,
     required this.ultimateNotifier,
-    required this.onOpenSelector,
     required this.onToggleArm,
     required this.onArmToggled,
   });
@@ -1701,14 +1825,7 @@ class _UltimateButtonWidgetState extends State<_UltimateButtonWidget>
                 HapticFeedback.heavyImpact();
                 widget.onToggleArm();
                 widget.onArmToggled();
-              } else {
-                HapticFeedback.lightImpact();
-                widget.onOpenSelector();
               }
-            },
-            onLongPress: () {
-              HapticFeedback.mediumImpact();
-              widget.onOpenSelector();
             },
             child: ScaleTransition(
               scale: _scale,

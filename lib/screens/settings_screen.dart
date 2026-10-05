@@ -48,35 +48,26 @@ class _SettingsScreenState extends State<SettingsScreen>
     final gap = SizedBox(height: 14 * ui);
 
     final game = _Section(
-      title: 'GAME',
-      icon: Icons.sports_tennis_rounded,
+      title: 'MATCH CONTROLS',
+      icon: Icons.gamepad_rounded,
       children: [
-        _Label('AI Difficulty', settings.difficulty.name.toUpperCase(),
-            valueColor: _diffColor(settings.difficulty)),
+        _Label('Joystick Style',
+            settings.dynamicJoystick ? 'DYNAMIC' : 'FIXED'),
         SizedBox(height: 10 * ui),
-        MenuSegmented<AIDifficulty>(
-          current: settings.difficulty,
+        MenuSegmented<bool>(
+          current: settings.dynamicJoystick,
           segments: const [
-            MenuSegment(AIDifficulty.easy, 'EASY',
-                icon: Icons.sentiment_satisfied_rounded,
-                palette: TilePalette.green),
-            MenuSegment(AIDifficulty.medium, 'MEDIUM',
-                icon: Icons.sentiment_neutral_rounded,
-                palette: TilePalette.gold),
-            MenuSegment(AIDifficulty.hard, 'HARD',
-                icon: Icons.whatshot_rounded, palette: TilePalette.red),
+            MenuSegment(true, 'DYNAMIC', icon: Icons.touch_app_rounded),
+            MenuSegment(false, 'FIXED', icon: Icons.gamepad_rounded),
           ],
-          onChanged: (d) {
-            settings.difficulty = d;
+          onChanged: (dynamic) {
+            settings.dynamicJoystick = dynamic;
             _save(settings);
           },
         ),
         SizedBox(height: 10 * ui),
-        _Hint(settings.difficulty == AIDifficulty.easy
-            ? 'Slow and friendly. Good for learning and long rallies.'
-            : settings.difficulty == AIDifficulty.medium
-                ? 'A solid club player. Mixes up shots at a steady pace.'
-                : 'Tough. Hits to the corners and punishes weak shots.'),
+        const _Hint(
+            'Dynamic follows your first touch. Control positions can also be moved while customizing the HUD in a paused match.'),
       ],
     );
 
@@ -214,11 +205,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  Color _diffColor(AIDifficulty d) => switch (d) {
-        AIDifficulty.easy => const Color(0xFF34D399),
-        AIDifficulty.medium => kMenuGold,
-        AIDifficulty.hard => const Color(0xFFFF6B6B),
-      };
 }
 
 // ── Pieces ─────────────────────────────────────────────────────
@@ -250,8 +236,7 @@ class _Section extends StatelessWidget {
 class _Label extends StatelessWidget {
   final String label;
   final String value;
-  final Color? valueColor;
-  const _Label(this.label, this.value, {this.valueColor});
+  const _Label(this.label, this.value);
 
   @override
   Widget build(BuildContext context) {
@@ -266,7 +251,7 @@ class _Label extends StatelessWidget {
                 fontWeight: FontWeight.w700)),
         Text(value,
             style: TextStyle(
-                color: valueColor ?? kMenuGold,
+                color: kMenuGold,
                 fontSize: 14 * ui,
                 fontWeight: FontWeight.w900)),
       ],

@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../pickleball_game.dart';
 import '../game_presentation.dart';
+import '../camera_controller.dart';
 import '../../utils/constants.dart';
 import 'court_panorama_manager.dart';
 import 'panorama_backdrop_painter.dart';
@@ -78,26 +79,47 @@ class _CourtBackdropViewState extends State<CourtBackdropView> {
   @override
   Widget build(BuildContext context) {
     final panorama = _cachedPanorama;
+    final view = widget.presentation.cameraController.view;
+    final blurForAlternateView = view == CameraView.sideline ||
+        view == CameraView.overhead ||
+        view == CameraView.freeRoam;
     if (panorama != null) {
-      return CustomPaint(
-        painter: PanoramaBackdropPainter(
-          panoramaImage: panorama,
-          camera: widget.presentation.camera,
-          isLowEnd: widget.game.settings.isLowEndMode,
-          repaint: widget.repaint,
+      return ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(
+          sigmaX: blurForAlternateView ? 4.5 : 0,
+          sigmaY: blurForAlternateView ? 4.5 : 0,
+        ),
+        child: CustomPaint(
+          painter: PanoramaBackdropPainter(
+            panoramaImage: panorama,
+            camera: widget.presentation.camera,
+            isLowEnd: widget.game.settings.isLowEndMode,
+            repaint: widget.repaint,
+          ),
         ),
       );
     }
 
     // High-performance fallback: standard 2D theme artwork
-    return Image.asset(
-      widget.game.settings.courtTheme.assetPath,
-      fit: BoxFit.cover,
-      alignment: Alignment.center,
-      cacheWidth: widget.game.settings.isLowEndMode ? 960 : 1920,
-      filterQuality: widget.game.settings.isLowEndMode
-          ? FilterQuality.low
-          : FilterQuality.medium,
+    return ImageFiltered(
+      imageFilter: ui.ImageFilter.blur(
+        sigmaX: blurForAlternateView ? 5 : 0,
+        sigmaY: blurForAlternateView ? 5 : 0,
+      ),
+      child: AnimatedScale(
+        scale: blurForAlternateView ? 1.08 : 1.03,
+        duration: const Duration(milliseconds: 700),
+        curve: Curves.easeOutCubic,
+        child: Image.asset(
+          widget.game.settings.courtTheme.assetPath,
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          cacheWidth: widget.game.settings.isLowEndMode ? 960 : 1920,
+          filterQuality: widget.game.settings.isLowEndMode
+              ? FilterQuality.low
+              : FilterQuality.medium,
+        ),
+      ),
     );
   }
 }

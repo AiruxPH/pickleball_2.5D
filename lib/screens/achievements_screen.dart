@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/game_settings.dart';
 import '../models/achievement.dart';
+import '../services/settings_service.dart';
 import '../widgets/menu_backdrop.dart';
 import '../widgets/menu_ui.dart';
 
@@ -19,6 +20,19 @@ class AchievementsScreen extends StatefulWidget {
 
 class _AchievementsScreenState extends State<AchievementsScreen> {
   String _selectedCategory = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final settings = context.read<GameSettings>();
+      settings.markAchievementsSeen();
+      try {
+        context.read<SettingsService>().save(settings);
+      } catch (_) {}
+    });
+  }
 
   static const _categories = [
     ('all', 'ALL', Icons.apps_rounded),

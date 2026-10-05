@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ultimate_skill.dart';
 
 /// ─────────────────────────────────────────────────────────────
 /// Shop Items & Rarity Models
@@ -72,6 +73,7 @@ class PaddleItem {
   final double control;
   final double spin;
   final double staminaEfficiency;
+  final UltimateType? specialSkill;
 
   // Visual Styling for 2D/3D Canvas Rendering
   final Color bladeColor1;
@@ -95,6 +97,7 @@ class PaddleItem {
     required this.control,
     required this.spin,
     required this.staminaEfficiency,
+    this.specialSkill,
     required this.bladeColor1,
     required this.bladeColor2,
     required this.rimColor,
@@ -212,6 +215,7 @@ final List<PaddleItem> kPaddleCatalog = [
     control: 0.58,
     spin: 0.62,
     staminaEfficiency: 0.58,
+    specialSkill: UltimateType.thunderbolt,
     bladeColor1: Color(0xFF451A03),
     bladeColor2: Color(0xFF1C1917),
     rimColor: Color(0xFFF59E0B),
@@ -228,6 +232,7 @@ final List<PaddleItem> kPaddleCatalog = [
     control: 0.90,
     spin: 0.75,
     staminaEfficiency: 0.80,
+    specialSkill: UltimateType.frostbite,
     bladeColor1: Color(0xFF0E7490),
     bladeColor2: Color(0xFF164E63),
     rimColor: Color(0xFF22D3EE),
@@ -245,6 +250,7 @@ final List<PaddleItem> kPaddleCatalog = [
     control: 0.65,
     spin: 0.88,
     staminaEfficiency: 0.70,
+    specialSkill: UltimateType.dragonMeteor,
     bladeColor1: Color(0xFF991B1B),
     bladeColor2: Color(0xFF450A0A),
     rimColor: Color(0xFFEF4444),
@@ -261,6 +267,7 @@ final List<PaddleItem> kPaddleCatalog = [
     control: 0.88,
     spin: 0.92,
     staminaEfficiency: 0.90,
+    specialSkill: UltimateType.ghostPhantom,
     bladeColor1: Color(0xFF581C87),
     bladeColor2: Color(0xFF09090B),
     rimColor: Color(0xFFC084FC),

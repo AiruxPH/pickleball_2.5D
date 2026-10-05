@@ -1604,7 +1604,9 @@ class CourtPainter extends CustomPainter {
     // Regulation 2" lines, slightly exaggerated for readability. Lines running
     // across the court get a minimum on-screen thickness so the far baseline
     // never shimmers away to a sub-pixel sliver.
-    const w = 0.8;
+    // Keep the true 2-inch world width. The previous exaggerated width became
+    // a large white slab at oblique sideline angles.
+    const w = CourtDimensions.lineWidth;
     _courtLinePaint
       ..shader = null
       ..color = theme.lineColor;

@@ -1,3 +1,4 @@
+import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart';
 import 'shop_items.dart';
 import 'achievement.dart';
@@ -73,14 +74,37 @@ class GameSettings extends ChangeNotifier {
   }
 
   // ── Equipped Ultimate Skill ────────────────────────────────
-  UltimateType _equippedUltimate = UltimateType.thunderbolt;
-  UltimateType get equippedUltimate => _equippedUltimate;
-  set equippedUltimate(UltimateType v) {
-    _equippedUltimate = v;
+  UltimateType? get equippedPaddleSkill =>
+      getPaddleById(_equippedPaddleId).specialSkill;
+  bool get hasEquippedPaddleSkill => equippedPaddleSkill != null;
+  UltimateType get equippedUltimate =>
+      equippedPaddleSkill ?? UltimateType.thunderbolt;
+  @Deprecated('Special skills are selected by equipping their paddle.')
+  void equipUltimate(UltimateType type) {}
+
+  bool _dynamicJoystick = true;
+  bool get dynamicJoystick => _dynamicJoystick;
+  set dynamicJoystick(bool value) {
+    _dynamicJoystick = value;
     notifyListeners();
   }
-  void equipUltimate(UltimateType type) {
-    _equippedUltimate = type;
+
+  double _joystickX = 0.13;
+  double _joystickY = 0.78;
+  double _actionsX = 0.84;
+  double _actionsY = 0.76;
+  Offset get joystickHudPosition => Offset(_joystickX, _joystickY);
+  Offset get actionsHudPosition => Offset(_actionsX, _actionsY);
+
+  void setJoystickHudPosition(Offset value) {
+    _joystickX = value.dx.clamp(0.06, 0.94);
+    _joystickY = value.dy.clamp(0.12, 0.92);
+    notifyListeners();
+  }
+
+  void setActionsHudPosition(Offset value) {
+    _actionsX = value.dx.clamp(0.06, 0.94);
+    _actionsY = value.dy.clamp(0.12, 0.92);
     notifyListeners();
   }
 
@@ -348,9 +372,17 @@ class GameSettings extends ChangeNotifier {
   // ── Achievements ───────────────────────────────────────────
   Map<String, int> _achievementProgress = {};
   Set<String> _unlockedAchievements = {};
+  Set<String> _seenAchievements = {};
 
   Map<String, int> get achievementProgress => Map.unmodifiable(_achievementProgress);
   Set<String> get unlockedAchievements => Set.unmodifiable(_unlockedAchievements);
+  bool get hasUnseenAchievements =>
+      _unlockedAchievements.difference(_seenAchievements).isNotEmpty;
+
+  void markAchievementsSeen() {
+    _seenAchievements = Set<String>.from(_unlockedAchievements);
+    notifyListeners();
+  }
 
   bool isAchievementUnlocked(String id) => _unlockedAchievements.contains(id);
   int getAchievementProgress(String id) => _achievementProgress[id] ?? 0;
@@ -456,6 +488,11 @@ class GameSettings extends ChangeNotifier {
       'graphicsQuality': _graphicsQuality.index,
       'targetFps': _targetFps,
       'joystickSensitivity': _joystickSensitivity,
+      'dynamicJoystick': _dynamicJoystick,
+      'joystickHudX': _joystickX,
+      'joystickHudY': _joystickY,
+      'actionsHudX': _actionsX,
+      'actionsHudY': _actionsY,
       'courtTheme': _courtTheme.index,
       'playerName': _playerName,
       'playerLevel': _playerLevel,
@@ -480,6 +517,7 @@ class GameSettings extends ChangeNotifier {
       'totalBonusClaims': _totalBonusClaims,
       'achievementProgress': achievementProgressJson,
       'unlockedAchievements': _unlockedAchievements.toList(),
+      'seenAchievements': _seenAchievements.toList(),
       'dailyChallengeDate': _dailyChallengeDate,
       'dailyChallengeType': _dailyChallengeType,
       'dailyChallengeProgress': _dailyChallengeProgress,
@@ -498,6 +536,11 @@ class GameSettings extends ChangeNotifier {
     _graphicsQuality = GraphicsQuality.values[json['graphicsQuality'] as int? ?? 2];
     _targetFps = (json['targetFps'] as int?) ?? 60;
     _joystickSensitivity = (json['joystickSensitivity'] as double? ?? 1.0).clamp(0.5, 2.0);
+    _dynamicJoystick = json['dynamicJoystick'] as bool? ?? true;
+    _joystickX = (json['joystickHudX'] as num?)?.toDouble() ?? 0.13;
+    _joystickY = (json['joystickHudY'] as num?)?.toDouble() ?? 0.78;
+    _actionsX = (json['actionsHudX'] as num?)?.toDouble() ?? 0.84;
+    _actionsY = (json['actionsHudY'] as num?)?.toDouble() ?? 0.76;
     final courtIdx = (json['courtTheme'] as int?) ?? 0;
     _courtTheme = (courtIdx >= 0 && courtIdx < CourtTheme.values.length)
         ? CourtTheme.values[courtIdx]
@@ -544,6 +587,9 @@ class GameSettings extends ChangeNotifier {
     }
     if (json['unlockedAchievements'] is List) {
       _unlockedAchievements = Set<String>.from(json['unlockedAchievements'] as List);
+    }
+    if (json['seenAchievements'] is List) {
+      _seenAchievements = Set<String>.from(json['seenAchievements'] as List);
     }
 
     // Daily Challenge

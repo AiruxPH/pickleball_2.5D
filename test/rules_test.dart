@@ -10,6 +10,7 @@ import 'package:pickleball_3d/models/court.dart';
 import 'package:pickleball_3d/models/game_settings.dart';
 import 'package:pickleball_3d/models/pickleball.dart';
 import 'package:pickleball_3d/models/player.dart';
+import 'package:pickleball_3d/models/shop_items.dart';
 import 'package:pickleball_3d/models/ultimate_skill.dart';
 import 'package:pickleball_3d/utils/constants.dart';
 import 'package:pickleball_3d/utils/game_math.dart';
@@ -370,6 +371,7 @@ void main() {
   group('Ultimate Skill System & Energy Mechanics', () {
     test('SP gauge accumulation, capping, and readiness', () {
       final settings = GameSettings();
+      settings.buyPaddle(getPaddleById('paddle_thunder'));
       final game = PickleballGame(
         screenSize: const Size(800, 600),
         settings: settings,
@@ -423,11 +425,11 @@ void main() {
       expect(frost.name, contains('ICE'));
     });
 
-    test('Equipping Ultimates via GameSettings updates game and persists', () {
+    test('equipping a signature paddle determines the special skill', () {
       final settings = GameSettings();
-      expect(settings.equippedUltimate, UltimateType.thunderbolt);
+      expect(settings.hasEquippedPaddleSkill, isFalse);
 
-      settings.equipUltimate(UltimateType.ghostPhantom);
+      settings.buyPaddle(getPaddleById('paddle_cyber'));
       expect(settings.equippedUltimate, UltimateType.ghostPhantom);
 
       final game = PickleballGame(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import '../models/game_settings.dart';
 import '../models/career.dart';
 import '../utils/constants.dart';
@@ -40,53 +39,43 @@ class _CareerScreenState extends State<CareerScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.darkBg,
-      body: Consumer<GameSettings>(
-        builder: (context, settings, _) {
-          final career = settings.career;
-
-          return FadeTransition(
-            opacity: _fade,
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildRankCard(career),
-                          const SizedBox(height: 20),
-                          _buildSeasonCard(career),
-                          const SizedBox(height: 20),
-                          _buildPlayNextButton(settings, career),
-                          const SizedBox(height: 24),
-                          if (career.matchHistory.isNotEmpty) ...[
-                            const Text(
-                              'MATCH HISTORY',
-                              style: TextStyle(
-                                fontFamily: AppFonts.orbitron,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textMuted,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            ...career.matchHistory.reversed.take(15).map(
-                              (r) => _buildHistoryRow(r),
-                            ),
-                          ],
-                        ],
-                      ),
+      body: FadeTransition(
+        opacity: _fade,
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              const Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_stories_rounded,
+                            size: 72, color: Color(0xFF34D399)),
+                        SizedBox(height: 20),
+                        Text('STORY MODE', style: TextStyle(
+                          fontFamily: AppFonts.orbitron, fontSize: 24,
+                          fontWeight: FontWeight.w900, color: Colors.white,
+                          letterSpacing: 2)),
+                        SizedBox(height: 10),
+                        Text('COMING SOON', style: TextStyle(
+                          fontFamily: AppFonts.orbitron, fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF34D399), letterSpacing: 2)),
+                        SizedBox(height: 14),
+                        Text('Your journey from local courts to the pro tour is being built.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textMuted, height: 1.5)),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -125,6 +114,7 @@ class _CareerScreenState extends State<CareerScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildRankCard(CareerState career) {
     final rank = career.rank;
     final progress = career.rankProgress;
@@ -224,6 +214,7 @@ class _CareerScreenState extends State<CareerScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildSeasonCard(CareerState career) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -293,6 +284,7 @@ class _CareerScreenState extends State<CareerScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildPlayNextButton(GameSettings settings, CareerState career) {
     return SizedBox(
       width: double.infinity,
@@ -335,6 +327,7 @@ class _CareerScreenState extends State<CareerScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildHistoryRow(CareerMatchResult result) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
