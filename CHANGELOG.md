@@ -2,6 +2,44 @@
 
 ## 2026-10-05
 
+### 2026-10-05 21:13:30+08:00
+- **Reason of Change:** Clean up unused import warnings in `pickleball_game.dart` and `player_shot_mechanics_test.dart` identified in the problems tab.
+- **Cause of Error:**
+  1. `lib/game/pickleball_game.dart`: `shot_targeting.dart` was directly imported in the game controller, but direct usage was moved inside `player_aim_calculator.dart`.
+  2. `test/player_shot_mechanics_test.dart`: `player_aim_calculator.dart` was imported but lacked explicit test assertions exercising it directly.
+- **Fix Applied:**
+  1. [pickleball_game.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/pickleball_game.dart): Removed redundant `shot_targeting.dart` import.
+  2. [player_shot_mechanics_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/player_shot_mechanics_test.dart): Added unit test cases for `calculatePlayerAimDirection` validating joystick steering synthesis and sideline safety redirection.
+- **Verification:**
+  - `dart analyze` / `analyze_files` passed with 0 errors and 0 warnings.
+  - Complete player shot mechanics test suite passed (10/10 tests).
+
+### 2026-10-05 21:11:00+08:00
+- **Reason of Change:** Implement forgiving, entertaining, and intelligent player hit mechanics for button-based controls, so the engine handles natural angles, contextual shot adaptation, and net-clearance safety without punishing players with cheap unforced faults.
+- **Features Implemented & Sliced per Rule 2:**
+  1. [contextual_shot_type.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/shot/contextual_shot_type.dart):
+     - Automatically adapts high floaters ($Y \ge 26.0$) in front of the player into overhead smashes when tapping `HIT` or `POWER`.
+     - Automatically softens low balls ($Y \le 20.0$) near the kitchen line into controlled dinks/drops rather than rocketing them deep or into the net.
+  2. [contact_timing_offset.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/shot/contact_timing_offset.dart):
+     - Calculates natural lateral angle deflection based on contact timing relative to player position and paddle arm (forehand vs backhand).
+     - Early contact in front of the body pulls cross-court; late contact pushes down-the-line.
+  3. [shot_quality.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/shot/shot_quality.dart):
+     - Computes contact proximity and sweet-spot quality.
+     - Scales speed and lift: sweet-spot contact grants crisp pace and visual camera punch; stretched/edge reach softens speed and boosts lift so off-center hits never produce instant unforced faults.
+  4. [player_aim_calculator.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/shot/player_aim_calculator.dart):
+     - Synthesizes joystick X/Y steering, swipe direction, and contact timing deflection.
+     - Passes proposed direction through sideline boundary constraints to keep wide balls curving into playable court.
+  5. [player_shot_trajectory_solver.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/shot/player_shot_trajectory_solver.dart):
+     - Solves 3D launch velocity with smart net clearance cushion ($V_{y,\min}$) and in-bounds flight time limits.
+  6. [pickleball_game.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/pickleball_game.dart):
+     - Refactored `_executePlayerHit`, `_getAimDirection`, and `_getOpponentAimDirection` to delegate directly to the modular shot package.
+  7. [player_shot_mechanics_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/player_shot_mechanics_test.dart):
+     - Full regression coverage for contextual smash/dink adaptation, early/late timing deflection, quality scaling, and safe net clearance.
+- **Verification:**
+  - `dart analyze` / `analyze_files` passed with zero errors or warnings.
+  - New player shot mechanics test suite passed (8/8 tests).
+  - Existing rules and AI rally test suites passed (55/55 tests).
+
 ### 2026-10-05 — Simulation, rules, dimensions, and UI audit
 - **Reason of Change:** Record the requested verification of match isolation, pickleball rules, regulation dimensions, responsive layouts, and game-UI principles.
 - **Review Findings:**

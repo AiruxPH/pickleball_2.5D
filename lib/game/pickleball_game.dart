@@ -15,7 +15,11 @@ import '../game/ai_controller.dart';
 import '../game/ai_shot_planner.dart';
 import '../game/physics_controller.dart';
 import '../game/game_presentation.dart';
-import '../game/shot_targeting.dart';
+import '../game/shot/contextual_shot_type.dart';
+import '../game/shot/contact_timing_offset.dart';
+import '../game/shot/shot_quality.dart';
+import '../game/shot/player_aim_calculator.dart';
+import '../game/shot/player_shot_trajectory_solver.dart';
 import '../services/audio_service.dart';
 
 /// ─────────────────────────────────────────────────────────────
@@ -1017,6 +1021,13 @@ class PickleballGame extends ChangeNotifier {
       lastMessage = '${ultSkill.name}!';
       messageTimer = 2.0;
     } else {
+      // Intelligently adapt shot to match context (e.g. auto-smash floaters, kitchen dink assist)
+      activeShot = resolveContextualShotType(
+        requestedShot: activeShot,
+        player: player,
+        ball: ball,
+      );
+
       // Stamina check for non-ultimate shots
       if (activeShot == ShotType.power &&
           !player
@@ -1031,63 +1042,59 @@ class PickleballGame extends ChangeNotifier {
       }
     }
 
+    final hitRadius = 30.0 + (paddle.control - 0.50) * 12.0;
+    final quality = calculateShotQuality(
+      player: player,
+      ball: ball,
+      hitRadius: hitRadius,
+    );
+
     final dir = _getAimDirection();
-    double forwardSpeed;
-    double upSpeed;
+    final solution = solvePlayerShotTrajectory(
+      shotType: activeShot,
+      player: player,
+      ball: ball,
+      aimDirection: dir,
+      quality: quality,
+      paddle: paddle,
+      joystickY: joystickY,
+      isNearSide: true,
+    );
 
     switch (activeShot) {
       case ShotType.ultimate:
         final ultType = ball.ultimateType ?? equippedUltimate;
         switch (ultType) {
           case UltimateType.thunderbolt:
-            forwardSpeed = 245.0;
-            upSpeed = 26.0;
             effects.pulseCamera(shake: 0.75, zoom: 0.78);
             ball.lightningFlash = 1.0;
             break;
           case UltimateType.ghostPhantom:
-            forwardSpeed = 155.0;
-            upSpeed = 40.0;
             effects.pulseCamera(shake: 0.40, zoom: 0.85);
             break;
           case UltimateType.dragonMeteor:
-            forwardSpeed = 135.0;
-            upSpeed = 55.0;
             effects.pulseCamera(shake: 0.55, zoom: 0.82);
             break;
           case UltimateType.frostbite:
-            forwardSpeed = 175.0;
-            upSpeed = 34.0;
             effects.pulseCamera(shake: 0.45, zoom: 0.84);
             break;
         }
         break;
       case ShotType.power:
-        forwardSpeed = 165.0;
-        upSpeed = 38.0;
         effects.pulseCamera(shake: 0.35, zoom: 0.90);
         addUltimateCharge(0.18);
         break;
       case ShotType.lob:
-        forwardSpeed = 95.0;
-        upSpeed = 68.0;
         addUltimateCharge(0.15);
         break;
       case ShotType.drop:
-        forwardSpeed = 82.0;
-        upSpeed = 36.0;
         addUltimateCharge(0.15);
         break;
       case ShotType.smash:
-        // Overhead smash: fast drive with controlled elevation
-        forwardSpeed = 210.0;
-        upSpeed = 12.0;
         effects.pulseCamera(shake: 0.50, zoom: 0.88);
         addUltimateCharge(0.20);
         break;
       case ShotType.normal:
-        forwardSpeed = 130.0;
-        upSpeed = 40.0;
         addUltimateCharge(0.12);
         break;
     }
@@ -1097,71 +1104,14 @@ class PickleballGame extends ChangeNotifier {
       addUltimateCharge(0.08);
     }
 
-    // Apply paddle power bonus (+0% to +12% speed)
-    final powerBonus = 1.0 + (paddle.power - 0.50) * 0.25;
-    forwardSpeed *= powerBonus;
-
-    // Reward difficult contacts near the back line with additional depth.
-    // The assist fades to zero at the normal starting position.
-    final deepRecoveryFactor =
-        ((ball.position.z - CourtDimensions.playerStartZ) /
-                (CourtDimensions.playerMaxZ - CourtDimensions.playerStartZ))
-            .clamp(0.0, 1.0)
-            .toDouble();
-    if (deepRecoveryFactor > 0 &&
-        activeShot != ShotType.smash &&
-        activeShot != ShotType.ultimate) {
-      final forwardBoost = activeShot == ShotType.lob
-          ? 0.24
-          : (activeShot == ShotType.power ? 0.18 : 0.15);
-      forwardSpeed *= 1.0 + forwardBoost * deepRecoveryFactor;
-      final liftBoost = activeShot == ShotType.lob
-          ? 8.0
-          : (activeShot == ShotType.power ? 18.0 : 15.0);
-      upSpeed += liftBoost * deepRecoveryFactor;
+    if (quality.isSweetSpot && activeShot != ShotType.ultimate) {
+      effects.pulseCamera(shake: 0.20, zoom: 0.96);
     }
 
     final spinBonus = 1.0 + (paddle.spin - 0.50) * 0.35;
     final baseSpin = activeShot == ShotType.drop ? -500.0 : 500.0;
 
-    // Compute directional unit vector with normalized horizontal speed
-    final aimDirX = dir.dx.clamp(-0.85, 0.85);
-    final aimDirZ = -math.sqrt(math.max(0.05, 1.0 - aimDirX * aimDirX));
-    if (ball.position.z > 0 && aimDirZ < 0) {
-      final conservativeForwardZ =
-          math.max(1.0, aimDirZ.abs() * forwardSpeed * 0.82);
-      final timeToNet = ball.position.z / conservativeForwardZ;
-      const targetNetHeight =
-          CourtDimensions.netHeight + PhysicsConstants.ballRadius + 4.0;
-      final minimumUpSpeed = (targetNetHeight -
-                  ball.position.y +
-                  0.5 * PhysicsConstants.gravity * timeToNet * timeToNet) /
-              timeToNet +
-          2.0;
-      upSpeed = math.max(upSpeed, minimumUpSpeed.clamp(0.0, 82.0).toDouble());
-
-      // Once the safe lift is known, trim excessive pace so the corresponding
-      // arc lands in the opponent court instead of sailing through the fence.
-      if (activeShot != ShotType.smash && activeShot != ShotType.ultimate) {
-        final heightAboveGround =
-            math.max(0.0, ball.position.y - PhysicsConstants.ballRadius);
-        final discriminant = upSpeed * upSpeed +
-            2 * PhysicsConstants.gravity * heightAboveGround;
-        final flightTime =
-            (upSpeed + math.sqrt(discriminant)) / PhysicsConstants.gravity;
-        final targetZ = activeShot == ShotType.drop ? -16.0 : -55.0;
-        final requiredForward =
-            (ball.position.z - targetZ).abs() / flightTime * 1.12;
-        if (deepRecoveryFactor == 0) {
-          forwardSpeed = math.min(forwardSpeed, requiredForward);
-        }
-      }
-    }
-    ball.velocity = Vec3(
-      aimDirX * forwardSpeed,
-      upSpeed,
-      aimDirZ * forwardSpeed,
-    );
+    ball.velocity = solution.launchVelocity;
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = true;
     ball.bounceCount = 0;
@@ -1173,9 +1123,7 @@ class PickleballGame extends ChangeNotifier {
     ball.shotType = activeShot;
     ball.rallyHitCount++;
 
-    final isPowerHit = activeShot == ShotType.power ||
-        activeShot == ShotType.smash ||
-        activeShot == ShotType.ultimate;
+    final isPowerHit = solution.isPowerHit;
     audioService?.playHit(isPower: isPowerHit);
 
     final sparkColor = activeShot == ShotType.ultimate
@@ -1335,18 +1283,35 @@ class PickleballGame extends ChangeNotifier {
   }
 
   Offset _getAimDirection() {
-    final proposed = swipeDirection ?? Offset(joystickX * 0.6, -1);
-    return ShotTargeting.constrainReturnDirection(proposed, ball.position.x);
+    final timingDx = calculateContactTimingOffset(
+      player: player,
+      ball: ball,
+      isNearSide: true,
+    );
+    return calculatePlayerAimDirection(
+      swipeDirection: swipeDirection,
+      joystickX: joystickX,
+      joystickY: joystickY,
+      timingOffsetDx: timingDx,
+      contactX: ball.position.x,
+      isNearSide: true,
+    );
   }
 
   Offset _getOpponentAimDirection() {
-    final proposed =
-        opponentSwipeDirection ?? Offset(opponentJoystickX * 0.6, 1);
-    final constrained = ShotTargeting.constrainReturnDirection(
-      Offset(proposed.dx, -1),
-      ball.position.x,
+    final timingDx = calculateContactTimingOffset(
+      player: ai,
+      ball: ball,
+      isNearSide: false,
     );
-    return Offset(constrained.dx, 1);
+    return calculatePlayerAimDirection(
+      swipeDirection: opponentSwipeDirection,
+      joystickX: opponentJoystickX,
+      joystickY: opponentJoystickY,
+      timingOffsetDx: timingDx,
+      contactX: ball.position.x,
+      isNearSide: false,
+    );
   }
 
   // ── State: Point scored ─────────────────────────────────────────
