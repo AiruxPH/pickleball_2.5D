@@ -716,3 +716,6 @@
 - Applied regulation-net clearance assistance to low player contacts and retained deep-shot pace while preventing ordinary returns from sailing beyond the opponent baseline.
 - Added camera, render-scale, directional-sprite, trajectory, contact-timing, observation, kitchen-play, and compact how-to layout regression coverage.
 - Verification: `flutter test` passed all 146 tests and `flutter analyze` reported no issues. Dart hot reload/restart was not triggered because no Dart MCP/DTD runtime connector was available in this session.
+### 2026-10-06 - Firebase web initialization fix
+- Connected the online multiplayer bootstrap to the generated `firebase_options.dart` configuration so deployed web builds initialize Firebase without requiring manual `FIREBASE_*` build defines.
+- Preserved optional Dart-define overrides for alternate Firebase environments.
