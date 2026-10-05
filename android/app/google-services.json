@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1009997802044",
+    "project_id": "pickleball-simulator",
+    "storage_bucket": "pickleball-simulator.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1009997802044:android:0579cab974652a3820b139",
+        "android_client_info": {
+          "package_name": "com.example.my_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCI-wOWu3YuCa1BSUri3dp-etFdQy6nLZ0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1009997802044:android:f066a7e5e528235120b139",
+        "android_client_info": {
+          "package_name": "com.example.pickle_ball_game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCI-wOWu3YuCa1BSUri3dp-etFdQy6nLZ0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

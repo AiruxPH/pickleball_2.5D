@@ -1,5 +1,1 @@
-{
-  "database": {
-    "rules": "database.rules.json"
-  }
-}
+{"database":{"rules":"database.rules.json"},"flutter":{"platforms":{"android":{"default":{"projectId":"pickleball-simulator","appId":"1:1009997802044:android:0579cab974652a3820b139","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"pickleball-simulator","configurations":{"android":"1:1009997802044:android:0579cab974652a3820b139","ios":"1:1009997802044:ios:49da4d4b392b04f420b139","web":"1:1009997802044:web:19005ca40c3b553520b139"}}}}}}
