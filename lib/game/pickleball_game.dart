@@ -12,9 +12,8 @@ import '../game/score_controller.dart';
 import '../game/ball_controller.dart';
 import '../game/player_controller.dart';
 import '../game/ai_controller.dart';
-import '../game/camera_controller.dart';
 import '../game/physics_controller.dart';
-import '../game/vfx.dart';
+import '../game/game_presentation.dart';
 import '../game/shot_targeting.dart';
 import '../services/audio_service.dart';
 
@@ -80,7 +79,6 @@ class PickleballGame extends ChangeNotifier {
   late AIController aiController;
   AIController? partnerController;
   AIController? aiPartnerController;
-  late CameraController cameraController;
   late PhysicsController physicsController;
   late ScoreController scoreController;
 
@@ -109,17 +107,12 @@ class PickleballGame extends ChangeNotifier {
   bool get isOpponentHumanServing =>
       isLocalMultiplayer && identical(activeServer, ai);
 
-  // ── Camera ───────────────────────────────────────────────────
-  late PerspectiveCamera camera;
-  Size screenSize;
-
   // ── State ────────────────────────────────────────────────────
   GameState state;
   GameState _stateBeforePause = GameState.waitingForServe;
   bool isPracticeMode;
-  double stateTimer;        // time elapsed in current state
-  double animTime = 0;      // visual animation pulse timer
-  String lastMessage;       // e.g. "KITCHEN FAULT!", "TWO-BOUNCE FAULT", "OUT!"
+  double stateTimer; // time elapsed in current state
+  String lastMessage; // e.g. "KITCHEN FAULT!", "TWO-BOUNCE FAULT", "OUT!"
   double messageTimer;
   double _aiServeDelay = 1.3;
 
@@ -163,9 +156,7 @@ class PickleballGame extends ChangeNotifier {
   }
 
   // ── Visual effects ────────────────────────────────────────────
-  final VfxSystem vfx = VfxSystem();
-  double cameraZoom;        // 1.0 = normal, <1 = zoomed in slightly
-  double screenShake;       // 0..1
+  GameEffects effects;
 
   // ── Score animation ───────────────────────────────────────────
   bool playerScoreAnim = false;
@@ -180,10 +171,12 @@ class PickleballGame extends ChangeNotifier {
   final AudioService? audioService;
   final AIDifficulty? difficultyOverride;
 
-  AIDifficulty get currentAIDifficulty => difficultyOverride ?? settings.difficulty;
+  AIDifficulty get currentAIDifficulty =>
+      difficultyOverride ?? settings.difficulty;
 
   PickleballGame({
-    required this.screenSize,
+    @Deprecated('Rendering owns viewport size; simulation is size-independent.')
+    Size? screenSize,
     this.isPracticeMode = false,
     this.drillType,
     this.gameMode = GameMode.singles,
@@ -191,6 +184,7 @@ class PickleballGame extends ChangeNotifier {
     required this.settings,
     this.difficultyOverride,
     this.audioService,
+    this.effects = const NoGameEffects(),
   })  : player = Player(
           startPosition: Vec3(16.0, 0, CourtDimensions.playerStartZ),
           isHuman: true,
@@ -226,20 +220,7 @@ class PickleballGame extends ChangeNotifier {
         state = GameState.waitingForServe,
         stateTimer = 0,
         lastMessage = '',
-        messageTimer = 0,
-        cameraZoom = 1.0,
-        screenShake = 0 {
-    // Camera starts behind player, looking toward net
-    camera = PerspectiveCamera(
-      position: Vec3(
-        0,
-        CameraConstants.cameraHeight,
-        CourtDimensions.playerStartZ + CameraConstants.cameraDistanceBehind,
-      ),
-      target: Vec3(0, 0, 0),
-      screenSize: screenSize,
-    );
-
+        messageTimer = 0 {
     // Init controllers
     ballController = BallController(
       ball: ball,
@@ -292,8 +273,6 @@ class PickleballGame extends ChangeNotifier {
       );
     }
 
-    cameraController = CameraController(
-        camera: camera, player: player, ball: ball);
     physicsController = PhysicsController(
       ball: ball,
       player: player,
@@ -328,7 +307,6 @@ class PickleballGame extends ChangeNotifier {
     }
 
     stateTimer += dt;
-    animTime += dt;
 
     // Tick message timer
     if (messageTimer > 0) {
@@ -352,14 +330,6 @@ class PickleballGame extends ChangeNotifier {
     playerPartner?.regenStamina(dt);
 
     // Decay screen shake
-    if (screenShake > 0) {
-      screenShake = math.max(0, screenShake - dt * 3);
-    }
-
-    // World-space particles & court marks (follow bullet-time during rallies)
-    vfx.enabled = settings.showParticles;
-    vfx.update(state == GameState.rally ? dt * timeDilation : dt);
-
     // State machine
     switch (state) {
       case GameState.waitingForServe:
@@ -376,9 +346,6 @@ class PickleballGame extends ChangeNotifier {
         break;
     }
 
-    // Update camera
-    cameraController.update(dt, cameraZoom);
-
     notifyListeners();
   }
 
@@ -393,8 +360,7 @@ class PickleballGame extends ChangeNotifier {
     // won by the serving team swaps that team's two court positions.
     if (gameMode == GameMode.doubles) {
       player.assignedRightSide = scoreController.playerPrimaryOnRight;
-      playerPartner?.assignedRightSide =
-          !scoreController.playerPrimaryOnRight;
+      playerPartner?.assignedRightSide = !scoreController.playerPrimaryOnRight;
       ai.assignedRightSide = scoreController.aiPrimaryOnRight;
       aiPartner?.assignedRightSide = !scoreController.aiPrimaryOnRight;
     } else {
@@ -625,7 +591,7 @@ class PickleballGame extends ChangeNotifier {
     state = GameState.rally;
     stateTimer = 0;
     audioService?.playHit(isPower: false);
-    vfx.spawnHitSparks(ball.position, AppColors.ballColor, power: 0.2);
+    effects.spawnHitSparks(ball.position, AppColors.ballColor, power: 0.2);
     player.isSwinging = true;
     player.animState = PlayerAnimState.serve;
     player.animTimer = 0;
@@ -667,7 +633,9 @@ class PickleballGame extends ChangeNotifier {
       }
     }
 
-    final targetX = (baseTargetX + (rng.nextDouble() - 0.5) * (diff == AIDifficulty.hard ? 2.5 : 5.0)).clamp(
+    final targetX = (baseTargetX +
+            (rng.nextDouble() - 0.5) * (diff == AIDifficulty.hard ? 2.5 : 5.0))
+        .clamp(
       serverRight ? 4.0 : -CourtDimensions.halfWidth + 4.0,
       serverRight ? CourtDimensions.halfWidth - 4.0 : -4.0,
     );
@@ -694,7 +662,7 @@ class PickleballGame extends ChangeNotifier {
     state = GameState.rally;
     stateTimer = 0;
     audioService?.playHit(isPower: false);
-    vfx.spawnHitSparks(ball.position, AppColors.ballColor,
+    effects.spawnHitSparks(ball.position, AppColors.ballColor,
         power: 0.2, dirZ: 1.0);
     server.animState = PlayerAnimState.serve;
     server.animTimer = 0;
@@ -718,7 +686,7 @@ class PickleballGame extends ChangeNotifier {
     state = GameState.rally;
     stateTimer = 0;
     audioService?.playHit(isPower: false);
-    vfx.spawnHitSparks(ball.position, AppColors.ballColor, power: 0.2);
+    effects.spawnHitSparks(ball.position, AppColors.ballColor, power: 0.2);
     server.animState = PlayerAnimState.serve;
     server.animTimer = 0;
   }
@@ -824,13 +792,13 @@ class PickleballGame extends ChangeNotifier {
 
     // USA Pickleball NVZ Momentum Rule:
     // If player executed a volley and momentum carries them into NVZ or onto NVZ line
-    final playerTeamMomentumOffender =
-        player.kitchenMomentumFlag && player.isInKitchen(includeFootMargin: true)
-            ? player
-            : (playerPartner?.kitchenMomentumFlag == true &&
-                    playerPartner!.isInKitchen(includeFootMargin: true)
-                ? playerPartner
-                : null);
+    final playerTeamMomentumOffender = player.kitchenMomentumFlag &&
+            player.isInKitchen(includeFootMargin: true)
+        ? player
+        : (playerPartner?.kitchenMomentumFlag == true &&
+                playerPartner!.isInKitchen(includeFootMargin: true)
+            ? playerPartner
+            : null);
     if (playerTeamMomentumOffender != null) {
       playerTeamMomentumOffender.kitchenMomentumFlag = false;
       scoreController.lastFaultDetail =
@@ -901,9 +869,8 @@ class PickleballGame extends ChangeNotifier {
       ai.isSwinging = true;
       ai.swingCooldown = 0.40;
       ai.isForehand = dir.dx <= 0;
-      ai.animState = ai.isForehand
-          ? PlayerAnimState.forehand
-          : PlayerAnimState.backhand;
+      ai.animState =
+          ai.isForehand ? PlayerAnimState.forehand : PlayerAnimState.backhand;
       ai.animTimer = 0;
       ai.swingArm = 0;
     }
@@ -958,8 +925,7 @@ class PickleballGame extends ChangeNotifier {
     // Physics: paddle collisions
     final collision = physicsController.update(dt);
     if (collision.playerHit) {
-      screenShake = 0.3;
-      cameraZoom = 0.95;
+      effects.pulseCamera(shake: 0.3, zoom: 0.95);
       audioService?.playHit(isPower: collision.powerHit);
     }
     if (collision.aiHit) {
@@ -967,15 +933,10 @@ class PickleballGame extends ChangeNotifier {
     }
     if (collision.netHit) {
       audioService?.playNetHit();
-      vfx.spawnNetPuff(ball.position);
+      effects.spawnNetPuff(ball.position);
     }
     if (collision.powerHit) {
-      cameraZoom = 0.90;
-    }
-
-    // Camera zoom recovery
-    if (cameraZoom < 1.0) {
-      cameraZoom = math.min(1.0, cameraZoom + dt * 1.5);
+      effects.pulseCamera(zoom: 0.90);
     }
 
     // Check scoring & rule conditions
@@ -1018,7 +979,8 @@ class PickleballGame extends ChangeNotifier {
       }
 
       if (!player.hasEstablishedOutsideKitchen) {
-        scoreController.lastFaultDetail = 'NVZ FAULT: FEET NOT ESTABLISHED OUTSIDE!';
+        scoreController.lastFaultDetail =
+            'NVZ FAULT: FEET NOT ESTABLISHED OUTSIDE!';
         _handlePointResult(PointResult.kitchenFault, playerFaulted: true);
         return;
       }
@@ -1056,7 +1018,8 @@ class PickleballGame extends ChangeNotifier {
     } else {
       // Stamina check for non-ultimate shots
       if (activeShot == ShotType.power &&
-          !player.useStamina(StaminaConstants.powerShotCost * staminaDiscount)) {
+          !player
+              .useStamina(StaminaConstants.powerShotCost * staminaDiscount)) {
         activeShot = ShotType.normal;
       } else if (activeShot == ShotType.lob &&
           !player.useStamina(StaminaConstants.lobShotCost * staminaDiscount)) {
@@ -1078,35 +1041,30 @@ class PickleballGame extends ChangeNotifier {
           case UltimateType.thunderbolt:
             forwardSpeed = 245.0;
             upSpeed = 26.0;
-            screenShake = 0.75;
-            cameraZoom = 0.78;
+            effects.pulseCamera(shake: 0.75, zoom: 0.78);
             ball.lightningFlash = 1.0;
             break;
           case UltimateType.ghostPhantom:
             forwardSpeed = 155.0;
             upSpeed = 40.0;
-            screenShake = 0.40;
-            cameraZoom = 0.85;
+            effects.pulseCamera(shake: 0.40, zoom: 0.85);
             break;
           case UltimateType.dragonMeteor:
             forwardSpeed = 135.0;
             upSpeed = 55.0;
-            screenShake = 0.55;
-            cameraZoom = 0.82;
+            effects.pulseCamera(shake: 0.55, zoom: 0.82);
             break;
           case UltimateType.frostbite:
             forwardSpeed = 175.0;
             upSpeed = 34.0;
-            screenShake = 0.45;
-            cameraZoom = 0.84;
+            effects.pulseCamera(shake: 0.45, zoom: 0.84);
             break;
         }
         break;
       case ShotType.power:
         forwardSpeed = 165.0;
         upSpeed = 38.0;
-        screenShake = 0.35;
-        cameraZoom = 0.90;
+        effects.pulseCamera(shake: 0.35, zoom: 0.90);
         addUltimateCharge(0.18);
         break;
       case ShotType.lob:
@@ -1123,8 +1081,7 @@ class PickleballGame extends ChangeNotifier {
         // Overhead smash: fast drive with controlled elevation
         forwardSpeed = 210.0;
         upSpeed = 12.0;
-        screenShake = 0.50;
-        cameraZoom = 0.88;
+        effects.pulseCamera(shake: 0.50, zoom: 0.88);
         addUltimateCharge(0.20);
         break;
       case ShotType.normal:
@@ -1145,11 +1102,11 @@ class PickleballGame extends ChangeNotifier {
 
     // Reward difficult contacts near the back line with additional depth.
     // The assist fades to zero at the normal starting position.
-    final deepRecoveryFactor = ((ball.position.z -
-                CourtDimensions.playerStartZ) /
-            (CourtDimensions.playerMaxZ - CourtDimensions.playerStartZ))
-        .clamp(0.0, 1.0)
-        .toDouble();
+    final deepRecoveryFactor =
+        ((ball.position.z - CourtDimensions.playerStartZ) /
+                (CourtDimensions.playerMaxZ - CourtDimensions.playerStartZ))
+            .clamp(0.0, 1.0)
+            .toDouble();
     if (deepRecoveryFactor > 0 &&
         activeShot != ShotType.smash &&
         activeShot != ShotType.ultimate) {
@@ -1175,9 +1132,8 @@ class PickleballGame extends ChangeNotifier {
       final assistedForwardZ =
           math.max(1.0, aimDirZ.abs() * forwardSpeed * 0.88);
       final timeToNet = ball.position.z / assistedForwardZ;
-      const targetNetHeight = CourtDimensions.netHeight +
-          PhysicsConstants.ballRadius +
-          4.0;
+      const targetNetHeight =
+          CourtDimensions.netHeight + PhysicsConstants.ballRadius + 4.0;
       final minimumUpSpeed = (targetNetHeight -
                   ball.position.y +
                   0.5 * PhysicsConstants.gravity * timeToNet * timeToNet) /
@@ -1212,7 +1168,7 @@ class PickleballGame extends ChangeNotifier {
     final sparkColor = activeShot == ShotType.ultimate
         ? getUltimateByType(ball.ultimateType ?? equippedUltimate).primaryColor
         : (isPowerHit ? AppColors.power : AppColors.ballColor);
-    vfx.spawnHitSparks(
+    effects.spawnHitSparks(
       ball.position,
       sparkColor,
       power: activeShot == ShotType.ultimate ? 1.0 : (isPowerHit ? 0.8 : 0.4),
@@ -1287,16 +1243,16 @@ class PickleballGame extends ChangeNotifier {
         break;
     }
 
-    final deepRecoveryFactor = ((-ball.position.z -
-                CourtDimensions.playerStartZ) /
-            (CourtDimensions.playerMaxZ - CourtDimensions.playerStartZ))
-        .clamp(0.0, 1.0)
-        .toDouble();
+    final deepRecoveryFactor =
+        ((-ball.position.z - CourtDimensions.playerStartZ) /
+                (CourtDimensions.playerMaxZ - CourtDimensions.playerStartZ))
+            .clamp(0.0, 1.0)
+            .toDouble();
     if (deepRecoveryFactor > 0 && activeShot != ShotType.smash) {
       forwardSpeed *= 1.0 +
           (activeShot == ShotType.lob
-              ? 0.24
-              : (activeShot == ShotType.power ? 0.18 : 0.15)) *
+                  ? 0.24
+                  : (activeShot == ShotType.power ? 0.18 : 0.15)) *
               deepRecoveryFactor;
       upSpeed += (activeShot == ShotType.lob ? 8 : 15) * deepRecoveryFactor;
     }
@@ -1319,14 +1275,15 @@ class PickleballGame extends ChangeNotifier {
     ball.spinRate = activeShot == ShotType.drop ? -500 : 500;
     ball.shotType = activeShot;
     ball.rallyHitCount++;
-    final isPower = activeShot == ShotType.power || activeShot == ShotType.smash;
+    final isPower =
+        activeShot == ShotType.power || activeShot == ShotType.smash;
     _onAIHit(isPower);
   }
 
   // ── VFX event hooks ────────────────────────────────────────────
   void _onAIHit(bool isPower) {
     audioService?.playHit(isPower: isPower);
-    vfx.spawnHitSparks(
+    effects.spawnHitSparks(
       ball.position,
       isPower ? AppColors.power : AppColors.ballColor,
       power: isPower ? 0.8 : 0.4,
@@ -1338,7 +1295,7 @@ class PickleballGame extends ChangeNotifier {
     final theme = settings.courtTheme;
     final dust = Color.lerp(theme.surfaceColorLight, Colors.white, 0.55)!;
     final intensity = (ball.speed / 140.0).clamp(0.0, 1.0);
-    vfx.spawnBounce(ball.position, dust, intensity);
+    effects.spawnBounce(ball.position, dust, intensity);
   }
 
   Offset _getAimDirection() {
@@ -1347,7 +1304,8 @@ class PickleballGame extends ChangeNotifier {
   }
 
   Offset _getOpponentAimDirection() {
-    final proposed = opponentSwipeDirection ?? Offset(opponentJoystickX * 0.6, 1);
+    final proposed =
+        opponentSwipeDirection ?? Offset(opponentJoystickX * 0.6, 1);
     final constrained = ShotTargeting.constrainReturnDirection(
       Offset(proposed.dx, -1),
       ball.position.x,
@@ -1401,9 +1359,8 @@ class PickleballGame extends ChangeNotifier {
       case PointResult.serviceFault:
         final faultByPlayer = ball.lastHitByPlayer;
         final scored = faultByPlayer ? awardAIRally() : awardPlayerRally();
-        final fallback = result == PointResult.netFault
-            ? 'NET FAULT!'
-            : 'SERVICE FAULT!';
+        final fallback =
+            result == PointResult.netFault ? 'NET FAULT!' : 'SERVICE FAULT!';
         msg = rallyMessage(scored, fallback);
         break;
       case PointResult.kitchenFault:
@@ -1419,9 +1376,8 @@ class PickleballGame extends ChangeNotifier {
         msg = rallyMessage(scored, fallback);
         break;
       case PointResult.doubleBounceFault:
-        final scored = ball.playerSideBounce
-            ? awardAIRally()
-            : awardPlayerRally();
+        final scored =
+            ball.playerSideBounce ? awardAIRally() : awardPlayerRally();
         msg = rallyMessage(scored, 'DOUBLE BOUNCE!');
         break;
       case PointResult.none:
@@ -1477,13 +1433,13 @@ class PickleballGame extends ChangeNotifier {
     // USA Pickleball Rule 9.B: Momentum carrying into NVZ AFTER rally ended is a fault!
     // Even if you hit the ball while standing outside, it is still a fault if your momentum
     // makes you step into or touch the Kitchen afterward. This applies even if the rally has already ended.
-    final playerTeamMomentumOffender =
-        player.kitchenMomentumFlag && player.isInKitchen(includeFootMargin: true)
-            ? player
-            : (playerPartner?.kitchenMomentumFlag == true &&
-                    playerPartner!.isInKitchen(includeFootMargin: true)
-                ? playerPartner
-                : null);
+    final playerTeamMomentumOffender = player.kitchenMomentumFlag &&
+            player.isInKitchen(includeFootMargin: true)
+        ? player
+        : (playerPartner?.kitchenMomentumFlag == true &&
+                playerPartner!.isInKitchen(includeFootMargin: true)
+            ? playerPartner
+            : null);
     final aiTeamMomentumOffender =
         ai.kitchenMomentumFlag && ai.isInKitchen(includeFootMargin: true)
             ? ai
@@ -1568,7 +1524,7 @@ class PickleballGame extends ChangeNotifier {
     timeDilation = 1.0;
     slowMoTimer = 0;
     ai.speedMultiplier = 1.0;
-    vfx.clear();
+    effects.clear();
     notifyListeners();
   }
 

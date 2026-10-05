@@ -8,6 +8,7 @@ import '../services/lan/lan_state_snapshot.dart';
 import '../game/bot_agent.dart';
 import '../game/camera_controller.dart';
 import '../game/game_loop.dart';
+import '../game/game_presentation.dart';
 import '../game/match_command_controller.dart';
 import '../game/pickleball_game.dart';
 import '../models/game_settings.dart';
@@ -41,6 +42,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen>
     with SingleTickerProviderStateMixin {
   PickleballGame? _game;
+  GamePresentation? _presentation;
   MatchCommandController? _commands;
   MatchCommandController? _opponentCommands;
   BotAgent? _playerBot;
@@ -53,13 +55,16 @@ class _GameScreenState extends State<GameScreen>
   final ValueNotifier<double> _staminaNotifier = ValueNotifier(1.0);
   final ValueNotifier<double> _ultimateNotifier = ValueNotifier(0.45);
   final ValueNotifier<int> _scoreNotifier = ValueNotifier(0);
-  final ValueNotifier<GameState> _stateNotifier = ValueNotifier(GameState.waitingForServe);
+  final ValueNotifier<GameState> _stateNotifier =
+      ValueNotifier(GameState.waitingForServe);
   int _lastScoreHash = -1;
   GameState _lastState = GameState.waitingForServe;
   double _lastStamina = 1.0;
   double _lastUltimate = 0.45;
   bool _lastUltimateArmed = false;
   double _accumulatedDt = 0.0;
+  double _simulationAccumulator = 0.0;
+  static const double _simulationStep = 1 / 120;
 
   // Swipe tracking
   Offset? _swipeStart;
@@ -93,10 +98,10 @@ class _GameScreenState extends State<GameScreen>
       _initGame();
     } else if (_game != null) {
       final size = MediaQuery.of(context).size;
-      _game!.screenSize = size;
-      _game!.camera.screenSize = size;
+      _presentation!.resize(size);
       final isLandscape = size.width > size.height;
-      _game!.camera.fov = isLandscape ? 48.0 : CameraConstants.defaultFOV;
+      _presentation!.camera.fov =
+          isLandscape ? 48.0 : CameraConstants.defaultFOV;
     }
   }
 
@@ -105,9 +110,8 @@ class _GameScreenState extends State<GameScreen>
     CharacterSpriteManager.instance.init();
     final settings = context.read<GameSettings>();
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
-    _rematchArguments = args == null
-        ? <String, dynamic>{}
-        : Map<String, dynamic>.from(args);
+    _rematchArguments =
+        args == null ? <String, dynamic>{} : Map<String, dynamic>.from(args);
     _isPractice = args?['practice'] == true;
     _isTournament = args?['isTournament'] == true;
     _isCareer = args?['isCareer'] == true;
@@ -136,7 +140,6 @@ class _GameScreenState extends State<GameScreen>
     final size = MediaQuery.of(context).size;
     final isLandscape = size.width > size.height;
     _game = PickleballGame(
-      screenSize: size,
       isPracticeMode: _isPractice,
       drillType: drillType,
       gameMode: gameMode,
@@ -145,6 +148,13 @@ class _GameScreenState extends State<GameScreen>
       difficultyOverride: diffOverride,
       audioService: _audioService,
     );
+    _presentation = GamePresentation(
+      viewportSize: size,
+      player: _game!.player,
+      ball: _game!.ball,
+      settings: settings,
+    );
+    _game!.effects = _presentation!;
     _commands = MatchCommandController(
       game: _game!,
       playerSlot: 0,
@@ -167,8 +177,8 @@ class _GameScreenState extends State<GameScreen>
     }
     if (_isLanMultiplayer) {
       if (_lanRole == 'host') {
-        _lanCommandSub = LanMultiplayerService.instance.onCommandReceived
-            .listen((cmd) {
+        _lanCommandSub =
+            LanMultiplayerService.instance.onCommandReceived.listen((cmd) {
           _opponentCommands?.dispatch(cmd);
         });
       } else if (_lanRole == 'client') {
@@ -178,7 +188,7 @@ class _GameScreenState extends State<GameScreen>
             snapshot.applyToGame(_game!);
           }
         });
-        _game!.cameraController.setView(CameraView.baseline);
+        _presentation!.cameraController.setView(CameraView.baseline);
       }
     }
     if (_isBotVsBot) {
@@ -187,10 +197,10 @@ class _GameScreenState extends State<GameScreen>
         commands: _commands!,
         difficulty: diffOverride ?? settings.difficulty,
       );
-      _game!.cameraController.setView(CameraView.baseline);
+      _presentation!.cameraController.setView(CameraView.baseline);
     }
     if (isLandscape) {
-      _game!.camera.fov = 48.0;
+      _presentation!.camera.fov = 48.0;
     }
 
     // Start game loop at 60 FPS
@@ -216,12 +226,27 @@ class _GameScreenState extends State<GameScreen>
       }
     }
 
-    final clampedDt = ((_accumulatedDt > 0) ? _accumulatedDt : dt).clamp(0.0, 0.05);
+    final clampedDt =
+        ((_accumulatedDt > 0) ? _accumulatedDt : dt).clamp(0.0, 0.05);
     _accumulatedDt = 0.0;
 
     _matchDuration += clampedDt;
-    _playerBot?.update(clampedDt);
-    _game?.update(clampedDt);
+    _simulationAccumulator =
+        (_simulationAccumulator + clampedDt).clamp(0.0, 0.25);
+    while (_simulationAccumulator >= _simulationStep) {
+      _playerBot?.update(_simulationStep);
+      _game?.update(_simulationStep);
+      _simulationAccumulator -= _simulationStep;
+    }
+    final game = _game;
+    if (game != null &&
+        game.state != GameState.paused &&
+        game.state != GameState.gameOver) {
+      _presentation?.update(
+        clampedDt,
+        effectTimeScale: game.state == GameState.rally ? game.timeDilation : 1,
+      );
+    }
 
     if (_isLanMultiplayer && _lanRole == 'host' && _game != null) {
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -234,7 +259,6 @@ class _GameScreenState extends State<GameScreen>
     }
 
     // Track rally length & score changes
-    final game = _game;
     if (game != null) {
       final rallyHits = game.ball.rallyHitCount;
       if (rallyHits > _currentRally) {
@@ -247,7 +271,9 @@ class _GameScreenState extends State<GameScreen>
       if (!_wasDown09 && game.player.score == 0 && game.ai.score == 9) {
         _wasDown09 = true;
       }
-      if (game.ball.isUltimate && game.ball.lastHitByPlayer && game.ball.rallyHitCount == 1) {
+      if (game.ball.isUltimate &&
+          game.ball.lastHitByPlayer &&
+          game.ball.rallyHitCount == 1) {
         _smashCount++;
       }
 
@@ -349,8 +375,7 @@ class _GameScreenState extends State<GameScreen>
     return game.ball.lastHitByPlayer ? _opponentCommands : _commands;
   }
 
-  void _onJoystickMove(double x, double y) =>
-      _activeTouchCommands?.move(x, y);
+  void _onJoystickMove(double x, double y) => _activeTouchCommands?.move(x, y);
   void _onJoystickRelease() => _activeTouchCommands?.stopMoving();
 
   void _handleKeyEvent(KeyEvent event) {
@@ -517,10 +542,10 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _cycleSpectatorCamera() {
-    final game = _game;
-    if (game == null || !_isBotVsBot) return;
+    final cameraController = _presentation?.cameraController;
+    if (cameraController == null || !_isBotVsBot) return;
     setState(() {
-      game.cameraController.cycleSpectatorView();
+      cameraController.cycleSpectatorView();
     });
     HapticFeedback.selectionClick();
   }
@@ -548,16 +573,16 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _onSpectatorScaleUpdate(ScaleUpdateDetails details) {
-    final game = _game;
+    final cameraController = _presentation?.cameraController;
     final previousPoint = _spectatorGesturePoint;
-    if (game == null ||
+    if (cameraController == null ||
         previousPoint == null ||
-        game.cameraController.view != CameraView.freeRoam) {
+        cameraController.view != CameraView.freeRoam) {
       return;
     }
     final delta = details.focalPoint - previousPoint;
     final scaleDelta = details.scale / _spectatorGestureScale;
-    game.cameraController.adjustFreeRoam(
+    cameraController.adjustFreeRoam(
       orbitDx: delta.dx,
       orbitDy: delta.dy,
       zoomFactor: scaleDelta,
@@ -585,8 +610,7 @@ class _GameScreenState extends State<GameScreen>
     final isLandscape = size.width > size.height;
 
     // Keep camera updated with current viewport size & aspect ratio
-    game.screenSize = size;
-    game.camera.screenSize = size;
+    _presentation!.resize(size);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -622,6 +646,7 @@ class _GameScreenState extends State<GameScreen>
                   child: CustomPaint(
                     painter: CourtPainter(
                       game: game,
+                      presentation: _presentation!,
                       repaint: _tickNotifier,
                     ),
                   ),
@@ -688,10 +713,10 @@ class _GameScreenState extends State<GameScreen>
                               ? 'LAN ${_lanRole == 'host' ? 'HOST' : 'CLIENT'} ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}'
                               : 'LOCAL ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}')
                           : (_isBotVsBot
-                          ? 'BOT VS BOT'
-                          : (game.gameMode == GameMode.doubles
-                              ? 'DOUBLES'
-                              : 'SINGLES'))),
+                              ? 'BOT VS BOT'
+                              : (game.gameMode == GameMode.doubles
+                                  ? 'DOUBLES'
+                                  : 'SINGLES'))),
                   opponentName: _isLocalMultiplayer
                       ? (_isLanMultiplayer
                           ? (_lanRole == 'host' ? 'CLIENT' : 'HOST')
@@ -719,13 +744,13 @@ class _GameScreenState extends State<GameScreen>
               top: isLandscape ? 8 : UISizes.hudPadding,
               right: isLandscape ? 64 : 62,
               child: _SpectatorCameraButton(
-                label: game.cameraController.view.label,
+                label: _presentation!.cameraController.view.label,
                 onTap: _cycleSpectatorCamera,
               ),
             ),
 
           if (_isBotVsBot &&
-              game.cameraController.view == CameraView.freeRoam)
+              _presentation!.cameraController.view == CameraView.freeRoam)
             const Positioned(
               bottom: 18,
               left: 0,
@@ -743,7 +768,8 @@ class _GameScreenState extends State<GameScreen>
                   valueListenable: _tickNotifier,
                   builder: (_, __, ___) {
                     final isClient = _isLanMultiplayer && _lanRole == 'client';
-                    final playerTwo = isClient || _activeTouchCommands == _opponentCommands;
+                    final playerTwo =
+                        isClient || _activeTouchCommands == _opponentCommands;
                     return Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
@@ -784,8 +810,7 @@ class _GameScreenState extends State<GameScreen>
                 size: joystickSize,
                 onMove: _onJoystickMove,
                 onRelease: _onJoystickRelease,
-                sensitivity:
-                    context.read<GameSettings>().joystickSensitivity,
+                sensitivity: context.read<GameSettings>().joystickSensitivity,
               ),
             ),
 
@@ -974,9 +999,8 @@ class _GameScreenState extends State<GameScreen>
                         style: TextStyle(
                           fontSize: 6.5,
                           fontWeight: FontWeight.w800,
-                          color: isLow
-                              ? AppColors.power
-                              : const Color(0xFFD4E157),
+                          color:
+                              isLow ? AppColors.power : const Color(0xFFD4E157),
                         ),
                       ),
                     ],
@@ -1007,8 +1031,8 @@ class _GameScreenState extends State<GameScreen>
   // ── Action Controls: Context-Aware & Ultra-Compact Thumb Cluster ──
   Widget _buildActionButtons(PickleballGame game,
       {required bool isLandscape, double screenHeight = 400}) {
-    final isServing = game.state == GameState.waitingForServe &&
-        game.isHumanServing;
+    final isServing =
+        game.state == GameState.waitingForServe && game.isHumanServing;
 
     // In landscape, derive button sizes from screen height so they scale
     // proportionally across all mobile device sizes (phones ~320-420px tall)
@@ -1020,19 +1044,19 @@ class _GameScreenState extends State<GameScreen>
       // Distribute: top row uses smaller btns, bottom row uses larger btns
       final clusterH = (screenHeight * 0.82).clamp(180.0, 340.0);
       // HIT / ULT are ~half the cluster, top row buttons ~38% of cluster
-      hitBtnSize   = (clusterH * 0.46).clamp(52.0, 80.0);
-      ultBtnSize   = (clusterH * 0.42).clamp(48.0, 72.0);
+      hitBtnSize = (clusterH * 0.46).clamp(52.0, 80.0);
+      ultBtnSize = (clusterH * 0.42).clamp(48.0, 72.0);
       powerBtnSize = (clusterH * 0.34).clamp(40.0, 60.0);
       smallBtnSize = (clusterH * 0.30).clamp(36.0, 54.0);
-      btnSpacing   = (screenHeight * 0.025).clamp(5.0, 10.0);
-      rowSpacing   = (screenHeight * 0.020).clamp(4.0, 8.0);
+      btnSpacing = (screenHeight * 0.025).clamp(5.0, 10.0);
+      rowSpacing = (screenHeight * 0.020).clamp(4.0, 8.0);
     } else {
       smallBtnSize = 40.0;
       powerBtnSize = 44.0;
-      ultBtnSize   = 54.0;
-      hitBtnSize   = UISizes.hitButtonSize;
-      btnSpacing   = 6.0;
-      rowSpacing   = 6.0;
+      ultBtnSize = 54.0;
+      hitBtnSize = UISizes.hitButtonSize;
+      btnSpacing = 6.0;
+      rowSpacing = 6.0;
     }
 
     // During player serve: only display hero SERVE button & ULTIMATE
@@ -1128,8 +1152,7 @@ class _GameScreenState extends State<GameScreen>
   }
 
   // ── Ultimate Skill Selector Modal ─────────────────────────────
-  void _showUltimateSelectorModal(
-      BuildContext context, PickleballGame game) {
+  void _showUltimateSelectorModal(BuildContext context, PickleballGame game) {
     final settings = context.read<GameSettings>();
 
     showModalBottomSheet(
@@ -1151,8 +1174,7 @@ class _GameScreenState extends State<GameScreen>
               ),
               decoration: const BoxDecoration(
                 color: Color(0xF00B132B),
-                borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 border: Border(
                   top: BorderSide(color: Color(0xFF38BDF8), width: 1.5),
                 ),
@@ -1252,8 +1274,7 @@ class _GameScreenState extends State<GameScreen>
                                     width: 42,
                                     height: 42,
                                     decoration: BoxDecoration(
-                                      color:
-                                          skill.primaryColor.withAlpha(35),
+                                      color: skill.primaryColor.withAlpha(35),
                                       shape: BoxShape.circle,
                                       border: Border.all(
                                         color: skill.primaryColor,
@@ -1314,8 +1335,7 @@ class _GameScreenState extends State<GameScreen>
                                     onPressed: isCurrent
                                         ? null
                                         : () {
-                                            settings
-                                                .equipUltimate(skill.type);
+                                            settings.equipUltimate(skill.type);
                                             setModalState(() {});
                                             setState(() {});
                                             HapticFeedback.mediumImpact();
@@ -1331,8 +1351,7 @@ class _GameScreenState extends State<GameScreen>
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 16, vertical: 10),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
                                     child: Text(
@@ -1360,17 +1379,17 @@ class _GameScreenState extends State<GameScreen>
                               // Mini Stats Row
                               Row(
                                 children: [
-                                  _buildMiniStat('POWER', skill.power,
-                                      skill.primaryColor),
+                                  _buildMiniStat(
+                                      'POWER', skill.power, skill.primaryColor),
                                   const SizedBox(width: 10),
-                                  _buildMiniStat('SPEED', skill.speed,
-                                      skill.primaryColor),
+                                  _buildMiniStat(
+                                      'SPEED', skill.speed, skill.primaryColor),
                                   const SizedBox(width: 10),
-                                  _buildMiniStat('CURVE', skill.curve,
-                                      skill.primaryColor),
+                                  _buildMiniStat(
+                                      'CURVE', skill.curve, skill.primaryColor),
                                   const SizedBox(width: 10),
-                                  _buildMiniStat('DECEPTION',
-                                      skill.deception, skill.primaryColor),
+                                  _buildMiniStat('DECEPTION', skill.deception,
+                                      skill.primaryColor),
                                 ],
                               ),
                             ],
@@ -1484,7 +1503,8 @@ class _GameScreenState extends State<GameScreen>
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0284C7).withAlpha(180),
                   borderRadius: BorderRadius.circular(6),
@@ -1656,7 +1676,8 @@ class _UltimateButtonWidgetState extends State<_UltimateButtonWidget>
             onTapUp: (_) {
               _pressCtrl.reverse();
               try {
-                Provider.of<AudioService>(context, listen: false).playButtonClick();
+                Provider.of<AudioService>(context, listen: false)
+                    .playButtonClick();
               } catch (_) {}
               if (isReady) {
                 HapticFeedback.heavyImpact();

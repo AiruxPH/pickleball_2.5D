@@ -505,3 +505,10 @@
 ### 2026-10-05 - Compact landscape how-to layout fix
 - Made the landscape lesson summary adapt its vertical spacing when the available content height is below 230 pixels.
 - Added a scroll fallback for unusually short landscape windows and enlarged accessibility text, preventing the lesson column from producing a bottom RenderFlex overflow.
+
+### 2026-10-05 - Simulation and rendering separation
+- Removed camera, viewport, projection updates, animation time, camera shake, zoom, particles, and court marks from the match simulation's ownership.
+- Added a dedicated `GamePresentation` layer and a one-way `GameEffects` event port so simulation events can request visuals without reading presentation state.
+- Moved camera resizing, spectator controls, and rendering updates into `GameScreen`, leaving gameplay in fixed world-space coordinates.
+- Changed gameplay advancement to a fixed 120 Hz simulation step independent of rendering frame rate.
+- Added a regression test that aggressively resizes, rotates, zooms, and distorts the camera while proving the resulting simulation state remains identical.

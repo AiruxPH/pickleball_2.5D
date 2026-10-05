@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../game/pickleball_game.dart';
+import '../game/game_presentation.dart';
 import '../models/game_settings.dart';
 import '../models/pickleball.dart';
 import '../models/player.dart';
@@ -31,12 +32,14 @@ import '../utils/game_math.dart';
 
 class CourtPainter extends CustomPainter {
   final PickleballGame game;
+  final GamePresentation presentation;
   final double? animTimeOverride;
 
-  double get animTime => animTimeOverride ?? game.animTime;
+  double get animTime => animTimeOverride ?? presentation.animTime;
 
   CourtPainter({
     required this.game,
+    required this.presentation,
     this.animTimeOverride,
     super.repaint,
   });
@@ -47,21 +50,27 @@ class CourtPainter extends CustomPainter {
   static CourtTheme? _cachedAtmoTheme;
 
   // ── Cached Paint objects (allocated once, reused every frame) ──
-  static final Paint _railingFillPaint = Paint()..color = const Color(0x660F172A);
+  static final Paint _railingFillPaint = Paint()
+    ..color = const Color(0x660F172A);
   static final Paint _railingLinePaint = Paint()
     ..color = const Color(0x8894A3B8)
     ..strokeWidth = 1.5;
 
   // ── Performance Mode Cached Flat Paints (zero shader creation per frame) ──
-  static final Paint _fastSideBarrierPaint = Paint()..color = const Color(0xFF0F1E36);
-  static final Paint _fastBackBoardPaint = Paint()..color = const Color(0xFF0F172A);
+  static final Paint _fastSideBarrierPaint = Paint()
+    ..color = const Color(0xFF0F1E36);
+  static final Paint _fastBackBoardPaint = Paint()
+    ..color = const Color(0xFF0F172A);
   static final Paint _reusableCourtPaint = Paint();
   static final Paint _reusableStrokePaint = Paint();
   static final Paint _courtLinePaint = Paint();
   static final Paint _fastBallPaint = Paint()..color = const Color(0xFFE6F05A);
-  static final Paint _fastBallGlintPaint = Paint()..color = const Color(0xCCFFFFFF);
-  static final Paint _fastNetPostPaint = Paint()..color = const Color(0xFF475569);
-  static final Paint _fastNetPostCapPaint = Paint()..color = const Color(0xFF1E293B);
+  static final Paint _fastBallGlintPaint = Paint()
+    ..color = const Color(0xCCFFFFFF);
+  static final Paint _fastNetPostPaint = Paint()
+    ..color = const Color(0xFF475569);
+  static final Paint _fastNetPostCapPaint = Paint()
+    ..color = const Color(0xFF1E293B);
   static final Paint _ledTrimPaint = Paint()..strokeCap = StrokeCap.round;
   static final Paint _mountRailPaint = Paint()
     ..color = const Color(0xFF334155)
@@ -200,7 +209,8 @@ class CourtPainter extends CustomPainter {
     ..strokeWidth = 0.14
     ..style = PaintingStyle.stroke;
   static final Paint _strapPaint = Paint()..color = const Color(0xFFF1F5F9);
-  static final Paint _strapBucklePaint = Paint()..color = const Color(0xFF475569);
+  static final Paint _strapBucklePaint = Paint()
+    ..color = const Color(0xFF475569);
 
   // ── Ball ──
   static final Paint _ballEdgePaint = Paint()
@@ -247,7 +257,7 @@ class CourtPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cam = game.camera;
+    final cam = presentation.camera;
     cam.screenSize = size;
     cam.prepareFrame();
 
@@ -335,9 +345,8 @@ class CourtPainter extends CustomPainter {
     final trajectory = game.getPlayerServeTrajectory(
       samples: game.settings.useReducedUltimateEffects ? 16 : 24,
     );
-    final guideColor = trajectory.isLegal
-        ? const Color(0xFF22D3EE)
-        : const Color(0xFFFB7185);
+    final guideColor =
+        trajectory.isLegal ? const Color(0xFF22D3EE) : const Color(0xFFFB7185);
     final minX = trajectory.serverOnRight ? -CourtDimensions.halfWidth : 0.0;
     final maxX = trajectory.serverOnRight ? 0.0 : CourtDimensions.halfWidth;
     const nearZ =
@@ -442,12 +451,14 @@ class CourtPainter extends CustomPainter {
 
   /// Smooth multi-frequency shake (no random jitter → no strobing).
   void _applyCameraShake(Canvas canvas, Size size) {
-    final s = game.screenShake;
+    final s = presentation.screenShake;
     if (s <= 0.001) return;
     final amp = s * s * 10.0;
     final t = animTime;
-    final dx = (math.sin(t * 53.0) + 0.6 * math.sin(t * 31.0 + 1.3)) / 1.6 * amp;
-    final dy = (math.cos(t * 47.0) + 0.6 * math.sin(t * 27.0 + 0.7)) / 1.6 * amp;
+    final dx =
+        (math.sin(t * 53.0) + 0.6 * math.sin(t * 31.0 + 1.3)) / 1.6 * amp;
+    final dy =
+        (math.cos(t * 47.0) + 0.6 * math.sin(t * 27.0 + 0.7)) / 1.6 * amp;
     final rot = math.sin(t * 23.0) * s * s * 0.006;
     canvas.translate(size.width / 2 + dx, size.height / 2 + dy);
     canvas.rotate(rot);
@@ -482,15 +493,15 @@ class CourtPainter extends CustomPainter {
     }
   }
 
-
   // ── A. Professional Tournament Stadium Environment (Center Court & Indoor Arena) ──
-  void _renderStadiumEnvironment(Canvas canvas, Size size, double horizon, CourtTheme theme) {
+  void _renderStadiumEnvironment(
+      Canvas canvas, Size size, double horizon, CourtTheme theme) {
     // 1. Stadium evening atmosphere gradient
     final skyPaint = Paint()
       ..shader = LinearGradient(
         colors: [
           const Color(0xFF040711), // High arena ceiling
-          theme.skyColor,          // Mid arena atmosphere
+          theme.skyColor, // Mid arena atmosphere
           const Color(0xFF14243B), // Low horizon lighting
         ],
         begin: Alignment.topCenter,
@@ -509,17 +520,22 @@ class CourtPainter extends CustomPainter {
 
     final gantryY1 = horizon * 0.08;
     final gantryY2 = horizon * 0.17;
-    canvas.drawLine(Offset(0, gantryY1), Offset(size.width, gantryY1), trussPaint);
-    canvas.drawLine(Offset(0, gantryY2), Offset(size.width, gantryY2), trussPaint);
+    canvas.drawLine(
+        Offset(0, gantryY1), Offset(size.width, gantryY1), trussPaint);
+    canvas.drawLine(
+        Offset(0, gantryY2), Offset(size.width, gantryY2), trussPaint);
 
     const trussBays = 24;
     final bayWidth = size.width / trussBays;
     for (int b = 0; b < trussBays; b++) {
       final xA = b * bayWidth;
       final xB = (b + 1) * bayWidth;
-      canvas.drawLine(Offset(xA, gantryY1), Offset(xB, gantryY2), trussThinPaint);
-      canvas.drawLine(Offset(xB, gantryY1), Offset(xA, gantryY2), trussThinPaint);
-      canvas.drawLine(Offset(xA, gantryY1), Offset(xA, gantryY2), trussThinPaint);
+      canvas.drawLine(
+          Offset(xA, gantryY1), Offset(xB, gantryY2), trussThinPaint);
+      canvas.drawLine(
+          Offset(xB, gantryY1), Offset(xA, gantryY2), trussThinPaint);
+      canvas.drawLine(
+          Offset(xA, gantryY1), Offset(xA, gantryY2), trussThinPaint);
     }
 
     // 3. Stadium Floodlight Banks (4 high-output LED arrays)
@@ -538,9 +554,8 @@ class CourtPainter extends CustomPainter {
       final tierY = grandstandTop + t * grandstandHeight;
       final tierH = grandstandHeight / tierCount;
 
-      final tierColor = tier.isEven
-          ? const Color(0xFF0F172A)
-          : const Color(0xFF1E293B);
+      final tierColor =
+          tier.isEven ? const Color(0xFF0F172A) : const Color(0xFF1E293B);
       canvas.drawRect(
         Rect.fromLTRB(0, tierY, size.width, tierY + tierH),
         Paint()..color = tierColor,
@@ -550,7 +565,9 @@ class CourtPainter extends CustomPainter {
       canvas.drawLine(
         Offset(0, tierY + 0.8),
         Offset(size.width, tierY + 0.8),
-        Paint()..color = const Color(0x4094A3B8)..strokeWidth = 1.0,
+        Paint()
+          ..color = const Color(0x4094A3B8)
+          ..strokeWidth = 1.0,
       );
 
       // Concourse Vomitories (illuminated entryway tunnels)
@@ -568,7 +585,8 @@ class CourtPainter extends CustomPainter {
           );
           canvas.drawRRect(
             RRect.fromRectAndRadius(
-              Rect.fromLTWH(portalRect.left + 2, portalRect.top + 2, portalRect.width - 4, portalRect.height - 4),
+              Rect.fromLTWH(portalRect.left + 2, portalRect.top + 2,
+                  portalRect.width - 4, portalRect.height - 4),
               const Radius.circular(2),
             ),
             Paint()..color = const Color(0x35FBBF24),
@@ -587,10 +605,18 @@ class CourtPainter extends CustomPainter {
       Rect.fromLTRB(0, ribbonY, size.width, horizon - 3),
       Paint()..color = const Color(0xFF020617),
     );
-    canvas.drawLine(Offset(0, ribbonY), Offset(size.width, ribbonY),
-        Paint()..color = theme.ledAccentColor.withAlpha(160)..strokeWidth = 1.2);
-    canvas.drawLine(Offset(0, horizon - 3), Offset(size.width, horizon - 3),
-        Paint()..color = theme.ledAccentColor.withAlpha(100)..strokeWidth = 1.0);
+    canvas.drawLine(
+        Offset(0, ribbonY),
+        Offset(size.width, ribbonY),
+        Paint()
+          ..color = theme.ledAccentColor.withAlpha(160)
+          ..strokeWidth = 1.2);
+    canvas.drawLine(
+        Offset(0, horizon - 3),
+        Offset(size.width, horizon - 3),
+        Paint()
+          ..color = theme.ledAccentColor.withAlpha(100)
+          ..strokeWidth = 1.0);
 
     // 6. Lower Glass Safety Barrier Railing
     canvas.drawRect(
@@ -605,7 +631,8 @@ class CourtPainter extends CustomPainter {
   }
 
   // ── B. Natural Daytime Outdoor Park Environment ─────────────
-  void _renderOutdoorParkEnvironment(Canvas canvas, Size size, double horizon, CourtTheme theme) {
+  void _renderOutdoorParkEnvironment(
+      Canvas canvas, Size size, double horizon, CourtTheme theme) {
     // 1. Natural daylight sunny sky gradient
     final skyPaint = Paint()
       ..shader = const LinearGradient(
@@ -624,17 +651,22 @@ class CourtPainter extends CustomPainter {
     final cloudPaint = Paint()..color = const Color(0x40FFFFFF);
     void drawCloud(double cx, double cy, double scale) {
       canvas.drawCircle(Offset(cx, cy), 16 * scale, cloudPaint);
-      canvas.drawCircle(Offset(cx - 14 * scale, cy + 3 * scale), 12 * scale, cloudPaint);
-      canvas.drawCircle(Offset(cx + 15 * scale, cy + 2 * scale), 13 * scale, cloudPaint);
-      canvas.drawCircle(Offset(cx + 28 * scale, cy + 5 * scale), 9 * scale, cloudPaint);
+      canvas.drawCircle(
+          Offset(cx - 14 * scale, cy + 3 * scale), 12 * scale, cloudPaint);
+      canvas.drawCircle(
+          Offset(cx + 15 * scale, cy + 2 * scale), 13 * scale, cloudPaint);
+      canvas.drawCircle(
+          Offset(cx + 28 * scale, cy + 5 * scale), 9 * scale, cloudPaint);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(cx - 18 * scale, cy + 4 * scale, 52 * scale, 12 * scale),
+          Rect.fromLTWH(
+              cx - 18 * scale, cy + 4 * scale, 52 * scale, 12 * scale),
           Radius.circular(6 * scale),
         ),
         cloudPaint,
       );
     }
+
     drawCloud(size.width * 0.18, horizon * 0.22, 1.2);
     drawCloud(size.width * 0.58, horizon * 0.15, 0.9);
     drawCloud(size.width * 0.85, horizon * 0.28, 1.1);
@@ -670,13 +702,17 @@ class CourtPainter extends CustomPainter {
     canvas.drawLine(
       Offset(0, fenceTopY),
       Offset(size.width, fenceTopY),
-      Paint()..color = const Color(0xFF64748B)..strokeWidth = 2.0,
+      Paint()
+        ..color = const Color(0xFF64748B)
+        ..strokeWidth = 2.0,
     );
     for (double fx = 0; fx <= size.width; fx += size.width / 12) {
       canvas.drawLine(
         Offset(fx, fenceTopY),
         Offset(fx, horizon + 4),
-        Paint()..color = const Color(0xFF475569)..strokeWidth = 1.5,
+        Paint()
+          ..color = const Color(0xFF475569)
+          ..strokeWidth = 1.5,
       );
     }
 
@@ -685,7 +721,8 @@ class CourtPainter extends CustomPainter {
   }
 
   // ── C. Tropical Coastal Beach Environment ───────────────────
-  void _renderBeachEnvironment(Canvas canvas, Size size, double horizon, CourtTheme theme) {
+  void _renderBeachEnvironment(
+      Canvas canvas, Size size, double horizon, CourtTheme theme) {
     // 1. Tropical coastal ocean sky
     final skyPaint = Paint()
       ..shader = const LinearGradient(
@@ -725,8 +762,10 @@ class CourtPainter extends CustomPainter {
     final surfPaint = Paint()
       ..color = const Color(0x60FFFFFF)
       ..strokeWidth = 1.2;
-    canvas.drawLine(Offset(0, seaTopY + 8), Offset(size.width, seaTopY + 8), surfPaint);
-    canvas.drawLine(Offset(0, seaTopY + 16), Offset(size.width, seaTopY + 16), surfPaint);
+    canvas.drawLine(
+        Offset(0, seaTopY + 8), Offset(size.width, seaTopY + 8), surfPaint);
+    canvas.drawLine(
+        Offset(0, seaTopY + 16), Offset(size.width, seaTopY + 16), surfPaint);
 
     // 4. Palm Trees on Left and Right coastal borders
     void drawPalm(double px, double py, bool leanRight) {
@@ -758,6 +797,7 @@ class CourtPainter extends CustomPainter {
         canvas.drawLine(Offset(topX, py), Offset(endX, endY), frondPaint);
       }
     }
+
     drawPalm(size.width * 0.06, horizon * 0.12, true);
     drawPalm(size.width * 0.94, horizon * 0.10, false);
 
@@ -770,12 +810,15 @@ class CourtPainter extends CustomPainter {
     canvas.drawLine(
       Offset(0, railingY),
       Offset(size.width, railingY),
-      Paint()..color = const Color(0xFFD4A373)..strokeWidth = 2.0,
+      Paint()
+        ..color = const Color(0xFFD4A373)
+        ..strokeWidth = 2.0,
     );
   }
 
   // ── D. Fieldhouse Gymnasium Environment ─────────────────────
-  void _renderGymEnvironment(Canvas canvas, Size size, double horizon, CourtTheme theme) {
+  void _renderGymEnvironment(
+      Canvas canvas, Size size, double horizon, CourtTheme theme) {
     // 1. Acoustic brick gymnasium back wall
     final wallPaint = Paint()
       ..shader = const LinearGradient(
@@ -804,31 +847,57 @@ class CourtPainter extends CustomPainter {
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(winRect, const Radius.circular(4)),
-        Paint()..color = const Color(0xFF52525B)..strokeWidth = 1.2..style = PaintingStyle.stroke,
+        Paint()
+          ..color = const Color(0xFF52525B)
+          ..strokeWidth = 1.2
+          ..style = PaintingStyle.stroke,
       );
-      canvas.drawLine(Offset(wx + winWidth / 2, winTop), Offset(wx + winWidth / 2, winTop + winH),
-          Paint()..color = const Color(0xFF52525B)..strokeWidth = 1.0);
+      canvas.drawLine(
+          Offset(wx + winWidth / 2, winTop),
+          Offset(wx + winWidth / 2, winTop + winH),
+          Paint()
+            ..color = const Color(0xFF52525B)
+            ..strokeWidth = 1.0);
     }
 
     // 3. Suspended Basketball Hoop & Backboard (Centered beyond AI baseline)
     final hoopCenterX = size.width * 0.5;
     final hoopCenterY = horizon * 0.40;
-    final backboardRect = Rect.fromCenter(center: Offset(hoopCenterX, hoopCenterY), width: 34, height: 22);
+    final backboardRect = Rect.fromCenter(
+        center: Offset(hoopCenterX, hoopCenterY), width: 34, height: 22);
     canvas.drawRect(backboardRect, Paint()..color = const Color(0x25FFFFFF));
-    canvas.drawRect(backboardRect, Paint()..color = Colors.white..strokeWidth = 1.2..style = PaintingStyle.stroke);
-    final targetRect = Rect.fromCenter(center: Offset(hoopCenterX, hoopCenterY + 3), width: 12, height: 9);
-    canvas.drawRect(targetRect, Paint()..color = Colors.white..strokeWidth = 1.0..style = PaintingStyle.stroke);
+    canvas.drawRect(
+        backboardRect,
+        Paint()
+          ..color = Colors.white
+          ..strokeWidth = 1.2
+          ..style = PaintingStyle.stroke);
+    final targetRect = Rect.fromCenter(
+        center: Offset(hoopCenterX, hoopCenterY + 3), width: 12, height: 9);
+    canvas.drawRect(
+        targetRect,
+        Paint()
+          ..color = Colors.white
+          ..strokeWidth = 1.0
+          ..style = PaintingStyle.stroke);
     canvas.drawLine(
       Offset(hoopCenterX - 6, hoopCenterY + 7.5),
       Offset(hoopCenterX + 6, hoopCenterY + 7.5),
-      Paint()..color = const Color(0xFFF97316)..strokeWidth = 2.2,
+      Paint()
+        ..color = const Color(0xFFF97316)
+        ..strokeWidth = 2.2,
     );
     final netPath = Path()
       ..moveTo(hoopCenterX - 6, hoopCenterY + 7.5)
       ..lineTo(hoopCenterX - 3, hoopCenterY + 16)
       ..lineTo(hoopCenterX + 3, hoopCenterY + 16)
       ..lineTo(hoopCenterX + 6, hoopCenterY + 7.5);
-    canvas.drawPath(netPath, Paint()..color = const Color(0x70FFFFFF)..strokeWidth = 1.0..style = PaintingStyle.stroke);
+    canvas.drawPath(
+        netPath,
+        Paint()
+          ..color = const Color(0x70FFFFFF)
+          ..strokeWidth = 1.0
+          ..style = PaintingStyle.stroke);
 
     // 4. Wooden Bleachers along the wall
     final bleacherY = horizon - 16;
@@ -882,8 +951,8 @@ class CourtPainter extends CustomPainter {
       final x = (i + 0.5) * colWidth + xJitter;
       final cy = y + yJitter;
 
-      final bodyColor = Color.lerp(
-          attirePalette[seed % attirePalette.length], Colors.black, depthShade)!;
+      final bodyColor = Color.lerp(attirePalette[seed % attirePalette.length],
+          Colors.black, depthShade)!;
       final skin = Color.lerp(
           skinTones[(seed ~/ 3) % skinTones.length], Colors.black, depthShade)!;
 
@@ -948,7 +1017,8 @@ class CourtPainter extends CustomPainter {
       ).createShader(Rect.fromCircle(center: Offset(x, y), radius: 55));
     canvas.drawCircle(Offset(x, y), 55, flarePaint);
 
-    final bankRect = Rect.fromCenter(center: Offset(x, y), width: 22, height: 8);
+    final bankRect =
+        Rect.fromCenter(center: Offset(x, y), width: 22, height: 8);
     canvas.drawRRect(
       RRect.fromRectAndRadius(bankRect, const Radius.circular(2)),
       Paint()..color = const Color(0xFF334155),
@@ -1044,7 +1114,10 @@ class CourtPainter extends CustomPainter {
       }
       final tp = _courtBrandingPainter!;
       final boardMidY = (pTL.dy + pBL.dy) / 2;
-      tp.paint(canvas, Offset((pTL.dx + pTR.dx) / 2 - tp.width / 2, boardMidY - tp.height / 2));
+      tp.paint(
+          canvas,
+          Offset(
+              (pTL.dx + pTR.dx) / 2 - tp.width / 2, boardMidY - tp.height / 2));
     }
 
     // Left and Right Side Barriers extending toward player
@@ -1061,7 +1134,8 @@ class CourtPainter extends CustomPainter {
     }
   }
 
-  void _drawSideBarrier(Canvas canvas, PerspectiveCamera cam, double xPos, bool isLeft, CourtTheme theme) {
+  void _drawSideBarrier(Canvas canvas, PerspectiveCamera cam, double xPos,
+      bool isLeft, CourtTheme theme) {
     const boardH = 3.8;
     const zFar = -88.0 - 15.0;
     const zNear = 145.0;
@@ -1078,7 +1152,12 @@ class CourtPainter extends CustomPainter {
       pNearTop = cam.projectCoords(xPos, boardH, effectiveZNear);
     }
 
-    if (pFarBot == null || pFarTop == null || pNearBot == null || pNearTop == null) return;
+    if (pFarBot == null ||
+        pFarTop == null ||
+        pNearBot == null ||
+        pNearTop == null) {
+      return;
+    }
 
     final path = Path()
       ..moveTo(pFarTop.dx, pFarTop.dy)
@@ -1144,8 +1223,14 @@ class CourtPainter extends CustomPainter {
     final pPlatC = cam.projectCoords(xPos + 1.2, platH, 2.0);
     final pPlatD = cam.projectCoords(xPos - 1.2, platH, 2.0);
 
-    if (pFootA == null || pFootB == null || pFootC == null || pFootD == null ||
-        pPlatA == null || pPlatB == null || pPlatC == null || pPlatD == null) {
+    if (pFootA == null ||
+        pFootB == null ||
+        pFootC == null ||
+        pFootD == null ||
+        pPlatA == null ||
+        pPlatB == null ||
+        pPlatC == null ||
+        pPlatD == null) {
       return;
     }
 
@@ -1165,7 +1250,12 @@ class CourtPainter extends CustomPainter {
       ..lineTo(pPlatD.dx, pPlatD.dy)
       ..close();
     canvas.drawPath(platPath, Paint()..color = const Color(0xFF1E293B));
-    canvas.drawPath(platPath, Paint()..color = const Color(0xFF94A3B8)..strokeWidth = 1.0..style = PaintingStyle.stroke);
+    canvas.drawPath(
+        platPath,
+        Paint()
+          ..color = const Color(0xFF94A3B8)
+          ..strokeWidth = 1.0
+          ..style = PaintingStyle.stroke);
 
     const chairH = platH + 3.2;
     final pCanopy = cam.projectCoords(xPos, chairH + 1.2, 0);
@@ -1173,10 +1263,14 @@ class CourtPainter extends CustomPainter {
       final pRefHead = cam.projectCoords(xPos, platH + 2.0, 0);
       final pRefBody = cam.projectCoords(xPos, platH + 1.0, 0);
       if (pRefHead != null && pRefBody != null) {
-        canvas.drawCircle(pRefHead, 3.2, Paint()..color = const Color(0xFFD4A373));
-        canvas.drawCircle(Offset(pRefHead.dx, pRefHead.dy - 1), 3.5, Paint()..color = const Color(0xFF0284C7));
+        canvas.drawCircle(
+            pRefHead, 3.2, Paint()..color = const Color(0xFFD4A373));
+        canvas.drawCircle(Offset(pRefHead.dx, pRefHead.dy - 1), 3.5,
+            Paint()..color = const Color(0xFF0284C7));
         canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromCenter(center: pRefBody, width: 8, height: 7), const Radius.circular(2)),
+          RRect.fromRectAndRadius(
+              Rect.fromCenter(center: pRefBody, width: 8, height: 7),
+              const Radius.circular(2)),
           Paint()..color = const Color(0xFFF8FAFC),
         );
       }
@@ -1188,7 +1282,10 @@ class CourtPainter extends CustomPainter {
       canvas.drawCircle(
         pCanopy,
         7.5,
-        Paint()..color = Colors.white..strokeWidth = 1.0..style = PaintingStyle.stroke,
+        Paint()
+          ..color = Colors.white
+          ..strokeWidth = 1.0
+          ..style = PaintingStyle.stroke,
       );
     }
   }
@@ -1206,12 +1303,20 @@ class CourtPainter extends CustomPainter {
     final pT3 = cam.projectCoords(xPos + 1.2, benchH, 3.5);
     final pT4 = cam.projectCoords(xPos - 1.2, benchH, 3.5);
 
-    if (pF1 == null || pF2 == null || pF3 == null || pF4 == null ||
-        pT1 == null || pT2 == null || pT3 == null || pT4 == null) {
+    if (pF1 == null ||
+        pF2 == null ||
+        pF3 == null ||
+        pF4 == null ||
+        pT1 == null ||
+        pT2 == null ||
+        pT3 == null ||
+        pT4 == null) {
       return;
     }
 
-    final legPaint = Paint()..color = const Color(0xFF334155)..strokeWidth = 1.8;
+    final legPaint = Paint()
+      ..color = const Color(0xFF334155)
+      ..strokeWidth = 1.8;
     canvas.drawLine(pF1, pT1, legPaint);
     canvas.drawLine(pF2, pT2, legPaint);
     canvas.drawLine(pF3, pT3, legPaint);
@@ -1224,12 +1329,19 @@ class CourtPainter extends CustomPainter {
       ..lineTo(pT4.dx, pT4.dy)
       ..close();
     canvas.drawPath(seatPath, Paint()..color = const Color(0xFF0F172A));
-    canvas.drawPath(seatPath, Paint()..color = const Color(0xFF0284C7)..strokeWidth = 1.2..style = PaintingStyle.stroke);
+    canvas.drawPath(
+        seatPath,
+        Paint()
+          ..color = const Color(0xFF0284C7)
+          ..strokeWidth = 1.2
+          ..style = PaintingStyle.stroke);
 
     final pTowel = cam.projectCoords(xPos, benchH + 0.5, 1.2);
     if (pTowel != null) {
       canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromCenter(center: pTowel, width: 6, height: 4), const Radius.circular(1.5)),
+        RRect.fromRectAndRadius(
+            Rect.fromCenter(center: pTowel, width: 6, height: 4),
+            const Radius.circular(1.5)),
         Paint()..color = const Color(0xFFF8FAFC),
       );
     }
@@ -1351,14 +1463,16 @@ class CourtPainter extends CustomPainter {
     );
 
     // Subtle surface plank/detail lines for indoor & stadium courts
-    if ((theme == CourtTheme.indoor || theme == CourtTheme.tournament) && !lowEnd) {
+    if ((theme == CourtTheme.indoor || theme == CourtTheme.tournament) &&
+        !lowEnd) {
       final plankPaint = _reusableStrokePaint
         ..shader = null
         ..color = const Color(0x12000000)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.18;
       for (double z = apronRect.top; z <= apronRect.bottom; z += 4.0) {
-        canvas.drawLine(Offset(apronRect.left, z), Offset(apronRect.right, z), plankPaint);
+        canvas.drawLine(
+            Offset(apronRect.left, z), Offset(apronRect.right, z), plankPaint);
       }
     }
 
@@ -1374,7 +1488,9 @@ class CourtPainter extends CustomPainter {
     if (game.state == GameState.waitingForServe) {
       _drawServiceBoxHighlight(canvas, hw, hl, kd);
     }
-    if (game.ball.iceZoneTimer > 0 && game.ball.iceZoneCenter != null && !lowEnd) {
+    if (game.ball.iceZoneTimer > 0 &&
+        game.ball.iceZoneCenter != null &&
+        !lowEnd) {
       _drawFrostIceZone(canvas);
     }
     if (!lowEnd) {
@@ -1425,11 +1541,10 @@ class CourtPainter extends CustomPainter {
     }
   }
 
-
   /// Floodlight pools (arenas) or low sun wash (outdoors) plus the soft
   /// specular band that makes acrylic courts look glossy on broadcast.
-  void _drawCourtLighting(Canvas canvas, CourtTheme theme, double hw,
-      double hl, Rect apronRect) {
+  void _drawCourtLighting(
+      Canvas canvas, CourtTheme theme, double hw, double hl, Rect apronRect) {
     if (theme.isOutdoor) {
       final sunCenter = Offset(hw * 0.9, -hl * 0.55);
       const sunR = 150.0;
@@ -1460,7 +1575,8 @@ class CourtPainter extends CustomPainter {
     }
 
     // Glossy specular band: reflected lights glinting off the far court
-    final sheenRect = Rect.fromLTRB(apronRect.left, -hl - 10, apronRect.right, -8);
+    final sheenRect =
+        Rect.fromLTRB(apronRect.left, -hl - 10, apronRect.right, -8);
     canvas.drawRect(
       sheenRect,
       Paint()
@@ -1500,7 +1616,8 @@ class CourtPainter extends CustomPainter {
 
     void crossLine(double z) {
       final t = across(z) / 2;
-      canvas.drawRect(Rect.fromLTRB(-hw - half, z - t, hw + half, z + t), _courtLinePaint);
+      canvas.drawRect(
+          Rect.fromLTRB(-hw - half, z - t, hw + half, z + t), _courtLinePaint);
     }
 
     void lengthLine(double x, double z1, double z2) {
@@ -1510,10 +1627,10 @@ class CourtPainter extends CustomPainter {
     }
 
     // Outer boundary
-    crossLine(hl);  // Player baseline
+    crossLine(hl); // Player baseline
     crossLine(-hl); // AI baseline
     lengthLine(-hw, -hl, hl); // Left sideline
-    lengthLine(hw, -hl, hl);  // Right sideline
+    lengthLine(hw, -hl, hl); // Right sideline
 
     // Kitchen (Non-Volley Zone) lines
     crossLine(kd);
@@ -1530,12 +1647,15 @@ class CourtPainter extends CustomPainter {
         ..color = const Color(0x22000000)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.18;
-      canvas.drawRect(Rect.fromLTRB(-hw - half, -hl - half, hw + half, hl + half), _reusableStrokePaint);
+      canvas.drawRect(
+          Rect.fromLTRB(-hw - half, -hl - half, hw + half, hl + half),
+          _reusableStrokePaint);
     }
   }
 
   // ── Serve Target Diagonal Service Box Highlight (ground space) ──
-  void _drawServiceBoxHighlight(Canvas canvas, double hw, double hl, double kd) {
+  void _drawServiceBoxHighlight(
+      Canvas canvas, double hw, double hl, double kd) {
     final serverRight = game.scoreController.serverShouldBeOnRight;
     final isPlayerServing = game.scoreController.isPlayerServing;
 
@@ -1583,7 +1703,7 @@ class CourtPainter extends CustomPainter {
   // ── Bounce skid marks & expanding contact rings (ground space) ──
   void _drawCourtMarks(Canvas canvas) {
     if (game.settings.isLowEndMode) return; // skip court skid marks on low-end
-    final marks = game.vfx.marks;
+    final marks = presentation.vfx.marks;
     if (marks.isEmpty) return;
     for (final m in marks) {
       final a = m.remaining * m.strength;
@@ -1679,7 +1799,9 @@ class CourtPainter extends CustomPainter {
 
     final decalWidth = (pDecalR.dx - pDecalL.dx).abs();
     final fontSize = (decalWidth * 0.038).clamp(8.0, 16.0).roundToDouble();
-    if (_decalPainter == null || _decalTheme != theme || _decalFontSize != fontSize) {
+    if (_decalPainter == null ||
+        _decalTheme != theme ||
+        _decalFontSize != fontSize) {
       _decalTheme = theme;
       _decalFontSize = fontSize;
       _decalPainter = TextPainter(
@@ -1722,19 +1844,23 @@ class CourtPainter extends CustomPainter {
     // Woven mesh cords (omitted in low-end mode for maximum performance)
     if (quality != GraphicsQuality.low) {
       canvas.drawPath(
-        quality == GraphicsQuality.high ? _staticNetMeshHigh : _staticNetMeshMedium,
+        quality == GraphicsQuality.high
+            ? _staticNetMeshHigh
+            : _staticNetMeshMedium,
         _netMeshPaint,
       );
     }
 
     // Bottom cord
-    canvas.drawLine(const Offset(-postX, 0.12), const Offset(postX, 0.12), _netCordPaint);
+    canvas.drawLine(
+        const Offset(-postX, 0.12), const Offset(postX, 0.12), _netCordPaint);
 
     // Center adjustment strap + buckle
     final centerTop = _sagY(0);
     canvas.drawRect(Rect.fromLTRB(-0.45, 0, 0.45, centerTop), _strapPaint);
     canvas.drawRect(
-      Rect.fromCenter(center: Offset(0, centerTop - 0.9), width: 1.1, height: 0.45),
+      Rect.fromCenter(
+          center: Offset(0, centerTop - 0.9), width: 1.1, height: 0.45),
       _strapBucklePaint,
     );
 
@@ -1762,7 +1888,8 @@ class CourtPainter extends CustomPainter {
 
     if (game.settings.isLowEndMode) {
       // Ultra-efficient solid cylinder post on low-end
-      final postRect = Rect.fromLTRB(top.dx - hwPx, top.dy, bot.dx + hwPx, bot.dy);
+      final postRect =
+          Rect.fromLTRB(top.dx - hwPx, top.dy, bot.dx + hwPx, bot.dy);
       canvas.drawRect(postRect, _fastNetPostPaint);
       canvas.drawOval(
         Rect.fromCenter(center: top, width: w * 1.1, height: w * 0.45),
@@ -1773,7 +1900,8 @@ class CourtPainter extends CustomPainter {
 
     // Base contact shadow
     canvas.drawOval(
-      Rect.fromCenter(center: bot.translate(0, 0.5), width: w * 2.4, height: w * 0.8),
+      Rect.fromCenter(
+          center: bot.translate(0, 0.5), width: w * 2.4, height: w * 0.8),
       Paint()..color = const Color(0x55000000),
     );
 
@@ -1805,13 +1933,17 @@ class CourtPainter extends CustomPainter {
       Paint()..color = const Color(0xFF1E293B),
     );
     canvas.drawOval(
-      Rect.fromCenter(center: top.translate(-w * 0.12, -w * 0.05), width: w * 0.5, height: w * 0.18),
+      Rect.fromCenter(
+          center: top.translate(-w * 0.12, -w * 0.05),
+          width: w * 0.5,
+          height: w * 0.18),
       Paint()..color = const Color(0x66E2E8F0),
     );
 
     // Tension ratchet crank handle
     if (withCrank) {
-      final pivot = Offset(top.dx + hwPx * 0.6, top.dy + (bot.dy - top.dy) * 0.25);
+      final pivot =
+          Offset(top.dx + hwPx * 0.6, top.dy + (bot.dy - top.dy) * 0.25);
       final handle = pivot.translate(w * 0.9, w * 0.2);
       canvas.drawLine(
         pivot,
@@ -1821,7 +1953,8 @@ class CourtPainter extends CustomPainter {
           ..strokeWidth = math.max(1.2, w * 0.25)
           ..strokeCap = StrokeCap.round,
       );
-      canvas.drawCircle(handle, math.max(1.2, w * 0.2), Paint()..color = const Color(0xFF0F172A));
+      canvas.drawCircle(handle, math.max(1.2, w * 0.2),
+          Paint()..color = const Color(0xFF0F172A));
     }
   }
 
@@ -1896,7 +2029,8 @@ class CourtPainter extends CustomPainter {
           7.0 * strokeMult,
         );
       }
-      _drawTrailRibbon(canvas, cam, ball.trail, primaryTrailColor, 240, 3.6 * strokeMult);
+      _drawTrailRibbon(
+          canvas, cam, ball.trail, primaryTrailColor, 240, 3.6 * strokeMult);
 
       final detailStride = game.settings.useReducedUltimateEffects ? 4 : 2;
       for (int i = 1; i < ball.trail.length; i += detailStride) {
@@ -1962,7 +2096,8 @@ class CourtPainter extends CustomPainter {
       if (s == null) continue;
       final t = (i + 1) / n;
       pts.add(s);
-      widths.add(maxWidth * t * cam.depthScaleCoords(p.x, p.y, p.z).clamp(0.4, 2.5));
+      widths.add(
+          maxWidth * t * cam.depthScaleCoords(p.x, p.y, p.z).clamp(0.4, 2.5));
     }
     if (pts.length < 2 || (pts.last - pts.first).distance < 0.5) return;
 
@@ -2014,7 +2149,8 @@ class CourtPainter extends CustomPainter {
         (ball.isInPlay || game.state == GameState.waitingForServe);
     if (!isVisible) return;
 
-    final screenPos = cam.projectCoords(ball.position.x, ball.position.y, ball.position.z);
+    final screenPos =
+        cam.projectCoords(ball.position.x, ball.position.y, ball.position.z);
     if (screenPos == null) return;
 
     final scale = cam.depthScale(ball.position).clamp(0.4, 2.5);
@@ -2134,9 +2270,11 @@ class CourtPainter extends CustomPainter {
         final ry = hy * c - hz * s;
         final rz = hy * s + hz * c;
         if (rz < 0.2) continue;
-        _holePaint.color = Color.fromARGB((40 + 90 * rz).round(), 0x5A, 0x60, 0x12);
+        _holePaint.color =
+            Color.fromARGB((40 + 90 * rz).round(), 0x5A, 0x60, 0x12);
         canvas.drawCircle(
-          Offset(screenPos.dx + hx * radius * 0.86, screenPos.dy - ry * radius * 0.86),
+          Offset(screenPos.dx + hx * radius * 0.86,
+              screenPos.dy - ry * radius * 0.86),
           holeR * (0.45 + 0.55 * rz),
           _holePaint,
         );
@@ -2161,7 +2299,8 @@ class CourtPainter extends CustomPainter {
     final f = ball.impactFlash;
     if (f <= 0) return;
 
-    final screenPos = cam.projectCoords(ball.position.x, ball.position.y, ball.position.z);
+    final screenPos =
+        cam.projectCoords(ball.position.x, ball.position.y, ball.position.z);
     if (screenPos == null) return;
 
     final scale = cam.depthScale(ball.position).clamp(0.4, 2.5);
@@ -2209,7 +2348,7 @@ class CourtPainter extends CustomPainter {
 
   // ── World-space particles (sparks & dust) ────────────────────
   void _drawParticles(Canvas canvas, PerspectiveCamera cam) {
-    final particles = game.vfx.particles;
+    final particles = presentation.vfx.particles;
     if (particles.isEmpty) return;
 
     for (final p in particles) {
@@ -2356,17 +2495,20 @@ class CourtPainter extends CustomPainter {
     final badgeWidth = (tp.width + 48) * scale;
     final badgeHeight = (tp.height + 20) * scale;
     final badgeCenter = Offset(size.width / 2, size.height * 0.30);
-    final badgeRect = Rect.fromCenter(center: badgeCenter, width: badgeWidth, height: badgeHeight);
+    final badgeRect = Rect.fromCenter(
+        center: badgeCenter, width: badgeWidth, height: badgeHeight);
 
     // Frosted dark pill
-    _msgBackdropPaint.color = const Color(0xEB0B132B).withAlpha((235 * alpha).toInt());
+    _msgBackdropPaint.color =
+        const Color(0xEB0B132B).withAlpha((235 * alpha).toInt());
     canvas.drawRRect(
       RRect.fromRectAndRadius(badgeRect, const Radius.circular(24)),
       _msgBackdropPaint,
     );
 
     // Gold / Coral accent trim
-    _msgBorderPaint.color = const Color(0xFFF59E0B).withAlpha((200 * alpha).toInt());
+    _msgBorderPaint.color =
+        const Color(0xFFF59E0B).withAlpha((200 * alpha).toInt());
     canvas.drawRRect(
       RRect.fromRectAndRadius(badgeRect, const Radius.circular(24)),
       _msgBorderPaint,
@@ -2378,7 +2520,6 @@ class CourtPainter extends CustomPainter {
     tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
     canvas.restore();
   }
-
 
   // ────────────────────────────────────────────────────────────
   // 8. Ultimate Skill Special VFX Renderers
@@ -2547,9 +2688,7 @@ class CourtPainter extends CustomPainter {
     // Dark sleek backdrop with neon edge
     canvas.drawPath(
       path,
-      Paint()
-        ..color =
-            const Color(0xEE0B132B).withAlpha((235 * alpha).toInt()),
+      Paint()..color = const Color(0xEE0B132B).withAlpha((235 * alpha).toInt()),
     );
 
     // Accent energy stripe
