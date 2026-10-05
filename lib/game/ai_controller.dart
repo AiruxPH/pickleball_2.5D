@@ -65,36 +65,48 @@ class AIController {
   double get effectiveSpeed {
     if (isPracticeMode) return 145.0;
     switch (difficulty) {
-      case AIDifficulty.easy:   return 75.0;
-      case AIDifficulty.medium: return 100.0;
-      case AIDifficulty.hard:   return 130.0;
+      case AIDifficulty.easy:
+        return 75.0;
+      case AIDifficulty.medium:
+        return 100.0;
+      case AIDifficulty.hard:
+        return 130.0;
     }
   }
 
   double get effectiveReactionTime {
     if (isPracticeMode) return 0.02;
     switch (difficulty) {
-      case AIDifficulty.easy:   return 0.32;
-      case AIDifficulty.medium: return 0.18;
-      case AIDifficulty.hard:   return 0.08;
+      case AIDifficulty.easy:
+        return 0.32;
+      case AIDifficulty.medium:
+        return 0.18;
+      case AIDifficulty.hard:
+        return 0.08;
     }
   }
 
   double get effectiveAccuracy {
     if (isPracticeMode) return 0.98;
     switch (difficulty) {
-      case AIDifficulty.easy:   return 0.65;
-      case AIDifficulty.medium: return 0.82;
-      case AIDifficulty.hard:   return 0.95;
+      case AIDifficulty.easy:
+        return 0.65;
+      case AIDifficulty.medium:
+        return 0.82;
+      case AIDifficulty.hard:
+        return 0.95;
     }
   }
 
   double get effectiveErrorChance {
     if (isPracticeMode) return 0.0;
     switch (difficulty) {
-      case AIDifficulty.easy:   return 0.15;
-      case AIDifficulty.medium: return 0.07;
-      case AIDifficulty.hard:   return 0.02;
+      case AIDifficulty.easy:
+        return 0.15;
+      case AIDifficulty.medium:
+        return 0.07;
+      case AIDifficulty.hard:
+        return 0.02;
     }
   }
 
@@ -222,7 +234,8 @@ class AIController {
     }
 
     _reactionTimer += dt;
-    final reactionDelay = effectiveReactionTime / (ai.speedMultiplier.clamp(0.2, 1.0));
+    final reactionDelay =
+        effectiveReactionTime / (ai.speedMultiplier.clamp(0.2, 1.0));
     if (_reactionTimer >= reactionDelay) {
       _reactionTimer = 0;
       _hasPredictedTarget = false;
@@ -243,8 +256,10 @@ class AIController {
     }
 
     final distToTarget = dist2D(
-      ai.position.x, ai.position.z,
-      _targetPosition.x, _targetPosition.z,
+      ai.position.x,
+      ai.position.z,
+      _targetPosition.x,
+      _targetPosition.z,
     );
 
     if (distToTarget < 18) {
@@ -287,8 +302,10 @@ class AIController {
 
     // Check if close enough to swing
     final distToBall = dist2D(
-      ai.position.x, ai.position.z,
-      ball.position.x, ball.position.z,
+      ai.position.x,
+      ai.position.z,
+      ball.position.x,
+      ball.position.z,
     );
 
     // Two-bounce rule check
@@ -306,7 +323,10 @@ class AIController {
     final canHitZ = ai.isPartner ? ball.position.z > -8 : ball.position.z < 8;
     final reach = isPracticeMode ? 34.0 : 32.0;
     final maxHitY = isPracticeMode ? 44.0 : 40.0;
-    if (distToBall < reach && ball.position.y < maxHitY && canHitZ && ai.canSwing) {
+    if (distToBall < reach &&
+        ball.position.y < maxHitY &&
+        canHitZ &&
+        ai.canSwing) {
       _state = AIState.swing;
     }
 
@@ -350,7 +370,6 @@ class AIController {
     }
 
     final isPartner = ai.isPartner;
-    final zDirection = isPartner ? -1.0 : 1.0;
 
     ShotType chosenShot = ShotType.normal;
     double forwardPower = PhysicsConstants.normalHitPower;
@@ -360,6 +379,13 @@ class AIController {
 
     final isUnforcedError = _rng.nextDouble() < effectiveErrorChance;
     final isServeReturn = ball.rallyHitCount < 2;
+    final opponentAtKitchen = humanPlayer != null &&
+        humanPlayer!.position.z <= CourtDimensions.kitchenDepth + 12.0;
+    final opponentPinnedDeep = humanPlayer != null &&
+        humanPlayer!.position.z >= CourtDimensions.playerStartZ + 6.0;
+    final aiAtKitchenLine = ai.isPartner
+        ? ai.position.z <= CourtDimensions.kitchenDepth + 12.0
+        : ai.position.z >= -CourtDimensions.kitchenDepth - 12.0;
 
     if (isPracticeMode && !isPartner) {
       // ── ULTRA-HARD TRAINING AI TACTICS ──────────────────────────
@@ -371,12 +397,14 @@ class AIController {
         targetZ = 50.0;
       } else if (drillType == 'dink_drill') {
         chosenShot = ShotType.drop;
-        forwardPower = PhysicsConstants.dropHitPower * (0.95 + _rng.nextDouble() * 0.10);
+        forwardPower =
+            PhysicsConstants.dropHitPower * (0.95 + _rng.nextDouble() * 0.10);
         upPower = 36.0;
         aimX = (_rng.nextDouble() - 0.5) * CourtDimensions.width * 0.7;
         targetZ = 16.0;
       } else if (drillType == 'footwork_drill') {
-        final playerOnLeft = humanPlayer != null ? humanPlayer!.position.x < 0 : false;
+        final playerOnLeft =
+            humanPlayer != null ? humanPlayer!.position.x < 0 : false;
         aimX = playerOnLeft
             ? (CourtDimensions.halfWidth * 0.85)
             : (-CourtDimensions.halfWidth * 0.85);
@@ -386,7 +414,7 @@ class AIController {
         targetZ = 55.0;
       } else {
         if (ball.position.y > 18 && ai.position.z > -48.0) {
-          chosenShot = ShotType.power;
+          chosenShot = ShotType.smash;
           forwardPower = PhysicsConstants.powerHitPower * 1.15;
           upPower = 28.0;
           targetZ = 48.0;
@@ -395,7 +423,9 @@ class AIController {
           } else {
             aimX = -CourtDimensions.halfWidth * 0.82;
           }
-        } else if (humanPlayer != null && humanPlayer!.position.z > CourtDimensions.playerStartZ + 6 && ai.position.z > -38.0) {
+        } else if (humanPlayer != null &&
+            humanPlayer!.position.z > CourtDimensions.playerStartZ + 6 &&
+            ai.position.z > -38.0) {
           chosenShot = ShotType.drop;
           forwardPower = PhysicsConstants.dropHitPower * 1.05;
           upPower = 36.0;
@@ -412,7 +442,8 @@ class AIController {
                 : -CourtDimensions.halfWidth * 0.82;
             aimX = oppX + (_rng.nextDouble() - 0.5) * 4.0;
           } else {
-            aimX = (_rng.nextBool() ? 1 : -1) * CourtDimensions.halfWidth * 0.80;
+            aimX =
+                (_rng.nextBool() ? 1 : -1) * CourtDimensions.halfWidth * 0.80;
           }
         }
       }
@@ -430,7 +461,7 @@ class AIController {
         aimX += (_rng.nextDouble() - 0.5) * 3.0;
       } else if (ball.position.y > 17.0) {
         // Overhead Smash on high ball
-        chosenShot = ShotType.power;
+        chosenShot = ShotType.smash;
         forwardPower = PhysicsConstants.powerHitPower * 1.15;
         upPower = 28.0;
         targetZ = 46.0;
@@ -438,7 +469,14 @@ class AIController {
             ? CourtDimensions.halfWidth * 0.82
             : -CourtDimensions.halfWidth * 0.82;
         ai.useStamina(StaminaConstants.powerShotCost * 0.5);
-      } else if (humanPlayer != null && humanPlayer!.position.z > CourtDimensions.playerStartZ + 6.0 && ai.position.z > -38.0) {
+      } else if (opponentAtKitchen && aiAtKitchenLine) {
+        chosenShot = ShotType.lob;
+        forwardPower = PhysicsConstants.lobHitPower;
+        upPower = PhysicsConstants.lobUpPower;
+        targetZ = CourtDimensions.halfLength - 8.0;
+        aimX = humanPlayer!.position.x < 0 ? 18.0 : -18.0;
+        ai.useStamina(StaminaConstants.lobShotCost * 0.5);
+      } else if (opponentPinnedDeep && aiAtKitchenLine) {
         // Human is pinned deep: punish with kitchen drop shot (only from near kitchen)
         chosenShot = ShotType.drop;
         forwardPower = PhysicsConstants.dropHitPower * 1.05;
@@ -487,8 +525,10 @@ class AIController {
             : -CourtDimensions.halfWidth * 0.60;
       } else {
         final roll = _rng.nextDouble();
-        if (ball.position.y > 19.0 && roll < 0.35 && ai.stamina >= StaminaConstants.powerShotCost) {
-          chosenShot = ShotType.power;
+        if (ball.position.y > 19.0 &&
+            roll < 0.35 &&
+            ai.stamina >= StaminaConstants.powerShotCost) {
+          chosenShot = ShotType.smash;
           ai.useStamina(StaminaConstants.powerShotCost);
           forwardPower = PhysicsConstants.powerHitPower;
           upPower = 38.0;
@@ -496,7 +536,17 @@ class AIController {
           aimX = (humanPlayer != null && humanPlayer!.position.x < 0)
               ? CourtDimensions.halfWidth * 0.65
               : -CourtDimensions.halfWidth * 0.65;
-        } else if (roll < 0.15 && ai.position.z > -38.0 && ai.stamina >= StaminaConstants.dropShotCost) {
+        } else if (opponentAtKitchen && aiAtKitchenLine && roll < 0.35) {
+          chosenShot = ShotType.lob;
+          ai.useStamina(StaminaConstants.lobShotCost);
+          forwardPower = PhysicsConstants.lobHitPower;
+          upPower = PhysicsConstants.lobUpPower;
+          targetZ = CourtDimensions.halfLength - 10.0;
+          aimX = humanPlayer!.position.x < 0 ? 14.0 : -14.0;
+        } else if (opponentPinnedDeep &&
+            aiAtKitchenLine &&
+            roll < 0.35 &&
+            ai.stamina >= StaminaConstants.dropShotCost) {
           chosenShot = ShotType.drop;
           ai.useStamina(StaminaConstants.dropShotCost);
           forwardPower = PhysicsConstants.dropHitPower * 1.05;
@@ -514,8 +564,10 @@ class AIController {
           forwardPower = PhysicsConstants.normalHitPower;
           upPower = 40.0;
           targetZ = 52.0;
-          final targetSide = (humanPlayer != null && humanPlayer!.position.x <= 0) ? 1 : -1;
-          aimX = targetSide * CourtDimensions.halfWidth * 0.60 + (_rng.nextDouble() - 0.5) * 8.0;
+          final targetSide =
+              (humanPlayer != null && humanPlayer!.position.x <= 0) ? 1 : -1;
+          aimX = targetSide * CourtDimensions.halfWidth * 0.60 +
+              (_rng.nextDouble() - 0.5) * 8.0;
         }
       }
     } else {
@@ -531,15 +583,18 @@ class AIController {
         forwardPower = 125.0;
         upPower = 43.0; // High, comfortable arc clearing the net easily
         targetZ = isPartner ? -50.0 : 50.0;
-        aimX = (_rng.nextDouble() - 0.5) * 12.0; // Centered directly into player's court
+        aimX = (_rng.nextDouble() - 0.5) *
+            12.0; // Centered directly into player's court
       }
     }
 
-    // Clamp aimX safely within legal court sidelines (unless deliberate wide unforced error)
-    if (!isUnforcedError) {
-      aimX = ShotTargeting.constrainReturnTargetX(aimX, ball.position.x);
-      aimX = aimX.clamp(-CourtDimensions.halfWidth + 2.5, CourtDimensions.halfWidth - 2.5);
-    }
+    // Errors reduce tactical quality but never deliberately target outside.
+    aimX = ShotTargeting.constrainReturnTargetX(aimX, ball.position.x);
+    aimX = aimX.clamp(
+      -CourtDimensions.halfWidth + 2.5,
+      CourtDimensions.halfWidth - 2.5,
+    );
+    targetZ = targetZ.abs().clamp(4.0, CourtDimensions.halfLength - 4.0);
 
     // Tactical branches describe depth as a positive distance. Convert that
     // depth to the opponent's half for the team actually making the shot.
@@ -548,15 +603,27 @@ class AIController {
     // Accurate directional velocity computation toward (aimX, targetZ)
     final deltaX = aimX - ball.position.x;
     final deltaZ = targetZ - ball.position.z;
-    final horizDist = math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
-    final dirX = horizDist > 0.001 ? deltaX / horizDist : 0.0;
-    final dirZ = horizDist > 0.001 ? deltaZ / horizDist : zDirection;
+    final heightAboveGround =
+        math.max(0.0, ball.position.y - PhysicsConstants.ballRadius);
+    final discriminant =
+        upPower * upPower + 2 * PhysicsConstants.gravity * heightAboveGround;
+    final flightTime =
+        (upPower + math.sqrt(discriminant)) / PhysicsConstants.gravity;
+    const dragCompensation = 1.08;
+    var launchX = deltaX / flightTime * dragCompensation;
+    var launchZ = deltaZ / flightTime * dragCompensation;
+    final launchSpeed = math.sqrt(launchX * launchX + launchZ * launchZ);
+    if (launchSpeed > forwardPower) {
+      final scale = forwardPower / launchSpeed;
+      launchX *= scale;
+      launchZ *= scale;
+    }
 
     // Launch ball cleanly
     ball.velocity = Vec3(
-      dirX * forwardPower,
+      launchX,
       upPower,
-      dirZ * forwardPower,
+      launchZ,
     );
     ball.state = BallState.inFlight;
     ball.lastHitByPlayer = isPartner;
@@ -564,19 +631,21 @@ class AIController {
     ball.secondBounceGraceTimer = 0;
     ball.hasBounced = false;
     ball.isServe = false;
-    ball.impactFlash = chosenShot == ShotType.power ? 1.0 : 0.7;
+    ball.impactFlash =
+        chosenShot == ShotType.power || chosenShot == ShotType.smash
+            ? 1.0
+            : 0.7;
     ball.spinRate = chosenShot == ShotType.drop ? -400 : 400;
     ball.shotType = chosenShot;
     ball.rallyHitCount++;
 
-    onHit?.call(chosenShot == ShotType.power);
+    onHit?.call(chosenShot == ShotType.power || chosenShot == ShotType.smash);
 
     ai.isSwinging = true;
     ai.swingCooldown = 0.5;
     ai.isForehand = ball.position.x > ai.position.x;
-    ai.animState = ai.isForehand
-        ? PlayerAnimState.forehand
-        : PlayerAnimState.backhand;
+    ai.animState =
+        ai.isForehand ? PlayerAnimState.forehand : PlayerAnimState.backhand;
     ai.animTimer = 0;
     ai.swingArm = 0;
 
@@ -604,8 +673,8 @@ class AIController {
     final recoverSpeed = isPracticeMode ? 140.0 : effectiveSpeed * 0.6;
     _moveToward(defaultPos, dt, recoverSpeed);
 
-    final dist = dist2D(
-        ai.position.x, ai.position.z, defaultPos.x, defaultPos.z);
+    final dist =
+        dist2D(ai.position.x, ai.position.z, defaultPos.x, defaultPos.z);
     if (dist < 12) {
       _state = AIState.idle;
       _hasPredictedTarget = false;
@@ -629,7 +698,8 @@ class AIController {
       // Air drag integration matching BallController
       final spd = math.sqrt(vx * vx + vy * vy + vz * vz);
       if (spd > 0.1) {
-        final drag = (1.0 - PhysicsConstants.ballDragCoefficient * spd * simDt).clamp(0.0, 1.0);
+        final drag = (1.0 - PhysicsConstants.ballDragCoefficient * spd * simDt)
+            .clamp(0.0, 1.0);
         vx *= drag;
         vy *= drag;
         vz *= drag;
@@ -681,8 +751,10 @@ class AIController {
     final dirX = dx / dist;
     final dirZ = dz / dist;
     final effectiveSpeedWithMultiplier = speed * ai.speedMultiplier;
-    ai.velocity.x = lerp(ai.velocity.x, dirX * effectiveSpeedWithMultiplier, dt * 6);
-    ai.velocity.z = lerp(ai.velocity.z, dirZ * effectiveSpeedWithMultiplier, dt * 6);
+    ai.velocity.x =
+        lerp(ai.velocity.x, dirX * effectiveSpeedWithMultiplier, dt * 6);
+    ai.velocity.z =
+        lerp(ai.velocity.z, dirZ * effectiveSpeedWithMultiplier, dt * 6);
   }
 
   void _updateAnimation(double dt) {
@@ -701,7 +773,8 @@ class AIController {
     final targetRunBlend = moving ? 1.0 : 0.0;
     ai.runBlend += (targetRunBlend - ai.runBlend) * math.min(1.0, dt * 10.0);
 
-    final speed = math.sqrt(ai.velocity.x * ai.velocity.x + ai.velocity.z * ai.velocity.z);
+    final speed = math
+        .sqrt(ai.velocity.x * ai.velocity.x + ai.velocity.z * ai.velocity.z);
     if (moving) {
       ai.legCycleTimer += dt * (speed * 0.10 + 6.5);
       ai.animState = PlayerAnimState.moveForward;
@@ -711,7 +784,8 @@ class AIController {
     }
 
     final targetLean = (ai.velocity.x / 14.0).clamp(-0.20, 0.20);
-    ai.smoothedLean += (targetLean - ai.smoothedLean) * math.min(1.0, dt * 12.0);
+    ai.smoothedLean +=
+        (targetLean - ai.smoothedLean) * math.min(1.0, dt * 12.0);
     ai.updateFacing(dt);
   }
 }

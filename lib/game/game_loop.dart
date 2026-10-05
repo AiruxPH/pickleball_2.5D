@@ -117,16 +117,13 @@ class CourtPainter extends CustomPainter {
   static final Path _staticNetMeshHigh = _buildStaticNetMesh(0.9, 6);
 
   static double _sagY(double x) {
-    const netPostH = CourtDimensions.netHeight;
-    const hw = CourtDimensions.halfWidth;
-    final t = ((x + hw) / (2 * hw)).clamp(0.0, 1.0);
-    return netPostH * (1.0 - math.sin(t * math.pi) * 0.056);
+    return CourtDimensions.netHeightAt(x);
   }
 
   static List<Offset> _buildStaticNetTopEdge() {
     const netPostH = CourtDimensions.netHeight;
     const hw = CourtDimensions.halfWidth;
-    const postX = hw + 2.5;
+    const postX = hw + CourtDimensions.netPostOffset;
     const samples = 24;
     final topEdge = <Offset>[const Offset(-postX, netPostH)];
     for (int i = 0; i <= samples; i++) {
@@ -139,7 +136,7 @@ class CourtPainter extends CustomPainter {
 
   static Path _buildStaticNetBody() {
     const hw = CourtDimensions.halfWidth;
-    const postX = hw + 2.5;
+    const postX = hw + CourtDimensions.netPostOffset;
     final topEdge = _buildStaticNetTopEdge();
     final body = Path()..moveTo(-postX, 0);
     for (final p in topEdge) {
@@ -175,7 +172,7 @@ class CourtPainter extends CustomPainter {
 
   static Path _buildStaticNetMesh(double spacing, int rows) {
     const hw = CourtDimensions.halfWidth;
-    const postX = hw + 2.5;
+    const postX = hw + CourtDimensions.netPostOffset;
     final topEdge = _buildStaticNetTopEdge();
     final mesh = Path();
     for (double x = -postX + spacing; x < postX; x += spacing) {
@@ -1742,7 +1739,7 @@ class CourtPainter extends CustomPainter {
 
   /// Soft net shadow cast onto the far court by the floodlights.
   void _drawNetShadow(Canvas canvas, double hw) {
-    final postX = hw + 2.5;
+    final postX = hw + CourtDimensions.netPostOffset;
     const depth = 3.2;
     const skew = 1.4;
     final path = Path()
@@ -1832,7 +1829,7 @@ class CourtPainter extends CustomPainter {
   void _drawNet(Canvas canvas, PerspectiveCamera cam) {
     const netPostH = CourtDimensions.netHeight;
     const hw = CourtDimensions.halfWidth;
-    const postX = hw + 2.5;
+    const postX = hw + CourtDimensions.netPostOffset;
     final quality = game.settings.graphicsQuality;
 
     canvas.save();

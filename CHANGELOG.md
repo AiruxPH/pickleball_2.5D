@@ -518,3 +518,12 @@
 - Migrated `BotAgent` from direct `PickleballGame` access to a fresh observation callback for every decision tick.
 - Added a narrow `MatchCommandSink` capability so decision agents can emit commands without gaining access to the command controller's mutable game reference.
 - Added regression coverage proving captured observations remain unchanged when the live simulation is mutated afterward.
+
+### 2026-10-05 - Regulation rendering scale and contextual AI
+- Standardized the court at four world units per foot and derived athlete rendering, regulation ball radius, and net dimensions from that shared scale.
+- Corrected the net from nine inches to 36 inches at the posts and 34 inches at center, with rendering and swept collision using the same sag function and ball radius.
+- Scaled both sprite and procedural athletes to a six-foot world height so their feet and kitchen-line position match the regulation court geometry.
+- Upgraded far-side AI selection to classify high attacks as smashes, lob over opponents crowding the kitchen, and dink against opponents pinned deep.
+- Applied the same smash, dink, and lob context rules to the observation-driven near-side bot and preserved smash intent through the shared command gateway.
+- Replaced direction-only AI launches with drag-compensated ballistic targeting and kept tactical targets inside the opponent court.
+- Added regression coverage for court ratios, net collision, kitchen-safe volleys, contextual shot selection, and in-bounds landings.

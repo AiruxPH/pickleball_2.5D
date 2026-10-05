@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/shop_items.dart';
+import '../utils/constants.dart';
 import '../utils/game_math.dart';
 
 /// ─────────────────────────────────────────────────────────────────────────────
@@ -37,8 +38,10 @@ class CharacterRenderer {
     ).createShader(Rect.fromCircle(center: Offset.zero, radius: 1.0));
 
   static final Paint _sockPaint = Paint()..color = const Color(0xFFF8FAFC);
-  static final Paint _shoeMidsolePaint = Paint()..color = const Color(0xFFFFFFFF);
-  static final Paint _shoeOutsolePaint = Paint()..color = const Color(0xFF334155);
+  static final Paint _shoeMidsolePaint = Paint()
+    ..color = const Color(0xFFFFFFFF);
+  static final Paint _shoeOutsolePaint = Paint()
+    ..color = const Color(0xFF334155);
 
   // ── Lighting state for the character currently being drawn ──────────────
   // +1 → key light hits the local left side (screen upper-left floodlights).
@@ -77,7 +80,15 @@ class CharacterRenderer {
     if (cam != null) {
       final screenPos = cam.project(player.position);
       if (screenPos == null) return;
-      scale = cam.depthScale(player.position).clamp(0.28, 2.2);
+      final headPos = cam.projectCoords(
+        player.position.x,
+        player.position.y + CourtDimensions.playerHeight,
+        player.position.z,
+      );
+      if (headPos == null) return;
+      scale =
+          ((headPos - screenPos).distance / CourtDimensions.characterArtHeight)
+              .clamp(0.05, 5.0);
 
       canvas.save();
       canvas.translate(screenPos.dx, screenPos.dy);
@@ -372,7 +383,8 @@ class CharacterRenderer {
           ..color = pal.jerseyAccent.withAlpha(70)
           ..strokeWidth = 0.9;
         for (double lx = -20; lx <= 20; lx += 8) {
-          canvas.drawLine(Offset(lx + 10, -26), Offset(lx - 6, 4), subtleLinePaint);
+          canvas.drawLine(
+              Offset(lx + 10, -26), Offset(lx - 6, 4), subtleLinePaint);
         }
       } else if (isPartner) {
         // Partner Pro: Royal blue with neon lime-green criss-cross burst grid
@@ -389,8 +401,10 @@ class CharacterRenderer {
           ..color = Colors.white.withAlpha(90)
           ..strokeWidth = 1.2;
         for (double lx = -24; lx <= 24; lx += 5.2) {
-          canvas.drawLine(Offset(lx, -26), Offset(lx + 13, 4), whiteLatticePaint);
-          canvas.drawLine(Offset(lx + 13, -26), Offset(lx, 4), whiteLatticePaint);
+          canvas.drawLine(
+              Offset(lx, -26), Offset(lx + 13, 4), whiteLatticePaint);
+          canvas.drawLine(
+              Offset(lx + 13, -26), Offset(lx, 4), whiteLatticePaint);
         }
       }
       canvas.restore();
@@ -539,9 +553,12 @@ class CharacterRenderer {
     if (isAI) {
       // ── AI Rival: Front View with Sunglasses, Visor & Styled Dark Hair ────
       // Styled Dark Hair top volume
-      canvas.drawCircle(const Offset(-4, -42), 6.0, Paint()..color = pal.hairDark);
-      canvas.drawCircle(const Offset(4, -42), 6.0, Paint()..color = pal.hairDark);
-      canvas.drawCircle(const Offset(0, -44), 6.8, Paint()..color = pal.hairMid);
+      canvas.drawCircle(
+          const Offset(-4, -42), 6.0, Paint()..color = pal.hairDark);
+      canvas.drawCircle(
+          const Offset(4, -42), 6.0, Paint()..color = pal.hairDark);
+      canvas.drawCircle(
+          const Offset(0, -44), 6.8, Paint()..color = pal.hairMid);
 
       // Polarized Wraparound Sports Sunglasses
       final glassesRect = RRect.fromRectAndRadius(
@@ -595,9 +612,12 @@ class CharacterRenderer {
     } else if (isPartner) {
       // ── Partner Pro: 3/4 Back View with Teal/White Baseball Cap & Blonde Hair ──
       // Dirty blonde wavy hair locks spilling under cap
-      canvas.drawCircle(const Offset(0, -30.0), 8.5, Paint()..color = pal.hairDark);
-      canvas.drawCircle(const Offset(-8.5, -34.0), 5.0, Paint()..color = pal.hairMid);
-      canvas.drawCircle(const Offset(8.5, -34.0), 5.0, Paint()..color = pal.hairMid);
+      canvas.drawCircle(
+          const Offset(0, -30.0), 8.5, Paint()..color = pal.hairDark);
+      canvas.drawCircle(
+          const Offset(-8.5, -34.0), 5.0, Paint()..color = pal.hairMid);
+      canvas.drawCircle(
+          const Offset(8.5, -34.0), 5.0, Paint()..color = pal.hairMid);
 
       // Cap White Back Crown Panel
       canvas.drawArc(
@@ -616,16 +636,23 @@ class CharacterRenderer {
         Paint()..color = const Color(0xFF00A896),
       );
       // Cap Button on top
-      canvas.drawCircle(const Offset(0, -43.0), 2.0, Paint()..color = const Color(0xFF00A896));
+      canvas.drawCircle(const Offset(0, -43.0), 2.0,
+          Paint()..color = const Color(0xFF00A896));
     } else {
       // ── Player Pro: 3/4 Back View with White Visor & Layered Blonde Hair ──
       // Layered Blonde Hair Locks (matching player_pro.png)
-      canvas.drawCircle(const Offset(0, -30.0), 8.5, Paint()..color = pal.hairDark);
-      canvas.drawCircle(const Offset(-8.5, -34.0), 5.2, Paint()..color = pal.hairMid);
-      canvas.drawCircle(const Offset(8.5, -34.0), 5.2, Paint()..color = pal.hairMid);
-      canvas.drawCircle(const Offset(-6.2, -38.5), 4.4, Paint()..color = pal.hairLight);
-      canvas.drawCircle(const Offset(6.2, -38.5), 4.4, Paint()..color = pal.hairLight);
-      canvas.drawCircle(const Offset(0, -41.5), 6.0, Paint()..color = pal.hairMid);
+      canvas.drawCircle(
+          const Offset(0, -30.0), 8.5, Paint()..color = pal.hairDark);
+      canvas.drawCircle(
+          const Offset(-8.5, -34.0), 5.2, Paint()..color = pal.hairMid);
+      canvas.drawCircle(
+          const Offset(8.5, -34.0), 5.2, Paint()..color = pal.hairMid);
+      canvas.drawCircle(
+          const Offset(-6.2, -38.5), 4.4, Paint()..color = pal.hairLight);
+      canvas.drawCircle(
+          const Offset(6.2, -38.5), 4.4, Paint()..color = pal.hairLight);
+      canvas.drawCircle(
+          const Offset(0, -41.5), 6.0, Paint()..color = pal.hairMid);
 
       // 3D White Performance Visor Crown
       canvas.drawRRect(
@@ -969,32 +996,32 @@ class CharacterRenderer {
     if (isAI) {
       // AI Rival Palette (ai_rival.png)
       return const CharacterPalette(
-        jerseyMain: Color(0xFF0F172A),   // Midnight Navy
+        jerseyMain: Color(0xFF0F172A), // Midnight Navy
         jerseyLight: Color(0xFF1E293B),
         jerseyAccent: Color(0xFFFF5722), // Fiery Coral
-        shortsColor: Color(0xFF090D16),  // Deep Midnight
-        skinColor: Color(0xFFC67D52),    // Tanned
-        hairDark: Color(0xFF0F172A),     // Dark Hair
+        shortsColor: Color(0xFF090D16), // Deep Midnight
+        skinColor: Color(0xFFC67D52), // Tanned
+        hairDark: Color(0xFF0F172A), // Dark Hair
         hairMid: Color(0xFF1E293B),
         hairLight: Color(0xFF334155),
-        shoeUpper: Color(0xFF0F172A),    // Navy Sneaker
-        shoeAccent: Color(0xFFFF5722),   // Coral Accent
+        shoeUpper: Color(0xFF0F172A), // Navy Sneaker
+        shoeAccent: Color(0xFFFF5722), // Coral Accent
       );
     }
 
     if (isPartner) {
       // Partner Pro Palette (partner_pro.png)
       return const CharacterPalette(
-        jerseyMain: Color(0xFF0284C7),   // Royal Blue
+        jerseyMain: Color(0xFF0284C7), // Royal Blue
         jerseyLight: Color(0xFF0369A1),
         jerseyAccent: Color(0xFFD4E157), // Neon Lime Green
-        shortsColor: Color(0xFF1E293B),  // Charcoal
-        skinColor: Color(0xFFDE9B6D),    // Tan
-        hairDark: Color(0xFFB45309),     // Dirty Blonde / Brown
+        shortsColor: Color(0xFF1E293B), // Charcoal
+        skinColor: Color(0xFFDE9B6D), // Tan
+        hairDark: Color(0xFFB45309), // Dirty Blonde / Brown
         hairMid: Color(0xFFD97706),
         hairLight: Color(0xFFFBBF24),
-        shoeUpper: Color(0xFFFF6D00),    // Orange Sneaker
-        shoeAccent: Color(0xFFF8FAFC),   // White Accent
+        shoeUpper: Color(0xFFFF6D00), // Orange Sneaker
+        shoeAccent: Color(0xFFF8FAFC), // White Accent
       );
     }
 
@@ -1016,16 +1043,16 @@ class CharacterRenderer {
 
     // Default Player Pro (player_pro.png)
     return const CharacterPalette(
-      jerseyMain: Color(0xFF00A896),   // Turquoise / Teal
-      jerseyLight: Color(0xFF14B8A6),  // Light Teal
+      jerseyMain: Color(0xFF00A896), // Turquoise / Teal
+      jerseyLight: Color(0xFF14B8A6), // Light Teal
       jerseyAccent: Color(0xFFFFFFFF), // Crisp White
-      shortsColor: Color(0xFF0D9488),  // Teal Shorts
-      skinColor: Color(0xFFE0AC82),    // Warm Sun-Kissed Tan
-      hairDark: Color(0xFFB47F28),     // Golden Blonde
+      shortsColor: Color(0xFF0D9488), // Teal Shorts
+      skinColor: Color(0xFFE0AC82), // Warm Sun-Kissed Tan
+      hairDark: Color(0xFFB47F28), // Golden Blonde
       hairMid: Color(0xFFEAB308),
       hairLight: Color(0xFFFDE68A),
-      shoeUpper: Color(0xFFFF6D00),    // Vibrant Orange Court Sneaker
-      shoeAccent: Color(0xFFFFFFFF),   // White Accent
+      shoeUpper: Color(0xFFFF6D00), // Vibrant Orange Court Sneaker
+      shoeAccent: Color(0xFFFFFFFF), // White Accent
     );
   }
 }

@@ -13,7 +13,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('AI Difficulty Settings & Calibration', () {
-    test('GameSettings reports calibrated speed, reaction, and accuracy for each tier', () {
+    test(
+        'GameSettings reports calibrated speed, reaction, and accuracy for each tier',
+        () {
       final settings = GameSettings();
 
       // Default is medium
@@ -43,7 +45,9 @@ void main() {
       expect(settings.aiSpeedForDifficulty(3), 130.0);
     });
 
-    test('AIController respects difficultyOverride without altering GameSettings', () {
+    test(
+        'AIController respects difficultyOverride without altering GameSettings',
+        () {
       final settings = GameSettings();
       settings.difficulty = AIDifficulty.hard;
 
@@ -72,12 +76,14 @@ void main() {
   });
 
   group('AI Tactical Shot Selection & Behavior Tiers', () {
-    test('Hard AI smashes high balls and drop-shots when player is pinned deep', () {
+    test('Hard AI smashes high balls and drop-shots when player is pinned deep',
+        () {
       final settings = GameSettings();
       settings.difficulty = AIDifficulty.hard;
 
       final ai = Player(startPosition: Vec3(0, 0, -50), isHuman: false);
-      final human = Player(startPosition: Vec3(-15, 0, 72), isHuman: true); // Deep past baseline
+      final human = Player(
+          startPosition: Vec3(-15, 0, 72), isHuman: true); // Deep past baseline
       final ball = Pickleball();
       final court = Court();
 
@@ -102,9 +108,11 @@ void main() {
         if (!ball.lastHitByPlayer) break;
       }
       expect(ball.lastHitByPlayer, isFalse);
-      expect(ball.shotType, ShotType.power, reason: 'Hard AI must smash high balls');
+      expect(ball.shotType, ShotType.smash,
+          reason: 'Hard AI must classify high-ball attacks as smashes');
       expect(ball.velocity.x, greaterThan(0),
-          reason: 'Hard AI must smash to open court opposite player (player is on left x < 0)');
+          reason:
+              'Hard AI must smash to open court opposite player (player is on left x < 0)');
     });
 
     test('Easy AI hits gentle, centered returns for accessible rallies', () {
@@ -137,9 +145,11 @@ void main() {
         if (!ball.lastHitByPlayer) break;
       }
       expect(ball.lastHitByPlayer, isFalse);
-      expect(ball.shotType, isNot(ShotType.power), reason: 'Easy AI must not smash normal rally balls');
+      expect(ball.shotType, isNot(ShotType.power),
+          reason: 'Easy AI must not smash normal rally balls');
       // Velocity aiming must be near center
-      expect(ball.velocity.y, greaterThan(35.0), reason: 'Easy AI must give forgiving high arc');
+      expect(ball.velocity.y, greaterThan(35.0),
+          reason: 'Easy AI must give forgiving high arc');
     });
 
     test('AIController positions behind the bounce on opponent court', () {
@@ -168,7 +178,8 @@ void main() {
       }
 
       // AI position must be on AI court (z < 0) and moving toward predicted intercept
-      expect(ai.position.z, lessThan(-20.0), reason: 'AI must stay on far side of court');
+      expect(ai.position.z, lessThan(-20.0),
+          reason: 'AI must stay on far side of court');
     });
   });
 
@@ -187,7 +198,8 @@ void main() {
 
       expect(easyGame.ball.state, BallState.inFlight);
       expect(easyGame.ball.isServe, isTrue);
-      expect(easyGame.ball.velocity.y, 32.0, reason: 'Easy serve has gentle high arc');
+      expect(easyGame.ball.velocity.y, 32.0,
+          reason: 'Easy serve has gentle high arc');
 
       // Hard Serve
       final hardGame = PickleballGame(
@@ -200,7 +212,8 @@ void main() {
 
       expect(hardGame.ball.state, BallState.inFlight);
       expect(hardGame.ball.isServe, isTrue);
-      expect(hardGame.ball.velocity.y, 26.0, reason: 'Hard serve is faster and flatter');
+      expect(hardGame.ball.velocity.y, 26.0,
+          reason: 'Hard serve is faster and flatter');
     });
   });
 }

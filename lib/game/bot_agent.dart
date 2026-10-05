@@ -135,16 +135,17 @@ class BotAgent {
   }
 
   ShotType _chooseShot(MatchObservation observation) {
-    if (difficulty == AIDifficulty.hard && observation.ball.position.y > 18) {
-      return ShotType.power;
+    if (difficulty == AIDifficulty.hard &&
+        observation.ball.position.y > CourtDimensions.netHeight + 5) {
+      return ShotType.smash;
     }
     if (difficulty != AIDifficulty.easy &&
         observation.farPlayer.position.z < CourtDimensions.aiStartZ - 5 &&
-        observation.nearPlayer.position.z < CourtDimensions.playerStartZ) {
+        observation.nearPlayer.position.z < CourtDimensions.kitchenDepth + 14) {
       return ShotType.drop;
     }
-    if (difficulty == AIDifficulty.hard &&
-        observation.farPlayer.position.z > -38) {
+    if (difficulty != AIDifficulty.easy &&
+        observation.farPlayer.position.z > -CourtDimensions.kitchenDepth - 12) {
       return ShotType.lob;
     }
     return ShotType.normal;

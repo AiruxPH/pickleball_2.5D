@@ -79,18 +79,22 @@ class PhysicsController {
 
     // Parametric t at crossing: prevZ + t*(currZ - prevZ) = 0
     final t = prevZ / (prevZ - currZ); // 0..1
-    final crossY = ball.prevPosition.y + t * (ball.position.y - ball.prevPosition.y);
-    final crossX = ball.prevPosition.x + t * (ball.position.x - ball.prevPosition.x);
+    final crossY =
+        ball.prevPosition.y + t * (ball.position.y - ball.prevPosition.y);
+    final crossX =
+        ball.prevPosition.x + t * (ball.position.x - ball.prevPosition.x);
 
     // Check X is within net posts (net spans full court width)
-    if (crossX.abs() > CourtDimensions.halfWidth + 2) return false;
+    if (crossX.abs() >
+        CourtDimensions.halfWidth + CourtDimensions.netPostOffset) {
+      return false;
+    }
 
     // Net height sags slightly at center: 36" at posts → 34" at center
     // Modeled as a parabolic droop: netHeight * (1 - 0.06 * (1 - (x/halfW)²))
-    final normalizedX = (crossX / CourtDimensions.halfWidth).clamp(-1.0, 1.0);
-    final netH = CourtDimensions.netHeight * (1.0 - 0.06 * (1.0 - normalizedX * normalizedX));
+    final netH = CourtDimensions.netHeightAt(crossX);
 
     // Ball hits net if crossing Y is at or below net height (with small tape clip threshold)
-    return crossY <= netH + 0.3;
+    return crossY - PhysicsConstants.ballRadius <= netH;
   }
 }

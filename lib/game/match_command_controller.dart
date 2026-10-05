@@ -178,8 +178,10 @@ class MatchCommandController implements MatchCommandSink {
         game.setHitPressed(true);
         break;
       case ShotType.power:
-      case ShotType.smash:
         game.setPowerPressed(true);
+        break;
+      case ShotType.smash:
+        game.queueShot(ShotType.smash);
         break;
       case ShotType.lob:
         game.setLobPressed(true);

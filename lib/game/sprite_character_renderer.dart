@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../services/character_sprite_manager.dart';
+import '../utils/constants.dart';
 import '../utils/game_math.dart';
 import 'character_renderer.dart';
 
@@ -49,7 +50,15 @@ class SpriteCharacterRenderer {
 
     final screenPos = cam.project(player.position);
     if (screenPos == null) return true; // behind camera: nothing to draw
-    final scale = cam.depthScale(player.position).clamp(0.28, 2.2);
+    final headPos = cam.projectCoords(
+      player.position.x,
+      player.position.y + CourtDimensions.playerHeight,
+      player.position.z,
+    );
+    if (headPos == null) return true;
+    final scale =
+        ((headPos - screenPos).distance / CourtDimensions.characterArtHeight)
+            .clamp(0.05, 5.0);
 
     final pose = nearTeam ? _backViewPose(player) : _frontViewPose(player);
     final src = atlas.frameRect(pose.anim, pose.frame);
@@ -61,7 +70,8 @@ class SpriteCharacterRenderer {
 
     // Ground shadows stay on the court (no lean / flip)
     final runWeight = player.runBlend.clamp(0.0, 1.0);
-    final bob = runWeight * (math.sin(player.legCycleTimer * 2.0) * 0.5 + 0.5) * 1.6;
+    final bob =
+        runWeight * (math.sin(player.legCycleTimer * 2.0) * 0.5 + 0.5) * 1.6;
     if (showShadow) {
       CharacterRenderer.drawGroundShadows(canvas, !nearTeam, bob, isLowEnd);
     }
@@ -77,7 +87,8 @@ class SpriteCharacterRenderer {
       atlas.cellWidth * k,
       atlas.cellHeight * k,
     );
-    canvas.drawImageRect(atlas.image, src, dst, isLowEnd ? _spritePaintLowEnd : _spritePaint);
+    canvas.drawImageRect(
+        atlas.image, src, dst, isLowEnd ? _spritePaintLowEnd : _spritePaint);
 
     canvas.restore();
     return true;

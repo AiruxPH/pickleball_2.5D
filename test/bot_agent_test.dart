@@ -53,7 +53,7 @@ void main() {
       expect(game.player.position.z, originalPosition.z);
     });
 
-    test('selects a power return for a reachable high ball on hard', () {
+    test('selects a smash for a reachable high ball on hard', () {
       game.state = GameState.rally;
       game.ball
         ..state = BallState.inFlight
@@ -69,8 +69,7 @@ void main() {
 
       agent.update(0.1);
 
-      expect(game.powerPressed, isTrue);
-      expect(game.bufferedShot, ShotType.power);
+      expect(game.bufferedShot, ShotType.smash);
     });
 
     test('decides from a standalone observation with command-only output', () {
@@ -110,7 +109,7 @@ void main() {
 
       isolatedAgent.update(0.1);
 
-      expect(commands.lastShot, ShotType.power);
+      expect(commands.lastShot, ShotType.smash);
       expect(commands.aimDirection, isNotNull);
     });
   });
