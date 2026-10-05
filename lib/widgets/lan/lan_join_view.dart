@@ -54,7 +54,8 @@ class _LanJoinViewState extends State<LanJoinView> {
     final ui = widget.ui;
     final service = widget.service;
     final isConnected = service.isConnected;
-    final isConnecting = service.status == LanStatus.connecting;
+    final isConnecting = service.status == LanStatus.connecting ||
+        service.status == LanStatus.reconnecting;
     final lobby = service.lobby;
 
     return Column(

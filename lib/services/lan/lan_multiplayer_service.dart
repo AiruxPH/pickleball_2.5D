@@ -12,7 +12,7 @@ import 'lan_transport.dart';
 
 enum LanRole { none, host, client }
 
-enum LanStatus { idle, hosting, connecting, connected, inGame, error }
+enum LanStatus { idle, hosting, connecting, reconnecting, connected, inGame, error }
 
 class LanMultiplayerService extends ChangeNotifier {
   LanMultiplayerService._() {
@@ -25,6 +25,12 @@ class LanMultiplayerService extends ChangeNotifier {
   String? _errorMessage;
   List<String> _hostAddresses = [];
   int _port = 7777;
+  String? _lastJoinTarget;
+  bool _manualDisconnect = false;
+  int _reconnectAttempt = 0;
+  Timer? _heartbeat;
+  int? _lastPingSentAt;
+  int? _latencyMs;
   String _roomCode = LanRoomCode.generateRandom();
 
   LanServer? _server;
@@ -52,6 +58,7 @@ class LanMultiplayerService extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   List<String> get hostAddresses => List.unmodifiable(_hostAddresses);
   int get port => _port;
+  int? get latencyMs => _latencyMs;
   String get roomCode => _roomCode;
   MatchLobby? get lobby => _lobby;
 
@@ -78,6 +85,7 @@ class LanMultiplayerService extends ChangeNotifier {
     String? customRoomCode,
   }) async {
     await disconnect();
+    _manualDisconnect = false;
     _port = port;
     _role = LanRole.host;
     _status = LanStatus.hosting;
@@ -119,6 +127,8 @@ class LanMultiplayerService extends ChangeNotifier {
         _onClientConnected(clientConn);
       });
 
+      _startHeartbeat();
+
       notifyListeners();
     } catch (e) {
       _status = LanStatus.error;
@@ -155,6 +165,13 @@ class LanMultiplayerService extends ChangeNotifier {
 
   Future<void> joinRoom(String roomCodeOrIp, {int port = 7777}) async {
     await disconnect();
+    _manualDisconnect = false;
+    _lastJoinTarget = roomCodeOrIp;
+    _reconnectAttempt = 0;
+    await _connectClient(roomCodeOrIp, port);
+  }
+
+  Future<void> _connectClient(String roomCodeOrIp, int port) async {
     _port = port;
     _role = LanRole.client;
     _status = LanStatus.connecting;
@@ -173,16 +190,16 @@ class LanMultiplayerService extends ChangeNotifier {
       _connectionSub = _connection!.messages.listen(
         _handleIncomingMessage,
         onError: (err) {
-          _status = LanStatus.error;
           _errorMessage = 'Connection error: $err';
-          notifyListeners();
+          if (!_manualDisconnect) _scheduleReconnect();
         },
         onDone: () {
-          _status = LanStatus.idle;
-          _errorMessage = 'Host closed connection.';
-          notifyListeners();
+          if (!_manualDisconnect) _scheduleReconnect();
         },
       );
+
+      _reconnectAttempt = 0;
+      _startHeartbeat();
 
       // Request current lobby state from host
       _connection!.send(const LanMessage(
@@ -192,10 +209,46 @@ class LanMultiplayerService extends ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      _status = LanStatus.error;
-      _errorMessage = 'Could not join room "$_roomCode": $e';
-      notifyListeners();
+      if (!_manualDisconnect && _reconnectAttempt < 3) {
+        _scheduleReconnect();
+      } else {
+        _status = LanStatus.error;
+        _errorMessage = 'Could not join room "$_roomCode": $e';
+        notifyListeners();
+      }
     }
+  }
+
+  void _scheduleReconnect() {
+    final target = _lastJoinTarget;
+    if (!isClient || target == null || _manualDisconnect) return;
+    _reconnectAttempt++;
+    if (_reconnectAttempt > 3) {
+      _status = LanStatus.error;
+      _errorMessage = 'Connection lost after 3 reconnect attempts.';
+      notifyListeners();
+      return;
+    }
+    _status = LanStatus.reconnecting;
+    _errorMessage = 'Reconnecting ($_reconnectAttempt/3)…';
+    notifyListeners();
+    Future<void>.delayed(Duration(milliseconds: 500 * _reconnectAttempt), () {
+      if (!_manualDisconnect) _connectClient(target, _port);
+    });
+  }
+
+  void _startHeartbeat() {
+    _heartbeat?.cancel();
+    _heartbeat = Timer.periodic(const Duration(seconds: 2), (_) {
+      final connection = _connection;
+      if (connection == null || !connection.isConnected) return;
+      final sentAt = DateTime.now().millisecondsSinceEpoch;
+      _lastPingSentAt = sentAt;
+      connection.send(LanMessage(
+        type: LanMessageType.ping,
+        payload: {'sentAt': sentAt},
+      ));
+    });
   }
 
   void _onLocalLobbyChanged() {
@@ -288,6 +341,11 @@ class LanMultiplayerService extends ChangeNotifier {
         break;
 
       case LanMessageType.pong:
+        final sentAt = message.payload['sentAt'] as int? ?? _lastPingSentAt;
+        if (sentAt != null) {
+          _latencyMs = DateTime.now().millisecondsSinceEpoch - sentAt;
+          notifyListeners();
+        }
         break;
     }
   }
@@ -323,6 +381,9 @@ class LanMultiplayerService extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
+    _manualDisconnect = true;
+    _heartbeat?.cancel();
+    _heartbeat = null;
     await _beacon.stopBroadcasting();
 
     await _connectionSub?.cancel();
@@ -343,6 +404,7 @@ class LanMultiplayerService extends ChangeNotifier {
     _status = LanStatus.idle;
     _errorMessage = null;
     _hostAddresses = [];
+    _latencyMs = null;
     notifyListeners();
   }
 

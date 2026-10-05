@@ -1,0 +1,47 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "onlineRooms": {
+      "$code": {
+        ".read": "auth != null",
+        "meta": {
+          ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() === auth.uid) || data.child('hostUid').val() === auth.uid || data.parent().child('meta/hostUid').val() === auth.uid)",
+          "hostUid": {
+            ".validate": "newData.isString() && newData.val() === auth.uid"
+          },
+          "status": {
+            ".validate": "newData.isString() && (newData.val() === 'lobby' || newData.val() === 'inGame' || newData.val() === 'closed')"
+          }
+        },
+        "lobby": {
+          ".write": "auth != null && data.parent().child('meta/hostUid').val() === auth.uid"
+        },
+        "members": {
+          "$uid": {
+            ".write": "auth != null && ($uid === auth.uid || data.parent().parent().child('meta/hostUid').val() === auth.uid)",
+            ".validate": "!newData.exists() || (newData.hasChildren(['role', 'online']) && newData.child('online').isBoolean())"
+          }
+        },
+        "actions": {
+          "$action": {
+            ".write": "auth != null && ((!data.exists() && newData.child('uid').val() === auth.uid) || data.parent().parent().child('meta/hostUid').val() === auth.uid)",
+            ".validate": "!newData.exists() || (newData.child('uid').val() === auth.uid && newData.child('type').val() === 'toggleReady')"
+          }
+        },
+        "commands": {
+          "$command": {
+            ".write": "auth != null && ((!data.exists() && newData.child('uid').val() === auth.uid) || data.parent().parent().child('meta/hostUid').val() === auth.uid)",
+            ".validate": "!newData.exists() || (newData.child('uid').val() === auth.uid && newData.child('cmd').child('type').isString())"
+          }
+        },
+        "snapshot": {
+          ".write": "auth != null && data.parent().child('meta/hostUid').val() === auth.uid"
+        },
+        "start": {
+          ".write": "auth != null && data.parent().child('meta/hostUid').val() === auth.uid"
+        }
+      }
+    }
+  }
+}

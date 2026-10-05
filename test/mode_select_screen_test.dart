@@ -70,6 +70,7 @@ void main() {
     expect(find.text('SINGLES 1v1'), findsOneWidget);
     expect(find.text('DOUBLES 2v2'), findsOneWidget);
     expect(find.text('BOT VS BOT'), findsOneWidget);
+    expect(find.text('ONLINE MULTIPLAYER'), findsOneWidget);
     expect(find.text('TRAINING'), findsNothing);
     expect(find.text('Team up with AI partner vs AI duo'), findsOneWidget);
   });

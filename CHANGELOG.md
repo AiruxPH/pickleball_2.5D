@@ -1,5 +1,28 @@
 # Change Log
 
+## 2026-10-06
+
+### Firebase online multiplayer foundation and LAN hardening
+- **Reason of Change:** Finalize the host-authoritative LAN path and add the first production-shaped online multiplayer implementation using Firebase.
+- **Changes Applied:**
+  1. Added `firebase_core`, `firebase_auth`, and `firebase_database` through the official FlutterFire packages.
+  2. Added configuration-safe Firebase bootstrap. Native builds use files produced by `flutterfire configure`; web can temporarily use `FIREBASE_*` dart-defines. Missing configuration is reported in the Online screen without breaking the rest of the app.
+  3. Added anonymous authentication and a Firebase Realtime Database room service with six-character codes, host/client roles, presence, ready state, singles/doubles lobby format, match-start events, command queues, host-authoritative snapshots, disconnect cleanup, and closed-room detection.
+  4. Added an Online Multiplayer mode card, route, and responsive lobby for creating/joining rooms, copying room codes, readying players, selecting 1v1/2v2, and starting a match.
+  5. Reused the existing match command and state snapshot contracts for LAN and Firebase. Network clients no longer advance a competing local physics simulation; only the host simulates, while clients render authoritative snapshots.
+  6. Throttled Firebase state snapshots to 10 Hz to avoid writing at render frequency. Input commands remain event-based.
+  7. Hardened LAN with a two-second heartbeat, measured latency, three progressive reconnect attempts, reconnecting UI state, and explicit manual-disconnect handling.
+  8. Added an explicit `MatchLobby.online` constructor so serialized online lobbies retain their correct transport type and room ID.
+  9. Added locked-by-default Realtime Database rules with authenticated room reads, host-only lobby/snapshot/start mutation, self-owned presence, and validated client actions/commands.
+  10. Added `FIREBASE_SETUP.md`, `firebase.json`, and deployable `database.rules.json` setup assets.
+  11. Extended mode-selection coverage to include Online Multiplayer.
+- **Verification:**
+  - `flutter analyze` completed with no issues after integration.
+  - Focused LAN, mode-selection, and widget suites passed (20/20 tests).
+  - Complete Flutter suite passed (169/169 tests); the existing compact-Shop `PLAYERS` hit-test warning remains non-fatal.
+  - `database.rules.json` parses as valid JSON.
+- **Configuration Still Required:** Run `flutterfire configure`, enable Anonymous Authentication, create Realtime Database, and deploy `database.rules.json` before live online rooms can connect.
+
 ## 2026-10-05
 
 ### 2026-10-05 — Match UX, equipment skills, mode flow, controls, and court presentation

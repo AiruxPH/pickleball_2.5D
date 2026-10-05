@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/lan/lan_multiplayer_service.dart';
 import '../services/lan/lan_state_snapshot.dart';
+import '../services/online/online_multiplayer_service.dart';
 import '../game/bot_agent.dart';
 import '../game/camera_controller.dart';
 import '../game/game_loop.dart';
@@ -80,6 +81,7 @@ class _GameScreenState extends State<GameScreen>
   bool _isBotVsBot = false;
   bool _isLocalMultiplayer = false;
   bool _isLanMultiplayer = false;
+  bool _isOnlineMultiplayer = false;
   String? _lanRole;
   StreamSubscription? _lanCommandSub;
   StreamSubscription? _lanStateSyncSub;
@@ -123,9 +125,12 @@ class _GameScreenState extends State<GameScreen>
     final modeArg = args?['mode'] as String?;
     _isBotVsBot = args?['botVsBot'] == true || modeArg == 'bot-vs-bot';
     _isLanMultiplayer = args?['lanMultiplayer'] == true;
-    _lanRole = args?['lanRole'] as String?;
+    _isOnlineMultiplayer = args?['onlineMultiplayer'] == true;
+    _lanRole = (args?['lanRole'] ?? args?['onlineRole']) as String?;
     _isLocalMultiplayer =
-        args?['localMultiplayer'] == true || _isLanMultiplayer;
+        args?['localMultiplayer'] == true ||
+        _isLanMultiplayer ||
+        _isOnlineMultiplayer;
     final drillType = args?['drillType'] as String?;
     final gameMode = modeArg == 'doubles' || args?['gameMode'] == 'doubles'
         ? GameMode.doubles
@@ -168,6 +173,8 @@ class _GameScreenState extends State<GameScreen>
       onDispatched: (cmd) {
         if (_isLanMultiplayer && _lanRole == 'client') {
           LanMultiplayerService.instance.sendMatchCommand(cmd);
+        } else if (_isOnlineMultiplayer && _lanRole == 'client') {
+          OnlineMultiplayerService.instance.sendMatchCommand(cmd);
         }
       },
     );
@@ -178,6 +185,8 @@ class _GameScreenState extends State<GameScreen>
         onDispatched: (cmd) {
           if (_isLanMultiplayer && _lanRole == 'client') {
             LanMultiplayerService.instance.sendMatchCommand(cmd);
+          } else if (_isOnlineMultiplayer && _lanRole == 'client') {
+            OnlineMultiplayerService.instance.sendMatchCommand(cmd);
           }
         },
       );
@@ -195,6 +204,17 @@ class _GameScreenState extends State<GameScreen>
             snapshot.applyToGame(_game!);
           }
         });
+        _presentation!.cameraController.setView(CameraView.baseline);
+      }
+    }
+    if (_isOnlineMultiplayer) {
+      if (_lanRole == 'host') {
+        _lanCommandSub = OnlineMultiplayerService.instance.onCommandReceived
+            .listen((cmd) => _opponentCommands?.dispatch(cmd));
+      } else if (_lanRole == 'client') {
+        _lanStateSyncSub = OnlineMultiplayerService
+            .instance.onStateSyncReceived
+            .listen((snapshot) => snapshot.applyToGame(_game!));
         _presentation!.cameraController.setView(CameraView.baseline);
       }
     }
@@ -252,10 +272,14 @@ class _GameScreenState extends State<GameScreen>
     _matchDuration += clampedDt;
     _simulationAccumulator =
         (_simulationAccumulator + clampedDt).clamp(0.0, 0.25);
+    final isNetworkClient =
+        (_isLanMultiplayer || _isOnlineMultiplayer) && _lanRole == 'client';
     while (_simulationAccumulator >= _simulationStep) {
-      _playerBot?.update(_simulationStep);
-      _opponentBot?.update(_simulationStep);
-      _game?.update(_simulationStep);
+      if (!isNetworkClient) {
+        _playerBot?.update(_simulationStep);
+        _opponentBot?.update(_simulationStep);
+        _game?.update(_simulationStep);
+      }
       _simulationAccumulator -= _simulationStep;
     }
     final game = _game;
@@ -275,6 +299,16 @@ class _GameScreenState extends State<GameScreen>
         LanMultiplayerService.instance.sendStateSync(
           LanStateSnapshot.fromGame(_game!),
         );
+      }
+    }
+    if (_isOnlineMultiplayer && _lanRole == 'host' && _game != null) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      // Realtime Database snapshots are intentionally throttled to 10 Hz.
+      // Clients render between authoritative updates locally.
+      if (now - _lastLanSyncMs >= 100) {
+        _lastLanSyncMs = now;
+        OnlineMultiplayerService.instance
+            .sendStateSync(LanStateSnapshot.fromGame(_game!));
       }
     }
 
@@ -385,7 +419,7 @@ class _GameScreenState extends State<GameScreen>
   MatchCommandController? get _activeTouchCommands {
     final game = _game;
     if (game == null) return _commands;
-    if (_isLanMultiplayer) {
+    if (_isLanMultiplayer || _isOnlineMultiplayer) {
       return _lanRole == 'client' ? _opponentCommands : _commands;
     }
     if (!_isLocalMultiplayer) return _commands;
@@ -737,6 +771,10 @@ class _GameScreenState extends State<GameScreen>
         false;
     if (!mounted) return;
     if (leave) {
+      if (_isOnlineMultiplayer) {
+        await OnlineMultiplayerService.instance.leaveRoom();
+      }
+      if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(context, '/menu', (_) => false);
     } else if (!wasPaused) {
       game.resume();

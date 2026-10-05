@@ -72,6 +72,18 @@ class MatchLobby extends ChangeNotifier {
     );
   }
 
+  factory MatchLobby.online(
+    String roomCode, {
+    LobbyFormat format = LobbyFormat.singles,
+  }) {
+    return MatchLobby._(
+      id: roomCode,
+      type: LobbyType.online,
+      format: format,
+      slots: _slotsFor(format),
+    );
+  }
+
   final String id;
   final LobbyType type;
   LobbyFormat _format;

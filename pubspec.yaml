@@ -29,6 +29,9 @@ dependencies:
 
   # Interactive GLB presentation for shop equipment
   model_viewer_plus: 1.9.3
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  firebase_database: ^12.6.0
 
 dev_dependencies:
   flutter_test:

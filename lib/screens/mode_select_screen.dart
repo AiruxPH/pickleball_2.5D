@@ -37,6 +37,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         Icons.group_rounded, TilePalette.purple),
     _ModeOption('BOT VS BOT', 'Watch two agents compete autonomously',
         Icons.smart_toy_rounded, TilePalette.green),
+    _ModeOption('ONLINE MULTIPLAYER', 'Create or join a Firebase room',
+        Icons.public_rounded, TilePalette.gold),
     _ModeOption('LAN MULTIPLAYER', 'Device vs device over Wi-Fi / Local Network',
         Icons.wifi_rounded, TilePalette.red),
   ];
@@ -129,7 +131,11 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           'difficulty': _selectedDiffIndex + 1
         });
         break;
-      case 3: // Local shared-screen lobby
+      case 3: // Online room
+        context.read<SettingsService>().save(settings);
+        Navigator.pushReplacementNamed(context, '/online-lobby');
+        break;
+      case 4: // LAN room
         context.read<SettingsService>().save(settings);
         Navigator.pushReplacementNamed(context, '/local-lobby');
         break;
@@ -175,7 +181,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
 
   Future<void> _showModeSetup(int index, double ui) async {
     setState(() => _selectedModeIndex = index);
-    if (index == 3) {
+    if (index >= 3) {
       _onPlay();
       return;
     }
