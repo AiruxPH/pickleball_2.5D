@@ -63,7 +63,6 @@ class DefaultFirebaseOptions {
     projectId: 'pickleball-simulator',
     storageBucket: 'pickleball-simulator.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBTZzvJKfVuJspRkRvTC6wmkFkfxfFJD_U',
     appId: '1:1009997802044:ios:49da4d4b392b04f420b139',
