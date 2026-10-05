@@ -12,6 +12,7 @@ import '../game/game_presentation.dart';
 import '../game/match_command_controller.dart';
 import '../game/match_observation.dart';
 import '../game/pickleball_game.dart';
+import '../game/panorama/court_backdrop_view.dart';
 import '../models/game_settings.dart';
 import '../models/ultimate_skill.dart';
 import '../utils/constants.dart';
@@ -642,17 +643,19 @@ class _GameScreenState extends State<GameScreen>
           onScaleEnd: _isBotVsBot ? _onSpectatorScaleEnd : null,
           child: Stack(
             children: [
-              // ── Custom Court Environment Artwork Backdrop ────────
+              // ── Dynamic 360° Panorama Court Environment Backdrop ────────
               Positioned.fill(
-                child: Image.asset(
-                  game.settings.courtTheme.assetPath,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  cacheWidth: game.settings.isLowEndMode ? 960 : 1920,
-                  filterQuality: game.settings.isLowEndMode
-                      ? FilterQuality.low
-                      : FilterQuality.medium,
-                ),
+                child: _presentation != null
+                    ? CourtBackdropView(
+                        game: game,
+                        presentation: _presentation!,
+                        repaint: _tickNotifier,
+                      )
+                    : Image.asset(
+                        game.settings.courtTheme.assetPath,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.center,
+                      ),
               ),
 
               // ── 3D Court — isolated RepaintBoundary with direct repaint Listenable ───

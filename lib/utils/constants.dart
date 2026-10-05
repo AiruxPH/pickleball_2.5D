@@ -268,9 +268,9 @@ extension CourtThemeExtension on CourtTheme {
   String get assetPath {
     switch (this) {
       case CourtTheme.tournament:
-        return 'assets/images/courts/court_7.jpg';
+        return 'assets/images/courts/court_7.png';
       case CourtTheme.beach:
-        return 'assets/images/courts/court_1.png';
+        return 'assets/images/courts/court_1.jpg';
       case CourtTheme.indoor:
         return 'assets/images/courts/court_2.png';
       case CourtTheme.outdoor:
@@ -281,6 +281,26 @@ extension CourtThemeExtension on CourtTheme {
         return 'assets/images/courts/court_5.png';
       case CourtTheme.canyon:
         return 'assets/images/courts/court_6.png';
+    }
+  }
+
+  /// Optional 360-degree equirectangular panorama backdrop for dynamic camera rendering
+  String? get panoramaAssetPath {
+    switch (this) {
+      case CourtTheme.tournament:
+        return 'assets/images/courts/court_7_panorama.png';
+      case CourtTheme.beach:
+        return 'assets/images/courts/court_1_panorama.jpg';
+      case CourtTheme.indoor:
+        return 'assets/images/courts/court_2_panorama.jpg';
+      case CourtTheme.outdoor:
+        return 'assets/images/courts/grassland_panorama.jpg';
+      case CourtTheme.midnight:
+        return 'assets/images/courts/starry_night_panorama.jpg';
+      case CourtTheme.volcano:
+        return 'assets/images/courts/court_5_panorama.jpg';
+      case CourtTheme.canyon:
+        return null;
     }
   }
 

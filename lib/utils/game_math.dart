@@ -281,6 +281,36 @@ class PerspectiveCamera {
     if (depth <= 0.1) return 0;
     return _halfScreenHeight * _invHalfH / depth;
   }
+
+  /// Forward look vector X component
+  double get forwardX {
+    if (!_framePrepared) prepareFrame();
+    return _fwdX;
+  }
+
+  /// Forward look vector Y component
+  double get forwardY {
+    if (!_framePrepared) prepareFrame();
+    return _fwdY;
+  }
+
+  /// Forward look vector Z component
+  double get forwardZ {
+    if (!_framePrepared) prepareFrame();
+    return _fwdZ;
+  }
+
+  /// Horizontal camera look yaw in radians (0 = looking down-court toward -Z)
+  double get lookYaw {
+    if (!_framePrepared) prepareFrame();
+    return math.atan2(_fwdX, -_fwdZ);
+  }
+
+  /// Vertical camera look pitch in radians (negative = looking down)
+  double get lookPitch {
+    if (!_framePrepared) prepareFrame();
+    return math.asin(_fwdY.clamp(-1.0, 1.0));
+  }
 }
 
 // ── Math Helpers ───────────────────────────────────────────────
