@@ -85,6 +85,31 @@ void main() {
           reason: 'Return must land on player side');
     });
 
+    for (final difficulty in AIDifficulty.values) {
+      test('$difficulty returns a serve at the production 120 Hz step', () {
+        final settings = GameSettings()..difficulty = difficulty;
+        final game = PickleballGame(
+          screenSize: const Size(800, 600),
+          settings: settings,
+        );
+
+        game.setServePressed(true);
+        game.update(1 / 120);
+
+        var aiHit = false;
+        for (var i = 0; i < 720 && game.state == GameState.rally; i++) {
+          game.update(1 / 120);
+          if (!game.ball.lastHitByPlayer && game.ball.rallyHitCount >= 1) {
+            aiHit = true;
+            break;
+          }
+        }
+
+        expect(aiHit, isTrue,
+            reason: '$difficulty AI must not miss its serve contact window');
+      });
+    }
+
     test('AI retrieves bounced balls inside the kitchen', () {
       final settings = GameSettings();
       settings.difficulty = AIDifficulty.hard;

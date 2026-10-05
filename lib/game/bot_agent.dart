@@ -63,6 +63,11 @@ class BotAgent {
       return;
     }
 
+    // Paddle contact is a reflex, not a tactical decision. Check it at the
+    // fixed simulation rate so a fast ball cannot cross the reachable window
+    // between difficulty-dependent thinking ticks.
+    _tryReturnBall(observation);
+
     _thinkTimer -= dt;
     if (_thinkTimer > 0) return;
     _thinkTimer = reactionTime;
@@ -90,7 +95,6 @@ class BotAgent {
 
   void _updateRally(MatchObservation observation) {
     final ball = observation.ball;
-    final player = observation.nearPlayer;
     final ballIncoming =
         !ball.lastHitByNearSide && (ball.position.z > 0 || ball.velocity.z > 0);
 
@@ -116,6 +120,21 @@ class BotAgent {
     );
     _moveToward(observation, targetX.toDouble(), targetZ.toDouble());
 
+    if (_shotCooldown <= 0) {
+      commands.clearAim();
+    }
+  }
+
+  bool _tryReturnBall(MatchObservation observation) {
+    final ball = observation.ball;
+    final player = observation.nearPlayer;
+    final ballIncoming =
+        !ball.lastHitByNearSide && (ball.position.z > 0 || ball.velocity.z > 0);
+    if (!ballIncoming) return false;
+
+    final bouncedInOwnKitchen = ball.hasBounced &&
+        ball.lastBounceZ >= 0 &&
+        ball.lastBounceZ <= CourtDimensions.kitchenDepth;
     final mustBounce = ball.mustBounceBeforeHit && !ball.hasBounced;
     final lateral = (ball.position.x - player.position.x).abs();
     final forward = player.position.z - ball.position.z;
@@ -133,13 +152,14 @@ class BotAgent {
         !insideContactEnvelope ||
         !legalKitchenContact ||
         !legalVolleyStance) {
-      return;
+      return false;
     }
 
     final openSide = observation.farPlayer.position.x >= 0 ? -0.68 : 0.68;
     commands.aim(Offset(openSide, -1));
     commands.shot(_chooseShot(observation));
     _shotCooldown = 0.48;
+    return true;
   }
 
   ShotType _chooseShot(MatchObservation observation) {

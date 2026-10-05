@@ -2,6 +2,24 @@
 
 ## 2026-10-05
 
+### 2026-10-05 18:48:00+08:00
+- **Reason of Change:** Fix the autonomous near-side bot failing to return a served ball.
+- **Cause of Error:** `BotAgent` checked both tactical decisions and the narrow paddle-contact envelope only on its difficulty-dependent thinking interval. On easy difficulty that interval is 0.28 seconds, allowing a serve to pass completely through the legal contact window between checks even though the fixed simulation runs at 120 Hz.
+- **Fix Applied:**
+  1. [bot_agent.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/bot_agent.dart):
+     - Separated legal paddle-contact detection from reaction-paced movement and tactical updates.
+     - Evaluated the return contact envelope every fixed simulation tick while preserving serve-bounce, kitchen, volley-establishment, reach-height, and swing-cooldown requirements.
+     - Kept difficulty reaction time responsible for anticipation and movement rather than whether the bot can physically observe contact.
+  2. [bot_agent_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/bot_agent_test.dart):
+     - Added an end-to-end easy-bot regression that receives and returns an AI serve at the production 120 Hz step.
+  3. [ai_rally_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/ai_rally_test.dart):
+     - Added production-step serve-return coverage for the far-side opponent on easy, medium, and hard difficulties.
+- **Verification:**
+  - The new bot-vs-bot regression failed before the fix and passed after it.
+  - Focused bot and AI rally suites passed (14/14 tests).
+  - Complete Flutter suite passed (150/150 tests).
+  - `flutter analyze` completed with no issues.
+
 ### 2026-10-05 12:20:47+08:00
 - **Reason of Change:** Make bot returns and volleys respect the requested serve-bounce and Non-Volley Zone behavior.
 - **Cause of Error:** `AIController` allowed a bot to enter the NVZ after any bounce, even when the ball had bounced outside the NVZ. The serve/return wait checks also duplicated raw rally-count logic instead of using the ball model's shared two-bounce rule.

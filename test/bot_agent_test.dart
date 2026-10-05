@@ -112,6 +112,36 @@ void main() {
       expect(commands.lastShot, ShotType.smash);
       expect(commands.aimDirection, isNotNull);
     });
+
+    test('returns an AI serve at the production 120 Hz step', () {
+      final returnGame = PickleballGame(
+        screenSize: const Size(800, 600),
+        settings: GameSettings(),
+        isPracticeMode: true,
+        drillType: 'return_drill',
+        difficultyOverride: AIDifficulty.easy,
+      );
+      final returnAgent = BotAgent(
+        observe: () => MatchObservation.fromGame(returnGame),
+        commands: MatchCommandController(game: returnGame),
+        difficulty: AIDifficulty.easy,
+      );
+
+      var returnedServe = false;
+      for (var i = 0; i < 960; i++) {
+        returnAgent.update(1 / 120);
+        returnGame.update(1 / 120);
+        if (returnGame.ball.lastHitByPlayer &&
+            returnGame.ball.rallyHitCount >= 1) {
+          returnedServe = true;
+          break;
+        }
+      }
+
+      expect(returnedServe, isTrue,
+          reason: 'The near-side bot must not miss a served ball between '
+              'reaction ticks');
+    });
   });
 }
 
