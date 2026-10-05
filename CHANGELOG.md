@@ -2,6 +2,24 @@
 
 ## 2026-10-05
 
+### 2026-10-05 12:20:47+08:00
+- **Reason of Change:** Make bot returns and volleys respect the requested serve-bounce and Non-Volley Zone behavior.
+- **Cause of Error:** `AIController` allowed a bot to enter the NVZ after any bounce, even when the ball had bounced outside the NVZ. The serve/return wait checks also duplicated raw rally-count logic instead of using the ball model's shared two-bounce rule.
+- **Fix Applied:**
+  1. [ai_controller.dart](file:///c:/Users/CLienT/Desktop/app/my_app/lib/game/ai_controller.dart):
+     - Kept the mandatory bounce for the receiving bot after a serve and for the serving side's next shot through `Pickleball.mustBounceBeforeHit`.
+     - Preserved direct volleys for normal rally balls when the bot is established outside the NVZ.
+     - Added side-aware detection of whether the current ball bounced in the bot's own NVZ.
+     - Prevented the bot from approaching or striking while touching the NVZ unless that ball bounced in its own NVZ.
+  2. [ai_rally_test.dart](file:///c:/Users/CLienT/Desktop/app/my_app/test/ai_rally_test.dart):
+     - Added regression coverage for mandatory serve-return bounces, legal normal-rally volleys outside the NVZ, and staying outside the NVZ after a non-NVZ bounce.
+     - Made the existing kitchen-bounce retrieval scenario record its actual bounce location.
+- **Verification:**
+  - `git diff --check` passed with no whitespace errors.
+  - `dart format` completed on both edited Dart files.
+  - Focused Flutter test and analyzer commands were attempted, but each stalled without test output and timed out after 120-180 seconds while existing Dart processes remained active.
+  - Dart/Flutter MCP app discovery and hot-reload tools were unavailable in this session, so no automatic hot reload could be sent to the running process.
+
 ### 2026-10-05 11:50:00+08:00
 - **Reason of Change:** Resolve test failures across the full test suite in `rules_test.dart` (two-bounce messaging, double-bounce grace window settlement, deep power/lob court boundaries) and `camera_controller_test.dart` (free roam yaw clamping bounds).
 - **Cause of Error:**

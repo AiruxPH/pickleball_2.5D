@@ -256,8 +256,10 @@ class AIController {
 
   // ── Approach: close in on ball ─────────────────────────────────
   void _updateApproach(double dt) {
-    // Two-bounce rule: If rallyHitCount < 2, must let ball bounce before striking!
-    final mustWaitBounce = ball.rallyHitCount < 2 && !ball.hasBounced;
+    // The receiving side must let the serve bounce, and the serving side must
+    // also let the return bounce. Normal rally balls may be volleyed.
+    final mustWaitBounce = ball.mustBounceBeforeHit && !ball.hasBounced;
+    final mayEnterKitchen = _ballBouncedInOwnKitchen;
 
     // Movement target during approach:
     // Head toward predicted landing spot while ball is in flight, then track bounced ball directly
@@ -271,9 +273,10 @@ class AIController {
         ? (ai.isPartner ? ball.position.z + 3.0 : ball.position.z - 3.0)
         : _targetPosition.z;
 
-    // Non-volley zone rule: If ball hasn't bounced yet, stay outside kitchen!
-    // Once ball bounces, player can legally step into kitchen to return.
-    final clampedZ = ball.hasBounced
+    // Keep the bot clear of the NVZ unless this ball bounced in its own NVZ.
+    // A bounce elsewhere still permits a groundstroke, but not an unnecessary
+    // step onto the kitchen or its boundary line.
+    final clampedZ = mayEnterKitchen
         ? targetZ
         : (ai.isPartner
             ? math.max(targetZ, CourtDimensions.kitchenDepth + 2.5)
@@ -291,11 +294,13 @@ class AIController {
     // Two-bounce rule check
     if (mustWaitBounce) return;
 
-    // Kitchen rule: cannot volley from inside kitchen or touching line before bounce
-    if (!ball.hasBounced) {
-      if (ai.isInKitchen(includeFootMargin: true) || !ai.hasEstablishedOutsideKitchen) {
-        return;
-      }
+    // Never strike while touching the NVZ unless the current ball bounced
+    // there. For a volley, both feet must additionally be established outside.
+    if (ai.isInKitchen(includeFootMargin: true) && !mayEnterKitchen) {
+      return;
+    }
+    if (!ball.hasBounced && !ai.hasEstablishedOutsideKitchen) {
+      return;
     }
 
     final canHitZ = ai.isPartner ? ball.position.z > -8 : ball.position.z < 8;
@@ -320,9 +325,17 @@ class AIController {
       return; // wait until swing cooldown finishes, do not abort
     }
 
-    // Kitchen check: Cannot volley from inside kitchen or touching line, or before establishing feet!
+    final mayEnterKitchen = _ballBouncedInOwnKitchen;
+
+    // The bot may only strike from the NVZ when this ball bounced in the NVZ.
+    if (ai.isInKitchen(includeFootMargin: true) && !mayEnterKitchen) {
+      _state = AIState.approach;
+      return;
+    }
+
+    // Kitchen check: Cannot volley before establishing both feet outside.
     if (!ball.hasBounced) {
-      if (ai.isInKitchen(includeFootMargin: true) || !ai.hasEstablishedOutsideKitchen) {
+      if (!ai.hasEstablishedOutsideKitchen) {
         _state = AIState.approach;
         return;
       }
@@ -331,7 +344,7 @@ class AIController {
     }
 
     // Two-bounce rule check: must not hit before bounce on serve / return
-    if (ball.rallyHitCount < 2 && !ball.hasBounced) {
+    if (ball.mustBounceBeforeHit && !ball.hasBounced) {
       _state = AIState.approach;
       return;
     }
@@ -568,6 +581,15 @@ class AIController {
     ai.swingArm = 0;
 
     _state = AIState.recover;
+  }
+
+  bool get _ballBouncedInOwnKitchen {
+    if (!ball.hasBounced) return false;
+
+    final bounceZ = ball.lastBounceZ;
+    return ai.isPartner
+        ? bounceZ >= 0 && bounceZ <= CourtDimensions.kitchenDepth
+        : bounceZ <= 0 && bounceZ >= -CourtDimensions.kitchenDepth;
   }
 
   // ── Recover: return to court position ─────────────────────────

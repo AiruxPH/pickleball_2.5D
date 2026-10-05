@@ -96,6 +96,7 @@ void main() {
       ball.position = Vec3(0, 4.0, -14.0);
       ball.velocity = Vec3(0, -5.0, -10.0);
       ball.hasBounced = true; // Bounced legally in kitchen
+      ball.lastBounceZ = -14.0;
       ball.rallyHitCount = 3;
 
       for (int i = 0; i < 40; i++) {
@@ -105,6 +106,83 @@ void main() {
 
       expect(ball.lastHitByPlayer, isFalse, reason: 'AI must step in and return bounced kitchen ball');
       expect(ball.velocity.z, greaterThan(80.0), reason: 'Return must head back over net toward player side');
+    });
+
+    test('AI waits for the serve to bounce before returning it', () {
+      final settings = GameSettings()..difficulty = AIDifficulty.hard;
+      final ai = Player(startPosition: Vec3(0, 0, -45), isHuman: false);
+      final ball = Pickleball()
+        ..position = Vec3(0, 10, -45)
+        ..velocity = Vec3(0, -5, -30)
+        ..state = BallState.inFlight
+        ..rallyHitCount = 0
+        ..hasBounced = false;
+      final aiCtrl = AIController(
+        ai: ai,
+        ball: ball,
+        court: Court(),
+        settings: settings,
+      );
+
+      for (int i = 0; i < 20; i++) {
+        aiCtrl.update(0.03);
+      }
+
+      expect(ball.lastHitByPlayer, isTrue,
+          reason: 'The receiving bot cannot volley a serve');
+      expect(ball.rallyHitCount, 0);
+    });
+
+    test('AI may volley a normal rally ball while clear of the NVZ', () {
+      final settings = GameSettings()..difficulty = AIDifficulty.hard;
+      final ai = Player(startPosition: Vec3(0, 0, -45), isHuman: false);
+      final ball = Pickleball()
+        ..position = Vec3(0, 10, -45)
+        ..velocity = Vec3(0, -5, -30)
+        ..state = BallState.inFlight
+        ..rallyHitCount = 2
+        ..hasBounced = false;
+      final aiCtrl = AIController(
+        ai: ai,
+        ball: ball,
+        court: Court(),
+        settings: settings,
+      );
+
+      for (int i = 0; i < 20 && ball.lastHitByPlayer; i++) {
+        aiCtrl.update(0.03);
+      }
+
+      expect(ball.lastHitByPlayer, isFalse,
+          reason: 'A normal rally ball may be volleyed outside the NVZ');
+      expect(ai.isInKitchen(includeFootMargin: true), isFalse);
+    });
+
+    test('AI stays outside the NVZ when the ball bounced outside it', () {
+      final settings = GameSettings()..difficulty = AIDifficulty.hard;
+      final ai = Player(startPosition: Vec3(0, 0, -31), isHuman: false);
+      final ball = Pickleball()
+        ..position = Vec3(0, 6, -14)
+        ..velocity = Vec3(0, -4, -10)
+        ..state = BallState.inFlight
+        ..rallyHitCount = 3
+        ..hasBounced = true
+        ..lastBounceZ = -40;
+      final aiCtrl = AIController(
+        ai: ai,
+        ball: ball,
+        court: Court(),
+        settings: settings,
+      );
+
+      for (int i = 0; i < 30 && ball.lastHitByPlayer; i++) {
+        aiCtrl.update(0.03);
+      }
+
+      expect(ball.lastHitByPlayer, isFalse,
+          reason: 'The bot can play the bounced ball from outside the NVZ');
+      expect(ai.isInKitchen(includeFootMargin: true), isFalse,
+          reason: 'An outside-NVZ bounce does not justify entering the NVZ');
     });
   });
 }
