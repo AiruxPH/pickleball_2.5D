@@ -40,6 +40,7 @@ class CameraController {
   Vec3 _smoothCamPos;
   Vec3 _smoothTarget;
   CameraView view = CameraView.playerFollow;
+  bool reverseBaseline = false;
   double _freeRoamYaw = 0;
   double _freeRoamPitch = 0.52;
   double _freeRoamDistance = 170;
@@ -133,12 +134,13 @@ class CameraController {
           target: trackedTarget,
         );
       case CameraView.baseline:
+        final side = reverseBaseline ? -1.0 : 1.0;
         return _CameraPose(
-          position: Vec3(0, 68, 160),
+          position: Vec3(0, 68, 160 * side),
           target: Vec3(
             ball.position.x * 0.18,
             (ball.position.y * 0.18).clamp(4.0, 14.0),
-            ball.position.z * 0.18 - 6,
+            ball.position.z * 0.18 - (6 * side),
           ),
           fov: 55,
         );

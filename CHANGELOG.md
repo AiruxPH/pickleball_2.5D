@@ -728,3 +728,9 @@
 - Guarded incoming snapshot decoding so one malformed or stale database value is reported once instead of becoming an uncaught repeating browser error.
 - Added a local Firebase Realtime Database rules smoke test covering distinct host and challenger identities, lobby access, ready actions, host cleanup, state snapshots, and match start authorization without mutating production data.
 - Changed online challengers to interpolate toward 10 Hz authoritative Firebase snapshots on every render tick instead of teleporting entities at each network update, eliminating visible challenger and ball snapping.
+
+### 2026-10-06 - Session-based online roles and challenger POV
+- Added an explicit session identifier and persistent player-slot assignment to every online room member (`host` slot 0, `client` slot 1).
+- Authorized ready actions and match commands from the authenticated room membership and assigned challenger slot, keeping role checks server-enforced.
+- Serialized challenger command writes with latest-input coalescing and a failure circuit breaker, preventing high-frequency controls from producing an unbounded rejection loop.
+- Reversed the online challenger's baseline camera so each peer views and controls their own side instead of sharing the host's body and viewpoint.

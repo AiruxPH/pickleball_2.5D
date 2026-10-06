@@ -23,6 +23,7 @@ async function request(label, method, path, uid, body) {
 
 await request('host meta create', 'PUT', `onlineRooms/${roomCode}/meta`, hostUid, {
   hostUid,
+  sessionId: roomCode,
   status: 'lobby',
   format: 'singles',
   createdAt: 1,
@@ -38,11 +39,12 @@ await request('host lobby/member write', 'PATCH', `onlineRooms/${roomCode}`, hos
       { id: 'p2', name: 'PLAYER 2', team: 2, type: 'human', isReady: false },
     ],
   },
-  members: { [hostUid]: { role: 'host', online: true, joinedAt: 1 } },
+  members: { [hostUid]: { role: 'host', slot: 0, online: true, joinedAt: 1 } },
 });
 await request('challenger room read', 'GET', `onlineRooms/${roomCode}`, clientUid);
 await request('challenger member write', 'PUT', `onlineRooms/${roomCode}/members/${clientUid}`, clientUid, {
   role: 'client',
+  slot: 1,
   online: true,
   joinedAt: 1,
 });

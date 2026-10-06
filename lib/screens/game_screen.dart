@@ -205,6 +205,7 @@ class _GameScreenState extends State<GameScreen>
             snapshot.applyToGame(_game!);
           }
         });
+        _presentation!.cameraController.reverseBaseline = true;
         _presentation!.cameraController.setView(CameraView.baseline);
       }
     }
@@ -216,6 +217,7 @@ class _GameScreenState extends State<GameScreen>
         _lanStateSyncSub = OnlineMultiplayerService
             .instance.onStateSyncReceived
             .listen((snapshot) => _latestOnlineSnapshot = snapshot);
+        _presentation!.cameraController.reverseBaseline = true;
         _presentation!.cameraController.setView(CameraView.baseline);
       }
     }

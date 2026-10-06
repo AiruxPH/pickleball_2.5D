@@ -37,6 +37,9 @@ class OnlineMultiplayerService extends ChangeNotifier {
   bool _snapshotWriteEnabled = true;
   bool _snapshotWriteInFlight = false;
   bool _snapshotDecodeErrorReported = false;
+  bool _commandWriteInFlight = false;
+  bool _commandWritesEnabled = true;
+  MatchCommand? _pendingCommand;
 
   final _startController =
       StreamController<Map<String, dynamic>>.broadcast();
@@ -107,6 +110,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
       await _room!.child('meta').set({
         'hostUid': _uid,
         'status': 'lobby',
+        'sessionId': _roomCode,
         'format': format.name,
         'createdAt': ServerValue.timestamp,
         'updatedAt': ServerValue.timestamp,
@@ -115,6 +119,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
         'lobby': _lobby!.toJson(),
         'members/$_uid': {
           'role': 'host',
+          'slot': 0,
           'online': true,
           'joinedAt': ServerValue.timestamp,
         },
@@ -151,6 +156,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
       }
       await _room!.child('members/$_uid').set({
         'role': 'client',
+        'slot': 1,
         'online': true,
         'joinedAt': ServerValue.timestamp,
       });
@@ -256,17 +262,37 @@ class OnlineMultiplayerService extends ChangeNotifier {
   Future<void> startMatch(Map<String, dynamic> arguments) async {
     if (!isHost || _room == null) return;
     final payload = Map<String, dynamic>.from(arguments)
-      ..['startedAt'] = ServerValue.timestamp;
+      ..['startedAt'] = ServerValue.timestamp
+      ..['sessionId'] = _roomCode;
     await _room!.update({'start': payload, 'meta/status': 'inGame'});
   }
 
   Future<void> sendMatchCommand(MatchCommand command) async {
-    if (!isClient || _room == null) return;
-    await _room!.child('commands').push().set({
-      'uid': _uid,
-      'cmd': command.toJson(),
-      'createdAt': ServerValue.timestamp,
-    });
+    if (!isClient || _room == null || !_commandWritesEnabled) return;
+    _pendingCommand = command;
+    if (_commandWriteInFlight) return;
+    _commandWriteInFlight = true;
+    try {
+      while (_pendingCommand != null && _commandWritesEnabled) {
+        final next = _pendingCommand!;
+        _pendingCommand = null;
+        await _room!.child('commands').push().set({
+          'uid': _uid,
+          'slot': 1,
+          'cmd': next.toJson(),
+          'createdAt': ServerValue.timestamp,
+        });
+      }
+    } catch (error) {
+      _pendingCommand = null;
+      _commandWritesEnabled = false;
+      _status = OnlineStatus.error;
+      _errorMessage = 'Challenger input was rejected: $error';
+      debugPrint('[OnlineMultiplayer] $_errorMessage');
+      notifyListeners();
+    } finally {
+      _commandWriteInFlight = false;
+    }
   }
 
   Future<void> sendStateSync(LanStateSnapshot snapshot) async {
@@ -311,6 +337,9 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _snapshotWriteEnabled = true;
     _snapshotWriteInFlight = false;
     _snapshotDecodeErrorReported = false;
+    _commandWriteInFlight = false;
+    _commandWritesEnabled = true;
+    _pendingCommand = null;
     _status = FirebaseBootstrap.isReady
         ? OnlineStatus.idle
         : OnlineStatus.unavailable;
