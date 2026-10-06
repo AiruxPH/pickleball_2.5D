@@ -724,3 +724,5 @@
 ### 2026-10-06 - Online sync permission and error-loop fix
 - Replaced parent-relative Realtime Database ownership checks with absolute room paths, allowing authenticated hosts to publish snapshots and remove processed client actions reliably.
 - Added an in-flight guard and failure circuit breaker to online snapshot publishing so one rejected write cannot spawn an unbounded 10 Hz console error loop or repeated UI state churn.
+- Normalized Firebase web JSON score, server, and timestamp values through `num` before converting to integers, preventing snapshot callbacks from throwing on JavaScript numeric values.
+- Guarded incoming snapshot decoding so one malformed or stale database value is reported once instead of becoming an uncaught repeating browser error.

@@ -121,14 +121,14 @@ class LanStateSnapshot {
       partner2: json['part2'] is Map
           ? LanEntityState.fromJson(Map<String, dynamic>.from(json['part2']))
           : null,
-      playerScore: json['pScore'] as int? ?? 0,
-      aiScore: json['aScore'] as int? ?? 0,
-      serverNumber: json['srvNum'] as int? ?? 1,
+      playerScore: (json['pScore'] as num?)?.toInt() ?? 0,
+      aiScore: (json['aScore'] as num?)?.toInt() ?? 0,
+      serverNumber: (json['srvNum'] as num?)?.toInt() ?? 1,
       isPlayerServing: json['isPSrv'] == true,
       servingPrimary: json['srvPri'] == true,
       gameState: json['gState'] as String? ?? 'rally',
       lastMessage: json['msg'] as String?,
-      timestamp: json['ts'] as int? ?? 0,
+      timestamp: (json['ts'] as num?)?.toInt() ?? 0,
     );
   }
 

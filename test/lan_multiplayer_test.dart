@@ -120,6 +120,23 @@ void main() {
       expect(game.scoreController.aiScore, 4);
       expect(game.state, GameState.rally);
     });
+
+    test('decodes web-style numeric fields without integer cast errors', () {
+      final snapshot = LanStateSnapshot.fromJson({
+        'ball': {'x': 1, 'y': 2, 'z': 3},
+        'p1': {'x': 0, 'y': 0, 'z': 10},
+        'p2': {'x': 0, 'y': 0, 'z': -10},
+        'pScore': 7.0,
+        'aScore': 4.0,
+        'srvNum': 2.0,
+        'ts': 123456789.0,
+      });
+
+      expect(snapshot.playerScore, 7);
+      expect(snapshot.aiScore, 4);
+      expect(snapshot.serverNumber, 2);
+      expect(snapshot.timestamp, 123456789);
+    });
   });
 
   group('LanMultiplayerService', () {

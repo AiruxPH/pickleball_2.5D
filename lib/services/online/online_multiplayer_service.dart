@@ -36,6 +36,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
   DatabaseReference? _room;
   bool _snapshotWriteEnabled = true;
   bool _snapshotWriteInFlight = false;
+  bool _snapshotDecodeErrorReported = false;
 
   final _startController =
       StreamController<Map<String, dynamic>>.broadcast();
@@ -196,9 +197,18 @@ class OnlineMultiplayerService extends ChangeNotifier {
       }));
     } else {
       _subscriptions.add(room.child('snapshot').onValue.listen((event) {
-        if (event.snapshot.value is Map) {
-          _snapshotController.add(LanStateSnapshot.fromJson(
-              Map<String, dynamic>.from(event.snapshot.value as Map)));
+        final raw = event.snapshot.value;
+        if (raw is! Map) return;
+        try {
+          _snapshotController.add(
+            LanStateSnapshot.fromJson(Map<String, dynamic>.from(raw)),
+          );
+          _snapshotDecodeErrorReported = false;
+        } catch (error, stackTrace) {
+          if (_snapshotDecodeErrorReported) return;
+          _snapshotDecodeErrorReported = true;
+          debugPrint('[OnlineMultiplayer] Invalid state snapshot: $error');
+          debugPrintStack(stackTrace: stackTrace);
         }
       }));
       _subscriptions.add(room.child('meta/status').onValue.listen((event) {
@@ -300,6 +310,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _role = OnlineRole.none;
     _snapshotWriteEnabled = true;
     _snapshotWriteInFlight = false;
+    _snapshotDecodeErrorReported = false;
     _status = FirebaseBootstrap.isReady
         ? OnlineStatus.idle
         : OnlineStatus.unavailable;
