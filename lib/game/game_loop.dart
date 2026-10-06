@@ -1975,7 +1975,7 @@ class CourtPainter extends CustomPainter {
       isLowEnd: game.settings.isLowEndMode,
       showShadow: game.settings.showShadows,
       equippedSkin: p.isHuman ? game.currentPlayerSkin : null,
-      equippedPaddle: p.isHuman ? game.currentPaddle : null,
+      equippedPaddle: game.paddleFor(p),
     );
   }
 

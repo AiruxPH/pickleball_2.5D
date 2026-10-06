@@ -60,6 +60,7 @@ class Pickleball {
   double lastBounceZ;    // Z position of last bounce (to check service box)
   bool playerSideBounce; // bounced on player's side?
   double secondBounceGraceTimer;
+  double postBounceHitLockTimer;
 
   Pickleball()
       : position = Vec3(0, PhysicsConstants.serveBallHeight, 
@@ -93,7 +94,8 @@ class Pickleball {
         hasBounced = false,
         lastBounceZ = 0,
         playerSideBounce = false,
-        secondBounceGraceTimer = 0;
+        secondBounceGraceTimer = 0,
+        postBounceHitLockTimer = 0;
 
   // ── Convenience getters ────────────────────────────────────
   bool get isInPlay => state == BallState.inFlight || state == BallState.bouncing;
@@ -116,6 +118,10 @@ class Pickleball {
   /// Applies to: serve return (rallyHitCount == 0 after serve) and
   /// the third shot (rallyHitCount == 1 after return).
   bool get mustBounceBeforeHit => rallyHitCount < 2;
+
+  /// A short readability window prevents contact in the exact frame in which
+  /// the ball touches the court. Input may remain buffered during this time.
+  bool get canBeHitAfterBounce => postBounceHitLockTimer <= 0;
 
   // ── Trail management ──────────────────────────────────────
   void addTrailPoint([int maxPoints = 12]) {
@@ -168,6 +174,7 @@ class Pickleball {
     hasBounced = false;
     playerSideBounce = false;
     secondBounceGraceTimer = 0;
+    postBounceHitLockTimer = 0;
     isUltimate = false;
     ultimateType = null;
     ghostClones1.clear();

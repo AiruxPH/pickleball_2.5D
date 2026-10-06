@@ -171,6 +171,25 @@ class PickleballGame extends ChangeNotifier {
 
   final GameSettings settings;
   PaddleItem get currentPaddle => getPaddleById(settings.equippedPaddleId);
+  late final PaddleItem aiPaddle;
+  late final PaddleItem? playerPartnerPaddle;
+  late final PaddleItem? aiPartnerPaddle;
+
+  /// Returns the paddle assigned for the lifetime of this match. Human slots
+  /// use their equipped paddle; every bot receives one random catalog paddle.
+  PaddleItem paddleFor(Player matchPlayer) {
+    if (identical(matchPlayer, player)) return currentPaddle;
+    if (identical(matchPlayer, ai)) {
+      return ai.isHuman ? currentPaddle : aiPaddle;
+    }
+    if (identical(matchPlayer, playerPartner)) {
+      return playerPartnerPaddle ?? currentPaddle;
+    }
+    if (identical(matchPlayer, aiPartner)) {
+      return aiPartnerPaddle ?? currentPaddle;
+    }
+    return currentPaddle;
+  }
   PlayerSkinItem get currentPlayerSkin =>
       getPlayerSkinById(settings.equippedPlayerId);
 
@@ -192,6 +211,7 @@ class PickleballGame extends ChangeNotifier {
     this.difficultyOverride,
     this.audioService,
     this.effects = const NoGameEffects(),
+    math.Random? paddleRandom,
   })  : player = Player(
           startPosition: Vec3(16.0, 0, CourtDimensions.playerStartZ),
           isHuman: true,
@@ -228,6 +248,13 @@ class PickleballGame extends ChangeNotifier {
         stateTimer = 0,
         lastMessage = '',
         messageTimer = 0 {
+    final matchRandom = paddleRandom ?? math.Random();
+    PaddleItem randomPaddle() =>
+        kPaddleCatalog[matchRandom.nextInt(kPaddleCatalog.length)];
+    aiPaddle = ai.isHuman ? currentPaddle : randomPaddle();
+    playerPartnerPaddle = playerPartner == null ? null : randomPaddle();
+    aiPartnerPaddle = aiPartner == null ? null : randomPaddle();
+
     // Init controllers
     ballController = BallController(
       ball: ball,
@@ -895,7 +922,8 @@ class PickleballGame extends ChangeNotifier {
       final hitRadius = 30.0 + (currentPaddle.control - 0.50) * 12.0;
       if (distToBall < hitRadius &&
           ball.position.y < 42 &&
-          ball.position.z > -8) {
+          ball.position.z > -8 &&
+          ball.canBeHitAfterBounce) {
         _executePlayerHit(bufferedShot ??
             (isUltimateArmed ? ShotType.ultimate : ShotType.normal));
         bufferedShot = null;
@@ -913,7 +941,10 @@ class PickleballGame extends ChangeNotifier {
         ai.position.x,
         ai.position.z,
       );
-      if (distToBall < 30 && ball.position.y < 42 && ball.position.z < 8) {
+      if (distToBall < 30 &&
+          ball.position.y < 42 &&
+          ball.position.z < 8 &&
+          ball.canBeHitAfterBounce) {
         _executeOpponentHit(opponentBufferedShot ?? ShotType.normal);
         opponentBufferedShot = null;
         opponentSwingBufferTimer = 0;

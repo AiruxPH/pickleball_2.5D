@@ -322,6 +322,7 @@ class AIController {
     // Two-bounce rule check
     if (mustWaitBounce) return;
     if (_ballBouncedThisTick) return;
+    if (!ball.canBeHitAfterBounce) return;
 
     // Never strike while touching the NVZ unless the current ball bounced
     // there. For a volley, both feet must additionally be established outside.
@@ -350,11 +351,15 @@ class AIController {
     final forward = ai.isPartner
         ? ai.position.z - ball.position.z
         : ball.position.z - ai.position.z;
+    // While honoring the post-bounce delay, a fast groundstroke can travel
+    // beyond the normal backswing reach. Keep volley reach strict, but allow
+    // bots to recover a legally bounced ball just behind their body.
+    final effectiveReachBack = ball.hasBounced ? 16.0 : contactReachBack;
     final movingTowardPlayer =
         ai.isPartner ? ball.velocity.z > 0 : ball.velocity.z < 0;
     return movingTowardPlayer &&
         lateral <= contactRadiusX &&
-        forward >= -contactReachBack &&
+        forward >= -effectiveReachBack &&
         forward <= contactReachForward &&
         ball.position.y >= PhysicsConstants.ballRadius &&
         ball.position.y <= maximumContactHeight;
@@ -366,7 +371,9 @@ class AIController {
       return; // wait until swing cooldown finishes, do not abort
     }
 
-    if (_ballBouncedThisTick || !canContactBall()) {
+    if (_ballBouncedThisTick ||
+        !ball.canBeHitAfterBounce ||
+        !canContactBall()) {
       _state = AIState.approach;
       return;
     }

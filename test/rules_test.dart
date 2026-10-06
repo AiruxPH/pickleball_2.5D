@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pickleball_3d/game/pickleball_game.dart';
@@ -152,6 +153,39 @@ void main() {
 
       ball.rallyHitCount = 5;
       expect(ball.canVolley, isTrue);
+    });
+
+    test('Court bounce briefly delays paddle contact', () {
+      final ball = Pickleball()
+        ..state = BallState.inFlight
+        ..position = Vec3(0, PhysicsConstants.ballRadius, 40)
+        ..velocity = Vec3(0, -8, 0);
+      final controller = BallController(ball: ball, court: Court());
+
+      controller.update(0.016);
+
+      expect(ball.hasBounced, isTrue);
+      expect(ball.canBeHitAfterBounce, isFalse);
+      expect(ball.postBounceHitLockTimer,
+          closeTo(PhysicsConstants.postBounceHitDelay, 0.0001));
+
+      controller.update(PhysicsConstants.postBounceHitDelay);
+      expect(ball.canBeHitAfterBounce, isTrue);
+    });
+
+    test('Bots keep a random catalog paddle for the whole match', () {
+      final game = PickleballGame(
+        settings: GameSettings(),
+        paddleRandom: math.Random(7),
+      );
+
+      final assigned = game.aiPaddle;
+      expect(kPaddleCatalog, contains(assigned));
+      expect(game.paddleFor(game.ai), same(assigned));
+      expect(game.paddleFor(game.ai), same(assigned));
+      expect(game.paddleFor(game.player), same(game.currentPaddle));
+
+      game.dispose();
     });
   });
 
@@ -955,6 +989,14 @@ void main() {
       game.update(0.016);
 
       expect(game.state, GameState.rally);
+      expect(game.ball.canBeHitAfterBounce, isFalse);
+      expect(game.ball.rallyHitCount, 3,
+          reason: 'Contact must not occur in the bounce frame');
+
+      for (var i = 0; i < 6 && game.ball.rallyHitCount == 3; i++) {
+        game.update(0.016);
+      }
+
       expect(game.ball.state, BallState.inFlight);
       expect(game.ball.bounceCount, 0);
       expect(game.ball.rallyHitCount, 4);
@@ -1288,7 +1330,9 @@ void main() {
       game.player.position =
           Vec3(game.ball.position.x, 0, game.ball.position.z + 10);
       game.setPowerPressed(true);
-      game.update(0.016);
+      for (var i = 0; i < 6 && !game.ball.lastHitByPlayer; i++) {
+        game.update(0.016);
+      }
 
       // Verify player executed hit
       expect(game.ball.lastHitByPlayer, isTrue);

@@ -36,6 +36,10 @@ class BallController {
       ball.secondBounceGraceTimer =
           math.max(0, ball.secondBounceGraceTimer - dt);
     }
+    if (ball.postBounceHitLockTimer > 0) {
+      ball.postBounceHitLockTimer =
+          math.max(0, ball.postBounceHitLockTimer - dt);
+    }
 
     // ── Record previous position for swept collision detection ──
     ball.prevPosition = ball.position.copy();
@@ -91,6 +95,7 @@ class BallController {
         }
       }
       ball.hasBounced = true;
+      ball.postBounceHitLockTimer = PhysicsConstants.postBounceHitDelay;
       ball.lastBounceZ = ball.position.z;
       ball.playerSideBounce = ball.position.z > 0;
 

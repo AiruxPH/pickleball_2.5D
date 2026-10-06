@@ -813,3 +813,14 @@
 - Prevented duplicate concurrent offer/answer acceptance while an asynchronous remote-description operation is pending.
 - Validation: targeted Flutter analysis passed with no issues.
 - Rebuilt the release web bundle and deployed the hardened WebRTC client to Firebase Hosting at `https://pickleball-simulator.web.app`.
+
+### 2026-10-06 - Rally sequencing and bot paddle loadouts
+
+- Solidified the opening two-bounce sequence: the serve must bounce before the return, the return must bounce before the third shot, and volleys become legal from the fourth stroke onward (subject to kitchen rules).
+- Added an 80 ms shared-world contact lock after every court bounce so a hit cannot erase the visual bounce in the same simulation tick; early button presses remain buffered and execute when contact becomes legal.
+- Applied the post-bounce lock consistently to Player 1, local/online Player 2, and AI contact decisions.
+- Expanded only the AI's post-bounce backswing recovery reach so Easy bots can honor the delay without losing fast legal returns; volley reach remains unchanged.
+- Assigned every bot a random paddle from the full catalog once per match and exposed stable per-player paddle lookup for rendering. Human slots retain their equipped paddle.
+- Added regressions for the bounce delay, buffered recovery shot, stable bot paddle assignment, and opening-rally behavior.
+- Validation: Flutter analysis passed with no issues; all 48 rules tests and all 23 AI/bot rally tests passed.
+- A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.

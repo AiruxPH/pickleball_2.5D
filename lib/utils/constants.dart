@@ -582,6 +582,11 @@ class PhysicsConstants {
   // Horizontal friction on bounce (energy lost to court)
   static const double ballFriction = 0.88;
 
+  /// Minimum time after a court bounce before paddle contact is accepted.
+  /// This keeps the bounce visually readable and prevents a same-tick hit from
+  /// making the required opening bounces appear to have been skipped.
+  static const double postBounceHitDelay = 0.08;
+
   // Air drag coefficient: perforated ball Cd ≈ 0.45
   // Applied as: velocity *= (1 - dragScale * speed * dt)
   // dragScale tuned so ball loses ~35% speed over full-court flight
