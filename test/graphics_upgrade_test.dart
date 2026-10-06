@@ -55,6 +55,35 @@ void main() {
         expect(got.dy, closeTo(expected.dy, 1e-6));
       }
     });
+
+    test('screenToGround reverses projection on the court plane', () {
+      final cam = makeCam();
+      for (final point in const [
+        [0.0, 0.0],
+        [-40.0, -88.0],
+        [40.0, 88.0],
+        [12.5, -30.0],
+      ]) {
+        final screen = cam.projectCoords(point[0], 0, point[1])!;
+        final world = cam.screenToGround(screen)!;
+        expect(world.x, closeTo(point[0], 1e-6));
+        expect(world.y, 0);
+        expect(world.z, closeTo(point[1], 1e-6));
+      }
+    });
+
+    test('screenToGround supports a camera behind player two', () {
+      final cam = PerspectiveCamera(
+        position: Vec3(0, 68, -160),
+        target: Vec3(0, 6, 6),
+        screenSize: const Size(1280, 720),
+        fov: 55,
+      )..prepareFrame();
+      final screen = cam.projectCoords(-18, 0, -60)!;
+      final world = cam.screenToGround(screen)!;
+      expect(world.x, closeTo(-18, 1e-6));
+      expect(world.z, closeTo(-60, 1e-6));
+    });
   });
 
   group('VfxSystem', () {

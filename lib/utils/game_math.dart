@@ -180,6 +180,32 @@ class PerspectiveCamera {
     return Offset(sx, sy);
   }
 
+  /// Casts a ray through [screenPoint] and intersects a horizontal world
+  /// plane. This is the inverse of [projectCoords] for points on that plane.
+  Vec3? screenToGround(Offset screenPoint, {double groundY = 0}) {
+    if (!_framePrepared) prepareFrame();
+    if (screenSize.width <= 0 || screenSize.height <= 0) return null;
+
+    final ndcX = screenPoint.dx / _halfScreenWidth - 1.0;
+    final ndcY = 1.0 - screenPoint.dy / _halfScreenHeight;
+    final halfW = 1.0 / _invHalfW;
+    final halfH = 1.0 / _invHalfH;
+
+    final rayX = _fwdX + ndcX * halfW * _rightX + ndcY * halfH * _upX;
+    final rayY = _fwdY + ndcX * halfW * _rightY + ndcY * halfH * _upY;
+    final rayZ = _fwdZ + ndcX * halfW * _rightZ + ndcY * halfH * _upZ;
+
+    if (rayY.abs() < 0.0001) return null;
+    final distance = (groundY - position.y) / rayY;
+    if (!distance.isFinite || distance <= 0) return null;
+
+    return Vec3(
+      position.x + rayX * distance,
+      groundY,
+      position.z + rayZ * distance,
+    );
+  }
+
   /// Builds a column-major 4x4 matrix (for [Canvas.transform]) that maps 2D
   /// canvas coordinates (u, v) lying on the world plane
   /// `origin + u * axisU + v * axisV` to screen space with exact perspective.

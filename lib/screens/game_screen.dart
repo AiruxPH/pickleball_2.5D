@@ -8,6 +8,7 @@ import '../services/lan/lan_state_snapshot.dart';
 import '../services/online/online_multiplayer_service.dart';
 import '../game/bot_agent.dart';
 import '../game/camera_controller.dart';
+import '../game/court_input_mapper.dart';
 import '../game/game_loop.dart';
 import '../game/game_presentation.dart';
 import '../game/match_command_controller.dart';
@@ -128,8 +129,7 @@ class _GameScreenState extends State<GameScreen>
     _isLanMultiplayer = args?['lanMultiplayer'] == true;
     _isOnlineMultiplayer = args?['onlineMultiplayer'] == true;
     _lanRole = (args?['lanRole'] ?? args?['onlineRole']) as String?;
-    _isLocalMultiplayer =
-        args?['localMultiplayer'] == true ||
+    _isLocalMultiplayer = args?['localMultiplayer'] == true ||
         _isLanMultiplayer ||
         _isOnlineMultiplayer;
     final drillType = args?['drillType'] as String?;
@@ -214,8 +214,7 @@ class _GameScreenState extends State<GameScreen>
         _lanCommandSub = OnlineMultiplayerService.instance.onCommandReceived
             .listen((cmd) => _opponentCommands?.dispatch(cmd));
       } else if (_lanRole == 'client') {
-        _lanStateSyncSub = OnlineMultiplayerService
-            .instance.onStateSyncReceived
+        _lanStateSyncSub = OnlineMultiplayerService.instance.onStateSyncReceived
             .listen((snapshot) => _latestOnlineSnapshot = snapshot);
         _presentation!.cameraController.reverseBaseline = true;
         _presentation!.cameraController.setView(CameraView.baseline);
@@ -446,6 +445,13 @@ class _GameScreenState extends State<GameScreen>
   bool get _isRemoteClient =>
       (_isLanMultiplayer || _isOnlineMultiplayer) && _lanRole == 'client';
 
+  bool get _controlsFarSide => _activeTouchCommands == _opponentCommands;
+
+  CourtInputMapper? get _inputMapper {
+    final presentation = _presentation;
+    return presentation == null ? null : CourtInputMapper(presentation.camera);
+  }
+
   bool _localPlayerCanServe(PickleballGame game) {
     if (game.state != GameState.waitingForServe || !game.isHumanServing) {
       return false;
@@ -458,8 +464,35 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _onJoystickMove(double x, double y) {
-    _activeTouchCommands?.move(_isRemoteClient ? -x : x, y);
+    _moveFromScreenVector(
+      _activeTouchCommands,
+      Offset(x, y),
+      farSide: _controlsFarSide,
+    );
   }
+
+  void _moveFromScreenVector(
+    MatchCommandController? commands,
+    Offset vector, {
+    required bool farSide,
+  }) {
+    final axes = _inputMapper?.commandAxesFromNormalizedScreenVector(
+      vector,
+      farSide: farSide,
+    );
+    if (axes != null) commands?.move(axes.dx, axes.dy);
+  }
+
+  void _onJoystickDrag(JoystickDrag drag) {
+    final axes = _inputMapper?.commandAxesFromScreenDrag(
+      origin: drag.origin,
+      current: drag.current,
+      farSide: _controlsFarSide,
+      magnitude: drag.normalized.distance,
+    );
+    if (axes != null) _activeTouchCommands?.move(axes.dx, axes.dy);
+  }
+
   void _onJoystickRelease() => _activeTouchCommands?.stopMoving();
 
   void _handleKeyEvent(KeyEvent event) {
@@ -599,7 +632,11 @@ class _GameScreenState extends State<GameScreen>
           keys.contains(LogicalKeyboardKey.arrowDown)) {
         p2y += 1;
       }
-      _opponentCommands?.move(-p2x, p2y);
+      _moveFromScreenVector(
+        _opponentCommands,
+        Offset(p2x, p2y),
+        farSide: true,
+      );
       return;
     }
 
@@ -615,14 +652,22 @@ class _GameScreenState extends State<GameScreen>
       if (keys.contains(LogicalKeyboardKey.arrowUp)) p1y -= 1;
       if (keys.contains(LogicalKeyboardKey.arrowDown)) p1y += 1;
     }
-    _commands!.move(p1x, p1y);
+    _moveFromScreenVector(
+      _commands,
+      Offset(p1x, p1y),
+      farSide: false,
+    );
     if (_isLocalMultiplayer && !_isLanMultiplayer) {
       double p2x = 0, p2y = 0;
       if (keys.contains(LogicalKeyboardKey.arrowLeft)) p2x -= 1;
       if (keys.contains(LogicalKeyboardKey.arrowRight)) p2x += 1;
       if (keys.contains(LogicalKeyboardKey.arrowUp)) p2y -= 1;
       if (keys.contains(LogicalKeyboardKey.arrowDown)) p2y += 1;
-      _opponentCommands!.move(p2x, p2y);
+      _moveFromScreenVector(
+        _opponentCommands,
+        Offset(p2x, p2y),
+        farSide: true,
+      );
     }
   }
 
@@ -641,11 +686,15 @@ class _GameScreenState extends State<GameScreen>
 
   void _onSwipeUpdate(DragUpdateDetails d) {
     if (_swipeStart == null) return;
-    final delta = d.localPosition - _swipeStart!;
+    final start = _swipeStart!;
+    final delta = d.localPosition - start;
     if (delta.distance > 20) {
-      _activeTouchCommands?.aim(
-        _isRemoteClient ? Offset(-delta.dx, delta.dy) : delta,
+      final axes = _inputMapper?.commandAxesFromScreenDrag(
+        origin: start,
+        current: d.localPosition,
+        farSide: _controlsFarSide,
       );
+      if (axes != null) _activeTouchCommands?.aim(axes);
     }
   }
 
@@ -707,65 +756,65 @@ class _GameScreenState extends State<GameScreen>
       child: Scaffold(
         backgroundColor: Colors.black,
         body: KeyboardListener(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKeyEvent: _handleKeyEvent,
-        child: GestureDetector(
-          onPanStart: _isBotVsBot ? null : _onSwipeStart,
-          onPanUpdate: _isBotVsBot ? null : _onSwipeUpdate,
-          onPanEnd: _isBotVsBot ? null : _onSwipeEnd,
-          onScaleStart: _isBotVsBot ? _onSpectatorScaleStart : null,
-          onScaleUpdate: _isBotVsBot ? _onSpectatorScaleUpdate : null,
-          onScaleEnd: _isBotVsBot ? _onSpectatorScaleEnd : null,
-          child: Stack(
-            children: [
-              // ── Dynamic 360° Panorama Court Environment Backdrop ────────
-              Positioned.fill(
-                child: _presentation != null
-                    ? CourtBackdropView(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKeyEvent: _handleKeyEvent,
+          child: GestureDetector(
+            onPanStart: _isBotVsBot ? null : _onSwipeStart,
+            onPanUpdate: _isBotVsBot ? null : _onSwipeUpdate,
+            onPanEnd: _isBotVsBot ? null : _onSwipeEnd,
+            onScaleStart: _isBotVsBot ? _onSpectatorScaleStart : null,
+            onScaleUpdate: _isBotVsBot ? _onSpectatorScaleUpdate : null,
+            onScaleEnd: _isBotVsBot ? _onSpectatorScaleEnd : null,
+            child: Stack(
+              children: [
+                // ── Dynamic 360° Panorama Court Environment Backdrop ────────
+                Positioned.fill(
+                  child: _presentation != null
+                      ? CourtBackdropView(
+                          game: game,
+                          presentation: _presentation!,
+                          repaint: _tickNotifier,
+                        )
+                      : Image.asset(
+                          game.settings.courtTheme.assetPath,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.center,
+                        ),
+                ),
+
+                // ── 3D Court — isolated RepaintBoundary with direct repaint Listenable ───
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: CourtPainter(
                         game: game,
                         presentation: _presentation!,
                         repaint: _tickNotifier,
-                      )
-                    : Image.asset(
-                        game.settings.courtTheme.assetPath,
-                        fit: BoxFit.cover,
-                        alignment: Alignment.center,
                       ),
-              ),
-
-              // ── 3D Court — isolated RepaintBoundary with direct repaint Listenable ───
-              Positioned.fill(
-                child: RepaintBoundary(
-                  child: CustomPaint(
-                    painter: CourtPainter(
-                      game: game,
-                      presentation: _presentation!,
-                      repaint: _tickNotifier,
                     ),
                   ),
                 ),
-              ),
 
-              // ── HUD overlay ─────────────────────────────────────
-              _buildHUD(game, isLandscape: isLandscape),
+                // ── HUD overlay ─────────────────────────────────────
+                _buildHUD(game, isLandscape: isLandscape),
 
-              // ── Pause menu overlay ──────────────────────────────
-              if (game.isPaused) _buildPauseMenu(game),
+                // ── Pause menu overlay ──────────────────────────────
+                if (game.isPaused) _buildPauseMenu(game),
 
-              // ── Serve prompt (only updates on state changes) ─────
-              ValueListenableBuilder<GameState>(
-                valueListenable: _stateNotifier,
-                builder: (_, state, ___) {
-                  if (!_isBotVsBot && state == GameState.waitingForServe) {
-                    return _buildServePrompt(game, isLandscape: isLandscape);
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-            ],
+                // ── Serve prompt (only updates on state changes) ─────
+                ValueListenableBuilder<GameState>(
+                  valueListenable: _stateNotifier,
+                  builder: (_, state, ___) {
+                    if (!_isBotVsBot && state == GameState.waitingForServe) {
+                      return _buildServePrompt(game, isLandscape: isLandscape);
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -781,8 +830,8 @@ class _GameScreenState extends State<GameScreen>
           builder: (dialogContext) => AlertDialog(
             backgroundColor: const Color(0xFF0F1E36),
             title: const Text('LEAVE MATCH?',
-                style: TextStyle(color: Colors.white,
-                    fontWeight: FontWeight.w900)),
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w900)),
             content: const Text(
               'Your current match progress will be lost.',
               style: TextStyle(color: Color(0xFFCBD5E1)),
@@ -946,7 +995,7 @@ class _GameScreenState extends State<GameScreen>
               width: size.width * 0.48,
               child: DynamicJoystick(
                 size: joystickSize,
-                onMove: _onJoystickMove,
+                onDrag: _onJoystickDrag,
                 onRelease: _onJoystickRelease,
                 sensitivity: settings.joystickSensitivity,
               ),
@@ -955,19 +1004,22 @@ class _GameScreenState extends State<GameScreen>
               (!settings.dynamicJoystick || _customizingControls))
             Positioned(
               left: _customizingControls
-                  ? settings.joystickHudPosition.dx * size.width - joystickSize / 2
+                  ? settings.joystickHudPosition.dx * size.width -
+                      joystickSize / 2
                   : (isLandscape ? 16 : 20),
               top: _customizingControls
-                  ? settings.joystickHudPosition.dy * size.height - joystickSize / 2
+                  ? settings.joystickHudPosition.dy * size.height -
+                      joystickSize / 2
                   : null,
               bottom: _customizingControls ? null : (isLandscape ? 8 : 28),
               child: GestureDetector(
                 onPanUpdate: _customizingControls
                     ? (details) {
-                        final next = settings.joystickHudPosition + Offset(
-                          details.delta.dx / size.width,
-                          details.delta.dy / size.height,
-                        );
+                        final next = settings.joystickHudPosition +
+                            Offset(
+                              details.delta.dx / size.width,
+                              details.delta.dy / size.height,
+                            );
                         settings.setJoystickHudPosition(next);
                       }
                     : null,
@@ -997,10 +1049,11 @@ class _GameScreenState extends State<GameScreen>
               child: GestureDetector(
                 onPanUpdate: _customizingControls
                     ? (details) {
-                        final next = settings.actionsHudPosition + Offset(
-                          details.delta.dx / size.width,
-                          details.delta.dy / size.height,
-                        );
+                        final next = settings.actionsHudPosition +
+                            Offset(
+                              details.delta.dx / size.width,
+                              details.delta.dy / size.height,
+                            );
                         settings.setActionsHudPosition(next);
                       }
                     : null,
@@ -1713,23 +1766,24 @@ class _GameScreenState extends State<GameScreen>
                 ),
               ),
               if (canServe) const SizedBox(width: 8),
-              if (canServe) Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0284C7).withAlpha(180),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text(
-                  'PRESS SERVE',
-                  style: TextStyle(
-                    color: Color(0xFFBAE6FD),
-                    fontSize: 9.0,
-                    letterSpacing: 0.8,
-                    fontWeight: FontWeight.w800,
+              if (canServe)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0284C7).withAlpha(180),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'PRESS SERVE',
+                    style: TextStyle(
+                      color: Color(0xFFBAE6FD),
+                      fontSize: 9.0,
+                      letterSpacing: 0.8,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

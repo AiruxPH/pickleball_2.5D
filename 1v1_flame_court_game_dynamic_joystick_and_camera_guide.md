@@ -24,6 +24,12 @@ keeps camera orientation out of physics and networking.
 Migrating the complete match renderer to Flame components can remain a future
 option, but it is not required to solve the current perspective problem.
 
+### Implementation status
+
+Milestones A through C are now implemented for camera unprojection, touch
+movement, swipe aiming, keyboard movement, and dynamic-joystick screen
+coordinates. Network-rate tuning and live two-device acceptance testing remain.
+
 ---
 
 ## Goals
@@ -222,15 +228,18 @@ the same code.
 
 ### Command contract
 
-The existing movement command currently carries two axes. Give those fields a
-single explicit meaning:
+The existing movement command carries player-relative axes and the simulation
+mirrors the far-side depth axis internally. To avoid changing bots, replays, and
+the network protocol in the first delivery, `CourtInputMapper` converts its
+world X/Z result into that established command convention:
 
-- `x`: normalized world-X intent.
-- `y`: normalized world-Z intent (the field may be renamed to `z` in a later
-  protocol version, but renaming is not required in this phase).
+- near side: `(worldX, worldZ)`;
+- far side: `(worldX, -worldZ)`.
 
-Do not reinterpret these axes based on whether the sender is host or client.
-Player-specific court restrictions still belong in `PickleballGame`.
+This adaptation is based on the controlled court side, not the network role or
+camera angle. A later protocol version may make commands explicitly world-space
+and remove the simulation's far-side depth inversion, but that is not required
+for camera-correct controls.
 
 ---
 

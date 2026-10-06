@@ -39,13 +39,15 @@ class VirtualJoystick extends StatefulWidget {
 class DynamicJoystick extends StatefulWidget {
   const DynamicJoystick({
     super.key,
-    required this.onMove,
+    this.onMove,
+    this.onDrag,
     required this.onRelease,
     this.size = 116,
     this.sensitivity = 1,
-  });
+  }) : assert(onMove != null || onDrag != null);
 
-  final void Function(double x, double y) onMove;
+  final void Function(double x, double y)? onMove;
+  final ValueChanged<JoystickDrag>? onDrag;
   final VoidCallback onRelease;
   final double size;
   final double sensitivity;
@@ -56,19 +58,27 @@ class DynamicJoystick extends StatefulWidget {
 
 class _DynamicJoystickState extends State<DynamicJoystick> {
   Offset? _origin;
+  Offset? _screenOrigin;
   Offset _delta = Offset.zero;
 
-  void _update(Offset point) {
+  void _update(Offset point, Offset screenPoint) {
     final origin = _origin;
-    if (origin == null) return;
+    final screenOrigin = _screenOrigin;
+    if (origin == null || screenOrigin == null) return;
     final radius = widget.size * 0.36;
     final raw = point - origin;
     final distance = raw.distance;
     _delta = distance > radius ? raw / distance * radius : raw;
-    widget.onMove(
+    final normalized = Offset(
       (_delta.dx / radius * widget.sensitivity).clamp(-1.0, 1.0),
       (_delta.dy / radius * widget.sensitivity).clamp(-1.0, 1.0),
     );
+    widget.onMove?.call(normalized.dx, normalized.dy);
+    widget.onDrag?.call(JoystickDrag(
+      origin: screenOrigin,
+      current: screenPoint,
+      normalized: normalized,
+    ));
     setState(() {});
   }
 
@@ -78,18 +88,22 @@ class _DynamicJoystickState extends State<DynamicJoystick> {
       behavior: HitTestBehavior.translucent,
       onPanStart: (details) {
         _origin = details.localPosition;
+        _screenOrigin = details.globalPosition;
         _delta = Offset.zero;
         setState(() {});
       },
-      onPanUpdate: (details) => _update(details.localPosition),
+      onPanUpdate: (details) =>
+          _update(details.localPosition, details.globalPosition),
       onPanEnd: (_) {
         _origin = null;
+        _screenOrigin = null;
         _delta = Offset.zero;
         widget.onRelease();
         setState(() {});
       },
       onPanCancel: () {
         _origin = null;
+        _screenOrigin = null;
         _delta = Offset.zero;
         widget.onRelease();
         setState(() {});
@@ -117,6 +131,19 @@ class _DynamicJoystickState extends State<DynamicJoystick> {
       ),
     );
   }
+}
+
+@immutable
+class JoystickDrag {
+  const JoystickDrag({
+    required this.origin,
+    required this.current,
+    required this.normalized,
+  });
+
+  final Offset origin;
+  final Offset current;
+  final Offset normalized;
 }
 
 class _VirtualJoystickState extends State<VirtualJoystick>
@@ -331,13 +358,17 @@ class _CrosshairPainter extends CustomPainter {
     final cx = size.width / 2;
     final cy = size.height / 2;
     // Top
-    canvas.drawLine(Offset(cx, _tickOffset), Offset(cx, _tickOffset + _tickLen), _tickPaint);
+    canvas.drawLine(Offset(cx, _tickOffset), Offset(cx, _tickOffset + _tickLen),
+        _tickPaint);
     // Bottom
-    canvas.drawLine(Offset(cx, size.height - _tickOffset), Offset(cx, size.height - _tickOffset - _tickLen), _tickPaint);
+    canvas.drawLine(Offset(cx, size.height - _tickOffset),
+        Offset(cx, size.height - _tickOffset - _tickLen), _tickPaint);
     // Left
-    canvas.drawLine(Offset(_tickOffset, cy), Offset(_tickOffset + _tickLen, cy), _tickPaint);
+    canvas.drawLine(Offset(_tickOffset, cy), Offset(_tickOffset + _tickLen, cy),
+        _tickPaint);
     // Right
-    canvas.drawLine(Offset(size.width - _tickOffset, cy), Offset(size.width - _tickOffset - _tickLen, cy), _tickPaint);
+    canvas.drawLine(Offset(size.width - _tickOffset, cy),
+        Offset(size.width - _tickOffset - _tickLen, cy), _tickPaint);
   }
 
   @override

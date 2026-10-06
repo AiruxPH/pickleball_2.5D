@@ -765,3 +765,13 @@
 - Corrected the guide's assumption that the current match uses Flame's `World` and `CameraComponent`; documented the actual `PickleballGame` + `PerspectiveCamera` + `CourtPainter` architecture.
 - Replaced the recommended Player 2 axis-negation workaround with a staged screen-to-court unprojection and camera-aware input mapper design.
 - Added dynamic-joystick pointer ownership, world-space command semantics, Firebase input-rate guidance, delivery milestones, acceptance criteria, risks, and an optional future Flame migration boundary.
+### 2026-10-06 - Camera-aware court controls implementation
+
+- Added `PerspectiveCamera.screenToGround()` to invert rendered screen pixels onto the horizontal court plane using the camera's cached perspective basis.
+- Added `CourtInputMapper` to convert camera-relative screen drags and normalized control vectors into the existing near-side/far-side movement command convention.
+- Routed dynamic joystick, fixed joystick, swipe aiming, and keyboard movement through the camera-aware mapper, removing the challenger's hard-coded horizontal inversion.
+- Extended `DynamicJoystick` to report its global screen origin, current pointer position, and normalized analog magnitude while retaining its existing callback compatibility and release behavior.
+- Added projection round-trip, reversed-baseline mapping, analog magnitude, and dynamic-joystick widget regressions.
+- Updated the implementation proposal to record Milestones A-C as implemented and accurately document the compatibility adapter used by the current command protocol.
+- Validation: targeted Flutter analysis passed with no issues; 26 focused graphics, input, command, and multiplayer tests passed.
+- Built the release web bundle and deployed the camera-aware controls to Firebase Hosting at `https://pickleball-simulator.web.app`.
