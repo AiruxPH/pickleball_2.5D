@@ -1542,6 +1542,31 @@ class PickleballGame extends ChangeNotifier {
     opponentJoystickY = y;
   }
 
+  /// Advances only the locally controlled avatar for network-side prediction.
+  /// Host snapshots remain authoritative for all match state.
+  void predictNetworkPlayer(double dt, {required int playerSlot}) {
+    if (isPaused || state == GameState.gameOver) return;
+    if (playerSlot == 1) {
+      if (state == GameState.waitingForServe && isOpponentHumanServing) {
+        _updateOpponentServePosition(dt);
+      } else {
+        opponentPlayerController.updateMovement(
+          dt,
+          opponentJoystickX,
+          -opponentJoystickY,
+        );
+        ai.clampToCourt();
+      }
+      return;
+    }
+    if (state == GameState.waitingForServe && identical(activeServer, player)) {
+      _updatePlayerServePosition(dt);
+    } else {
+      playerController.updateMovement(dt, joystickX, joystickY);
+      player.clampToCourt();
+    }
+  }
+
   void queueOpponentShot(ShotType type) {
     if (!isLocalMultiplayer) return;
     opponentBufferedShot = type;

@@ -156,6 +156,37 @@ void main() {
 
       expect(game.player.position.x, closeTo(startX + 5, 0.001));
     });
+
+    test('can extrapolate entity positions from snapshot velocity', () {
+      final game = PickleballGame(settings: GameSettings());
+      final base = LanStateSnapshot.fromGame(game);
+      final snapshot = LanStateSnapshot.fromJson({
+        ...base.toJson(),
+        'ball': {
+          ...base.ball.toJson(),
+          'x': 10.0,
+          'vx': 20.0,
+        },
+      });
+
+      snapshot.applyToGame(game, extrapolationSeconds: 0.1);
+
+      expect(game.ball.position.x, closeTo(12, 1e-6));
+    });
+
+    test('can preserve predicted player two between reconciliations', () {
+      final game = PickleballGame(
+        isLocalMultiplayer: true,
+        settings: GameSettings(),
+      );
+      final snapshot = LanStateSnapshot.fromGame(game);
+      game.ai.position.x += 7;
+      final predictedX = game.ai.position.x;
+
+      snapshot.applyToGame(game, player2PositionBlend: 0);
+
+      expect(game.ai.position.x, predictedX);
+    });
   });
 
   group('LanMultiplayerService', () {

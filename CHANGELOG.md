@@ -775,3 +775,12 @@
 - Updated the implementation proposal to record Milestones A-C as implemented and accurately document the compatibility adapter used by the current command protocol.
 - Validation: targeted Flutter analysis passed with no issues; 26 focused graphics, input, command, and multiplayer tests passed.
 - Built the release web bundle and deployed the camera-aware controls to Firebase Hosting at `https://pickleball-simulator.web.app`.
+### 2026-10-06 - Challenger latency and snapshot smoothing
+
+- Added presentation-only client prediction for the online challenger's controlled avatar, giving immediate movement feedback while the host remains authoritative for rules, scoring, ball physics, and final positions.
+- Reconciled the predicted Player 2 position only when a new authoritative snapshot arrives instead of dragging it toward an old snapshot every rendered frame.
+- Added up to 150 ms of velocity-based snapshot extrapolation for remote entities, removing the repeated ease-stop-jump pattern between Firebase updates.
+- Raised the online host snapshot target from 10 Hz to 20 Hz while retaining the existing in-flight write guard so slow connections cannot accumulate writes.
+- Extended snapshot application with per-player blend overrides and regression coverage for extrapolation and preserving predicted Player 2 state.
+- Validation: targeted Flutter analysis passed with no issues; 17 focused multiplayer and input tests passed.
+- Built and deployed the challenger prediction and 20 Hz snapshot release to Firebase Hosting.

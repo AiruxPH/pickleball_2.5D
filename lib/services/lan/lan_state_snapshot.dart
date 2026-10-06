@@ -202,16 +202,30 @@ class LanStateSnapshot {
     );
   }
 
-  void applyToGame(PickleballGame game, {double positionBlend = 1.0}) {
+  void applyToGame(
+    PickleballGame game, {
+    double positionBlend = 1.0,
+    double? player1PositionBlend,
+    double? player2PositionBlend,
+    double extrapolationSeconds = 0,
+  }) {
     final blend = positionBlend.clamp(0.0, 1.0);
-    Vec3 blended(Vec3 current, LanEntityState target, {bool velocity = false}) {
-      final tx = velocity ? target.vx : target.x;
-      final ty = velocity ? target.vy : target.y;
-      final tz = velocity ? target.vz : target.z;
+    final extrapolation = extrapolationSeconds.clamp(0.0, 0.15).toDouble();
+    Vec3 blended(
+      Vec3 current,
+      LanEntityState target, {
+      bool velocity = false,
+      double? positionBlendOverride,
+    }) {
+      final entityBlend =
+          (positionBlendOverride ?? blend).clamp(0.0, 1.0).toDouble();
+      final tx = velocity ? target.vx : target.x + target.vx * extrapolation;
+      final ty = velocity ? target.vy : target.y + target.vy * extrapolation;
+      final tz = velocity ? target.vz : target.z + target.vz * extrapolation;
       return Vec3(
-        current.x + (tx - current.x) * blend,
-        current.y + (ty - current.y) * blend,
-        current.z + (tz - current.z) * blend,
+        current.x + (tx - current.x) * entityBlend,
+        current.y + (ty - current.y) * entityBlend,
+        current.z + (tz - current.z) * entityBlend,
       );
     }
 
@@ -224,8 +238,17 @@ class LanStateSnapshot {
     );
 
     // Synchronize players
-    game.player.position = blended(game.player.position, player1);
-    game.player.velocity = blended(game.player.velocity, player1, velocity: true);
+    game.player.position = blended(
+      game.player.position,
+      player1,
+      positionBlendOverride: player1PositionBlend,
+    );
+    game.player.velocity = blended(
+      game.player.velocity,
+      player1,
+      velocity: true,
+      positionBlendOverride: player1PositionBlend,
+    );
     game.player.stamina = player1.stamina;
     game.player.isSwinging = player1.isSwinging;
     game.player.animState = PlayerAnimState.values.firstWhere(
@@ -233,8 +256,17 @@ class LanStateSnapshot {
       orElse: () => PlayerAnimState.idle,
     );
 
-    game.ai.position = blended(game.ai.position, player2);
-    game.ai.velocity = blended(game.ai.velocity, player2, velocity: true);
+    game.ai.position = blended(
+      game.ai.position,
+      player2,
+      positionBlendOverride: player2PositionBlend,
+    );
+    game.ai.velocity = blended(
+      game.ai.velocity,
+      player2,
+      velocity: true,
+      positionBlendOverride: player2PositionBlend,
+    );
     game.ai.stamina = player2.stamina;
     game.ai.isSwinging = player2.isSwinging;
     game.ai.animState = PlayerAnimState.values.firstWhere(
