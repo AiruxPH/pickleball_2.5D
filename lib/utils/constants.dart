@@ -590,7 +590,7 @@ class PhysicsConstants {
   // Air drag coefficient: perforated ball Cd ≈ 0.45
   // Applied as: velocity *= (1 - dragScale * speed * dt)
   // dragScale tuned so ball loses ~35% speed over full-court flight
-  static const double ballDragCoefficient = 0.0018;
+  static const double ballDragCoefficient = 0.0025;
 
   static const double maxBallSpeed = 300.0; // max horizontal speed
   static const double serveBallHeight = 20.0; // height to toss for serve
@@ -600,9 +600,9 @@ class PhysicsConstants {
   static const double lobUpPower = 56.0;
   static const double dropHitPower = 62.0;
   static const double dropUpPower = 20.0;
-  static const double playerSpeed = 80.0; // world units/s
-  static const double playerAcceleration = 400.0;
-  static const double playerDeceleration = 600.0;
+  static const double playerSpeed = 100.0; // world units/s
+  static const double playerAcceleration = 520.0;
+  static const double playerDeceleration = 680.0;
 }
 
 // ── Ruleset Configuration ──────────────────────────────────────

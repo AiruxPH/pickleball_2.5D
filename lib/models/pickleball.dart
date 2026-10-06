@@ -170,6 +170,8 @@ class Pickleball {
     isServe = true;
     shotType = ShotType.normal;
     impactFlash = 0;
+    spinRate = 0;
+    spinAngle = 0;
     trail.clear();
     hasBounced = false;
     playerSideBounce = false;

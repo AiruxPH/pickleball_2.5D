@@ -316,6 +316,25 @@ void main() {
   });
 
   group('Physics & Ball Bounce Fixes', () {
+    test('Fast shots lose a larger share of speed than slower shots', () {
+      final court = Court();
+      final fastBall = Pickleball()
+        ..state = BallState.inFlight
+        ..position = Vec3(0, 40, 40)
+        ..velocity = Vec3(0, 0, -200);
+      final slowBall = Pickleball()
+        ..state = BallState.inFlight
+        ..position = Vec3(0, 40, 40)
+        ..velocity = Vec3(0, 0, -80);
+
+      BallController(ball: fastBall, court: court).update(0.1);
+      BallController(ball: slowBall, court: court).update(0.1);
+
+      final fastRetained = fastBall.velocity.z.abs() / 200;
+      final slowRetained = slowBall.velocity.z.abs() / 80;
+      expect(fastRetained, lessThan(slowRetained));
+    });
+
     test('Ball bounces upward on ground collision', () {
       final ball = Pickleball();
       final court = Court();

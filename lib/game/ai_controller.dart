@@ -45,12 +45,14 @@ class AIController {
   bool _hasPredictedTarget = false;
   int _observedBounceCount = 0;
   bool _ballBouncedThisTick = false;
+  double _teamSideTravelTimer = 0;
   AIShotPlan? lastShotPlan;
 
   static const double contactRadiusX = 10.0;
   static const double contactReachForward = 10.0;
   static const double contactReachBack = 5.0;
   static const double maximumContactHeight = CourtDimensions.playerHeight + 8.0;
+  static const double minimumTeamSideTravelTime = 0.12;
 
   final math.Random _rng = math.Random();
 
@@ -138,6 +140,12 @@ class AIController {
         ? (ball.position.z > 0 || ball.velocity.z > 2.0)
         : (ball.position.z < 0 || ball.velocity.z < -2.0);
     final ballComing = arrivingOnTeamSide && shouldCoverIncomingBall();
+    final ballOnOwnHalf = isPartner ? ball.position.z > 0 : ball.position.z < 0;
+    if (ballComing && ballOnOwnHalf) {
+      _teamSideTravelTimer += dt;
+    } else {
+      _teamSideTravelTimer = 0;
+    }
 
     // Release a teammate-owned ball immediately instead of crossing lanes.
     if (arrivingOnTeamSide && !ballComing && _state != AIState.idle) {
@@ -225,6 +233,7 @@ class AIController {
     _hasPredictedTarget = false;
     _observedBounceCount = ball.bounceCount;
     _ballBouncedThisTick = false;
+    _teamSideTravelTimer = 0;
     lastShotPlan = null;
     ai.velocity
       ..x = 0
@@ -323,6 +332,7 @@ class AIController {
     if (mustWaitBounce) return;
     if (_ballBouncedThisTick) return;
     if (!ball.canBeHitAfterBounce) return;
+    if (_teamSideTravelTimer < minimumTeamSideTravelTime) return;
 
     // Never strike while touching the NVZ unless the current ball bounced
     // there. For a volley, both feet must additionally be established outside.
@@ -373,6 +383,7 @@ class AIController {
 
     if (_ballBouncedThisTick ||
         !ball.canBeHitAfterBounce ||
+        _teamSideTravelTimer < minimumTeamSideTravelTime ||
         !canContactBall()) {
       _state = AIState.approach;
       return;

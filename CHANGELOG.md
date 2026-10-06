@@ -824,3 +824,12 @@
 - Added regressions for the bounce delay, buffered recovery shot, stable bot paddle assignment, and opening-rally behavior.
 - Validation: Flutter analysis passed with no issues; all 48 rules tests and all 23 AI/bot rally tests passed.
 - A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.
+
+### 2026-10-06 - Bot contact timing and movement pacing
+
+- Added a 120 ms minimum travel window after an incoming ball reaches the bot's half of the court before the bot may make contact, keeping the existing forgiving lateral hitbox while making hits visually believable.
+- Increased velocity-dependent ball drag from `0.0018` to `0.0025`, so hard shots now launch quickly and shed a noticeably larger share of speed than slower shots instead of appearing constant-speed.
+- Increased human/local-player movement speed from 80 to 100 world units per second, acceleration from 400 to 520, and braking from 600 to 680 for faster court recovery without changing boundaries.
+- Added a regression proving high-speed balls decelerate proportionally more than slower balls.
+- Validation: all 72 focused rules, AI, and bot tests passed.
+- A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.
