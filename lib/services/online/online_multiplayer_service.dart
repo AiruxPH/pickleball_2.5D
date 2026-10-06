@@ -166,6 +166,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
         'joinedAt': ServerValue.timestamp,
       });
       await _room!.child('members/$_uid').onDisconnect().remove();
+      await _room!.child('ready/$_uid').set(false);
+      await _room!.child('ready/$_uid').onDisconnect().set(false);
       _listenToRoom();
       _status = OnlineStatus.connected;
       notifyListeners();
@@ -209,13 +211,13 @@ class OnlineMultiplayerService extends ChangeNotifier {
       notifyListeners();
     }));
     if (isHost) {
-      _subscriptions.add(room.child('actions').onChildAdded.listen((event) {
+      _subscriptions.add(room.child('ready').onValue.listen((event) {
+        var challengerReady = false;
         final raw = event.snapshot.value;
-        if (raw is Map && raw['type'] == 'toggleReady') {
-          final slotId = raw['slotId'] as String?;
-          if (slotId != null) _lobby?.toggleReady(slotId);
+        if (raw is Map) {
+          challengerReady = raw.values.any((value) => value == true);
         }
-        event.snapshot.ref.remove();
+        _lobby?.setReady('p2', challengerReady);
       }));
       _subscriptions.add(room.child('commands').onChildAdded.listen((event) {
         final raw = event.snapshot.value;
@@ -277,13 +279,11 @@ class OnlineMultiplayerService extends ChangeNotifier {
     if (!_challengerPresent) return;
     try {
       await _ensureClientMembership();
-      final action = _room?.child('actions').push();
-      await action?.set({
-        'type': 'toggleReady',
-        'slotId': slotId,
-        'uid': _uid,
-        'createdAt': ServerValue.timestamp,
-      });
+      final slot = _lobby?.humanSlots
+          .where((player) => player.id == slotId)
+          .firstOrNull;
+      if (slot == null) return;
+      await _room?.child('ready/$_uid').set(!slot.isReady);
     } catch (error) {
       _errorMessage = 'Could not update ready state: $error';
       debugPrint('[OnlineMultiplayer] $_errorMessage');
@@ -368,6 +368,9 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _subscriptions.clear();
     _lobby?.removeListener(_writeLobby);
     if (_room != null && _uid != null) {
+      if (isClient) {
+        await _room!.child('ready/$_uid').set(false);
+      }
       await _room!.child('members/$_uid').remove();
       if (isHost) {
         await _room!.child('meta/status').set('closed');

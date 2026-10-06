@@ -29,6 +29,12 @@
             ".validate": "!newData.exists() || (newData.child('uid').val() === auth.uid && newData.child('type').val() === 'toggleReady')"
           }
         },
+        "ready": {
+          "$uid": {
+            ".write": "auth != null && $uid === auth.uid && root.child('onlineRooms').child($code).child('members').child(auth.uid).child('role').val() === 'client' && root.child('onlineRooms').child($code).child('members').child(auth.uid).child('slot').val() === 1",
+            ".validate": "newData.isBoolean()"
+          }
+        },
         "commands": {
           "$command": {
             ".write": "auth != null && ((!data.exists() && root.child('onlineRooms').child($code).child('members').child(auth.uid).child('role').val() === 'client' && root.child('onlineRooms').child($code).child('members').child(auth.uid).child('slot').val() === 1) || root.child('onlineRooms').child($code).child('meta/hostUid').val() === auth.uid)",

@@ -745,3 +745,9 @@
 - Moved member role/slot ownership checks from a compound validation expression into the write authorization rule, fixing legitimate challenger joins while still limiting non-host users to their own slot-1 client record.
 - Removed a redundant host-UID inequality from challenger member authorization after live room inspection showed it was the remaining rejected clause; self-ownership, client role, and slot 1 remain mandatory.
 - Simplified member write authorization to the stable UID boundary: authenticated users may write only their own member record, while the host may manage room members; required role/slot/online types remain validated and downstream actions still require the stored client role and slot 1.
+
+### 2026-10-06 - Idempotent online ready state
+- Replaced transient challenger `toggleReady` actions with a per-session `ready/{uid}` boolean owned by the authenticated slot-1 client.
+- Made the host mirror the challenger's exact ready value into the lobby instead of repeatedly toggling state, eliminating checked/unchecked flicker when an event is replayed.
+- Registered disconnect cleanup and explicit leave cleanup for challenger readiness so stale sessions cannot remain ready.
+- Removed host-side processing and deletion of ready action records, eliminating the repeated `/actions` permission-denied loop.

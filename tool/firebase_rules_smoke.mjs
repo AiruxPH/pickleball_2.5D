@@ -55,6 +55,7 @@ await request('challenger ready action', 'PUT', `onlineRooms/${roomCode}/actions
   createdAt: 1,
 });
 await request('host action cleanup', 'DELETE', `onlineRooms/${roomCode}/actions/test`, hostUid);
+await request('challenger ready state', 'PUT', `onlineRooms/${roomCode}/ready/${clientUid}`, clientUid, true);
 await request('host snapshot write', 'PUT', `onlineRooms/${roomCode}/snapshot`, hostUid, {
   ball: { x: 0, y: 1, z: 2 },
   p1: { x: 0, y: 0, z: 1 },
