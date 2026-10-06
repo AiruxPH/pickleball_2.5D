@@ -40,6 +40,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
   bool _commandWriteInFlight = false;
   bool _commandWritesEnabled = true;
   MatchCommand? _pendingCommand;
+  bool _hostPresent = false;
+  bool _challengerPresent = false;
 
   final _startController =
       StreamController<Map<String, dynamic>>.broadcast();
@@ -58,6 +60,9 @@ class OnlineMultiplayerService extends ChangeNotifier {
   bool get isClient => _role == OnlineRole.client;
   bool get isConnected =>
       _status == OnlineStatus.connected || _status == OnlineStatus.inGame;
+  bool get hostPresent => _hostPresent;
+  bool get challengerPresent => _challengerPresent;
+  bool get allPlayersPresent => _hostPresent && _challengerPresent;
   Stream<Map<String, dynamic>> get onStartMatch => _startController.stream;
   Stream<MatchCommand> get onCommandReceived => _commandController.stream;
   Stream<LanStateSnapshot> get onStateSyncReceived =>
@@ -184,6 +189,25 @@ class OnlineMultiplayerService extends ChangeNotifier {
       _startController.add(payload);
       notifyListeners();
     }));
+    _subscriptions.add(room.child('members').onValue.listen((event) {
+      var hostPresent = false;
+      var challengerPresent = false;
+      final raw = event.snapshot.value;
+      if (raw is Map) {
+        for (final value in raw.values) {
+          if (value is! Map || value['online'] != true) continue;
+          hostPresent |= value['role'] == 'host';
+          challengerPresent |= value['role'] == 'client';
+        }
+      }
+      final challengerLeft = _challengerPresent && !challengerPresent;
+      _hostPresent = hostPresent;
+      _challengerPresent = challengerPresent;
+      if (challengerLeft && isHost) {
+        _lobby?.setReady('p2', false);
+      }
+      notifyListeners();
+    }));
     if (isHost) {
       _subscriptions.add(room.child('actions').onChildAdded.listen((event) {
         final raw = event.snapshot.value;
@@ -250,17 +274,36 @@ class OnlineMultiplayerService extends ChangeNotifier {
       _lobby?.toggleReady(slotId);
       return;
     }
-    final action = _room?.child('actions').push();
-    await action?.set({
-      'type': 'toggleReady',
-      'slotId': slotId,
-      'uid': _uid,
-      'createdAt': ServerValue.timestamp,
+    if (!_challengerPresent) return;
+    try {
+      await _ensureClientMembership();
+      final action = _room?.child('actions').push();
+      await action?.set({
+        'type': 'toggleReady',
+        'slotId': slotId,
+        'uid': _uid,
+        'createdAt': ServerValue.timestamp,
+      });
+    } catch (error) {
+      _errorMessage = 'Could not update ready state: $error';
+      debugPrint('[OnlineMultiplayer] $_errorMessage');
+      notifyListeners();
+    }
+  }
+
+  Future<void> _ensureClientMembership() async {
+    if (!isClient || _room == null || _uid == null) return;
+    await _room!.child('members/$_uid').set({
+      'role': 'client',
+      'slot': 1,
+      'online': true,
+      'joinedAt': ServerValue.timestamp,
     });
+    await _room!.child('members/$_uid').onDisconnect().remove();
   }
 
   Future<void> startMatch(Map<String, dynamic> arguments) async {
-    if (!isHost || _room == null) return;
+    if (!isHost || _room == null || !allPlayersPresent) return;
     final payload = Map<String, dynamic>.from(arguments)
       ..['startedAt'] = ServerValue.timestamp
       ..['sessionId'] = _roomCode;
@@ -340,6 +383,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _commandWriteInFlight = false;
     _commandWritesEnabled = true;
     _pendingCommand = null;
+    _hostPresent = false;
+    _challengerPresent = false;
     _status = FirebaseBootstrap.isReady
         ? OnlineStatus.idle
         : OnlineStatus.unavailable;

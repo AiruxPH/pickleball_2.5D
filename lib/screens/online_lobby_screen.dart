@@ -137,6 +137,45 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                   fontSize: 26 * ui,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 5)),
+          SizedBox(height: 12 * ui),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: 14 * ui,
+              vertical: 8 * ui,
+            ),
+            decoration: BoxDecoration(
+              color: (_service.allPlayersPresent
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFF59E0B))
+                  .withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: _service.allPlayersPresent
+                    ? const Color(0xFF34D399)
+                    : const Color(0xFFFBBF24),
+              ),
+            ),
+            child: Text(
+              _service.allPlayersPresent
+                  ? 'PHASE 2 · BOTH PLAYERS JOINED — READY UP'
+                  : 'PHASE 1 · WAITING FOR CHALLENGER',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12 * ui,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          if (_service.errorMessage != null)
+            Padding(
+              padding: EdgeInsets.only(top: 10 * ui),
+              child: Text(
+                _service.errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFFFCA5A5)),
+              ),
+            ),
           SizedBox(height: 18 * ui),
           if (_service.isHost)
             MenuSegmented<LobbyFormat>(
@@ -149,24 +188,46 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
             ),
           SizedBox(height: 14 * ui),
           for (var i = 0; i < humanSlots.length; i++) ...[
-            ListTile(
-              leading: Icon(
-                humanSlots[i].isReady
-                    ? Icons.check_circle_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                color: humanSlots[i].isReady
-                    ? const Color(0xFF34D399)
-                    : Colors.white54,
-              ),
-              title: Text(i == 0 ? 'HOST' : 'CHALLENGER',
-                  style: const TextStyle(color: Colors.white)),
-              trailing: Text(humanSlots[i].isReady ? 'READY' : 'NOT READY',
-                  style: const TextStyle(color: Colors.white70)),
-              onTap: (_service.isHost && i == 0) ||
-                      (_service.isClient && i == 1)
-                  ? () => _service.toggleReady(humanSlots[i].id)
-                  : null,
-            ),
+            Builder(builder: (context) {
+              final present = i == 0
+                  ? _service.hostPresent
+                  : _service.challengerPresent;
+              return ListTile(
+                leading: Icon(
+                  !present
+                      ? Icons.person_off_outlined
+                      : humanSlots[i].isReady
+                          ? Icons.check_circle_rounded
+                          : Icons.person_rounded,
+                  color: !present
+                      ? Colors.white38
+                      : humanSlots[i].isReady
+                          ? const Color(0xFF34D399)
+                          : const Color(0xFF38BDF8),
+                ),
+                title: Text(i == 0 ? 'HOST' : 'CHALLENGER',
+                    style: const TextStyle(color: Colors.white)),
+                subtitle: Text(
+                  present ? 'JOINED ROOM' : 'WAITING FOR PLAYER',
+                  style: TextStyle(
+                    color: present ? const Color(0xFF7DD3FC) : Colors.white38,
+                  ),
+                ),
+                trailing: Text(
+                  !present
+                      ? 'EMPTY'
+                      : humanSlots[i].isReady
+                          ? 'READY'
+                          : 'NOT READY',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                onTap: present &&
+                        ((_service.isHost && i == 0) ||
+                            (_service.isClient && i == 1))
+                    ? () => _service.toggleReady(humanSlots[i].id)
+                    : null,
+              );
+            }),
           ],
           SizedBox(height: 14 * ui),
           if (_service.isHost)
@@ -174,7 +235,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               label: 'START ONLINE MATCH',
               icon: Icons.play_arrow_rounded,
               palette: TilePalette.gold,
-              onTap: lobby.canStart
+              onTap: lobby.canStart && _service.allPlayersPresent
                   ? () {
                       final settings = context.read<GameSettings>();
                       _service.startMatch({

@@ -734,3 +734,12 @@
 - Authorized ready actions and match commands from the authenticated room membership and assigned challenger slot, keeping role checks server-enforced.
 - Serialized challenger command writes with latest-input coalescing and a failure circuit breaker, preventing high-frequency controls from producing an unbounded rejection loop.
 - Reversed the online challenger's baseline camera so each peer views and controls their own side instead of sharing the host's body and viewpoint.
+
+### 2026-10-06 - Two-phase online lobby presence and ready flow
+- Fixed challenger ready authorization by safely upgrading the authenticated challenger's legacy member record to `role=client, slot=1` before sending a ready action.
+- Strengthened member validation so only the authenticated room host can occupy slot 0 and non-host clients can occupy slot 1.
+- Added live host/challenger presence tracking from the room's `members` node and reset challenger readiness when that member disconnects.
+- Split the lobby presentation into Phase 1 (waiting for both players to join) and Phase 2 (both players ready up), with joined/empty indicators per player.
+- Prevented match start until both authenticated members are present and both lobby players are ready.
+- Caught ready-action failures and surfaced them once inside the lobby instead of producing uncaught browser errors.
+- Moved member role/slot ownership checks from a compound validation expression into the write authorization rule, fixing legitimate challenger joins while still limiting non-host users to their own slot-1 client record.

@@ -105,10 +105,16 @@ class MatchLobby extends ChangeNotifier {
   }
 
   void toggleReady(String slotId) {
+    final slot = _slots.where((value) => value.id == slotId).firstOrNull;
+    if (slot == null) return;
+    setReady(slotId, !slot.isReady);
+  }
+
+  void setReady(String slotId, bool isReady) {
     _slots = [
       for (final slot in _slots)
         if (slot.id == slotId && slot.type == LobbySlotType.human)
-          slot.copyWith(isReady: !slot.isReady)
+          slot.copyWith(isReady: isReady)
         else
           slot,
     ];
