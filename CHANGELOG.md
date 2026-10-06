@@ -744,3 +744,4 @@
 - Caught ready-action failures and surfaced them once inside the lobby instead of producing uncaught browser errors.
 - Moved member role/slot ownership checks from a compound validation expression into the write authorization rule, fixing legitimate challenger joins while still limiting non-host users to their own slot-1 client record.
 - Removed a redundant host-UID inequality from challenger member authorization after live room inspection showed it was the remaining rejected clause; self-ownership, client role, and slot 1 remain mandatory.
+- Simplified member write authorization to the stable UID boundary: authenticated users may write only their own member record, while the host may manage room members; required role/slot/online types remain validated and downstream actions still require the stored client role and slot 1.
