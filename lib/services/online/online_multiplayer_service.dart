@@ -40,6 +40,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
   bool _commandWriteInFlight = false;
   bool _commandWritesEnabled = true;
   MatchCommand? _pendingCommand;
+  int _commandSequence = 0;
+  final Map<String, int> _lastCommandSequence = <String, int>{};
   bool _hostPresent = false;
   bool _challengerPresent = false;
 
@@ -219,13 +221,19 @@ class OnlineMultiplayerService extends ChangeNotifier {
         }
         _lobby?.setReady('p2', challengerReady);
       }));
-      _subscriptions.add(room.child('commands').onChildAdded.listen((event) {
-        final raw = event.snapshot.value;
-        if (raw is Map && raw['cmd'] is Map) {
+      _subscriptions.add(room.child('commands').onValue.listen((event) {
+        final rawCommands = event.snapshot.value;
+        if (rawCommands is! Map) return;
+        for (final entry in rawCommands.entries) {
+          final uid = entry.key.toString();
+          final raw = entry.value;
+          if (raw is! Map || raw['cmd'] is! Map) continue;
+          final sequence = (raw['seq'] as num?)?.toInt() ?? 0;
+          if (sequence <= (_lastCommandSequence[uid] ?? 0)) continue;
+          _lastCommandSequence[uid] = sequence;
           _commandController.add(MatchCommand.fromJson(
               Map<String, dynamic>.from(raw['cmd'] as Map)));
         }
-        event.snapshot.ref.remove();
       }));
     } else {
       _subscriptions.add(room.child('snapshot').onValue.listen((event) {
@@ -319,9 +327,10 @@ class OnlineMultiplayerService extends ChangeNotifier {
       while (_pendingCommand != null && _commandWritesEnabled) {
         final next = _pendingCommand!;
         _pendingCommand = null;
-        await _room!.child('commands').push().set({
+        await _room!.child('commands/$_uid').set({
           'uid': _uid,
           'slot': 1,
+          'seq': ++_commandSequence,
           'cmd': next.toJson(),
           'createdAt': ServerValue.timestamp,
         });
@@ -386,6 +395,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _commandWriteInFlight = false;
     _commandWritesEnabled = true;
     _pendingCommand = null;
+    _commandSequence = 0;
+    _lastCommandSequence.clear();
     _hostPresent = false;
     _challengerPresent = false;
     _status = FirebaseBootstrap.isReady

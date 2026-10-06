@@ -752,3 +752,10 @@
 - Registered disconnect cleanup and explicit leave cleanup for challenger readiness so stale sessions cannot remain ready.
 - Removed host-side processing and deletion of ready action records, eliminating the repeated `/actions` permission-denied loop.
 - Added no-cache Hosting headers for `index.html`, `flutter_service_worker.js`, and `main.dart.js` so browsers cannot remain pinned to the retired `/actions` multiplayer protocol after a deployment.
+### 2026-10-06 - Online command mailbox and player-specific controls
+
+- Replaced the Firebase push/delete command queue with one sequenced mailbox per challenger. The host now deduplicates commands without deleting client records, eliminating the rejected `/commands` write loop and reducing database churn.
+- Restricted each command mailbox to its authenticated challenger UID in Realtime Database rules.
+- Mirrored the challenger camera's horizontal joystick and swipe axes so controls remain screen-relative from the reversed baseline view.
+- Made Serve controls local-slot aware: only the currently serving browser receives the Serve button and actionable prompt; the other browser sees `OPPONENT SERVING`.
+- Corrected online HUD role detection so online challengers are consistently identified as P2.

@@ -443,7 +443,23 @@ class _GameScreenState extends State<GameScreen>
     return game.ball.lastHitByPlayer ? _opponentCommands : _commands;
   }
 
-  void _onJoystickMove(double x, double y) => _activeTouchCommands?.move(x, y);
+  bool get _isRemoteClient =>
+      (_isLanMultiplayer || _isOnlineMultiplayer) && _lanRole == 'client';
+
+  bool _localPlayerCanServe(PickleballGame game) {
+    if (game.state != GameState.waitingForServe || !game.isHumanServing) {
+      return false;
+    }
+    if (_isRemoteClient) return game.isOpponentHumanServing;
+    if (_isLanMultiplayer || _isOnlineMultiplayer) {
+      return !game.isOpponentHumanServing;
+    }
+    return true;
+  }
+
+  void _onJoystickMove(double x, double y) {
+    _activeTouchCommands?.move(_isRemoteClient ? -x : x, y);
+  }
   void _onJoystickRelease() => _activeTouchCommands?.stopMoving();
 
   void _handleKeyEvent(KeyEvent event) {
@@ -467,7 +483,7 @@ class _GameScreenState extends State<GameScreen>
     }
 
     if (event is KeyDownEvent) {
-      if (_isLanMultiplayer && _lanRole == 'client') {
+      if (_isRemoteClient) {
         if (event.logicalKey == LogicalKeyboardKey.space ||
             event.logicalKey == LogicalKeyboardKey.enter) {
           if (_game!.state == GameState.waitingForServe &&
@@ -565,7 +581,7 @@ class _GameScreenState extends State<GameScreen>
 
     // Continuous movement keys
     final keys = HardwareKeyboard.instance.logicalKeysPressed;
-    if (_isLanMultiplayer && _lanRole == 'client') {
+    if (_isRemoteClient) {
       double p2x = 0, p2y = 0;
       if (keys.contains(LogicalKeyboardKey.keyA) ||
           keys.contains(LogicalKeyboardKey.arrowLeft)) {
@@ -583,7 +599,7 @@ class _GameScreenState extends State<GameScreen>
           keys.contains(LogicalKeyboardKey.arrowDown)) {
         p2y += 1;
       }
-      _opponentCommands?.move(p2x, p2y);
+      _opponentCommands?.move(-p2x, p2y);
       return;
     }
 
@@ -592,7 +608,8 @@ class _GameScreenState extends State<GameScreen>
     if (keys.contains(LogicalKeyboardKey.keyD)) p1x += 1;
     if (keys.contains(LogicalKeyboardKey.keyW)) p1y -= 1;
     if (keys.contains(LogicalKeyboardKey.keyS)) p1y += 1;
-    if (!_isLocalMultiplayer || (_isLanMultiplayer && _lanRole == 'host')) {
+    if (!_isLocalMultiplayer ||
+        ((_isLanMultiplayer || _isOnlineMultiplayer) && _lanRole == 'host')) {
       if (keys.contains(LogicalKeyboardKey.arrowLeft)) p1x -= 1;
       if (keys.contains(LogicalKeyboardKey.arrowRight)) p1x += 1;
       if (keys.contains(LogicalKeyboardKey.arrowUp)) p1y -= 1;
@@ -626,7 +643,9 @@ class _GameScreenState extends State<GameScreen>
     if (_swipeStart == null) return;
     final delta = d.localPosition - _swipeStart!;
     if (delta.distance > 20) {
-      _activeTouchCommands?.aim(delta);
+      _activeTouchCommands?.aim(
+        _isRemoteClient ? Offset(-delta.dx, delta.dy) : delta,
+      );
     }
   }
 
@@ -738,9 +757,7 @@ class _GameScreenState extends State<GameScreen>
               ValueListenableBuilder<GameState>(
                 valueListenable: _stateNotifier,
                 builder: (_, state, ___) {
-                  if (!_isBotVsBot &&
-                      state == GameState.waitingForServe &&
-                      game.isHumanServing) {
+                  if (!_isBotVsBot && state == GameState.waitingForServe) {
                     return _buildServePrompt(game, isLandscape: isLandscape);
                   }
                   return const SizedBox.shrink();
@@ -886,7 +903,7 @@ class _GameScreenState extends State<GameScreen>
                 child: ValueListenableBuilder<int>(
                   valueListenable: _tickNotifier,
                   builder: (_, __, ___) {
-                    final isClient = _isLanMultiplayer && _lanRole == 'client';
+                    final isClient = _isRemoteClient;
                     final playerTwo =
                         isClient || _activeTouchCommands == _opponentCommands;
                     return Container(
@@ -1219,8 +1236,7 @@ class _GameScreenState extends State<GameScreen>
   // ── Action Controls: Context-Aware & Ultra-Compact Thumb Cluster ──
   Widget _buildActionButtons(PickleballGame game,
       {required bool isLandscape, double screenHeight = 400}) {
-    final isServing =
-        game.state == GameState.waitingForServe && game.isHumanServing;
+    final isServing = _localPlayerCanServe(game);
 
     // In landscape, derive button sizes from screen height so they scale
     // proportionally across all mobile device sizes (phones ~320-420px tall)
@@ -1647,6 +1663,7 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Widget _buildServePrompt(PickleballGame game, {required bool isLandscape}) {
+    final canServe = _localPlayerCanServe(game);
     return Positioned(
       top: isLandscape ? 102 : 122,
       left: 0,
@@ -1687,9 +1704,7 @@ class _GameScreenState extends State<GameScreen>
               ),
               const SizedBox(width: 8),
               Text(
-                game.isOpponentHumanServing
-                    ? 'PLAYER 2 SERVE'
-                    : 'SERVE TO HIGHLIGHTED BOX',
+                canServe ? 'SERVE TO HIGHLIGHTED BOX' : 'OPPONENT SERVING',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 10.5,
@@ -1697,8 +1712,8 @@ class _GameScreenState extends State<GameScreen>
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
+              if (canServe) const SizedBox(width: 8),
+              if (canServe) Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
