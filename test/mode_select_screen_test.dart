@@ -161,6 +161,34 @@ void main() {
     expect(find.text('START MATCH'), findsOneWidget);
   });
 
+  testWidgets('Difficulty and court selections repaint inside the open dialog',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(await buildTestWidget(size: const Size(1280, 720)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('SINGLES 1v1'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('menu-segment-MEDIUM-true')),
+        findsOneWidget);
+    await tester.tap(find.text('HARD'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('menu-segment-HARD-true')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('menu-segment-MEDIUM-false')),
+        findsOneWidget);
+
+    expect(find.byKey(const ValueKey('court-tournament-true')), findsOneWidget);
+    await tester.tap(find.text('FOREST PARK'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('court-outdoor-true')), findsOneWidget);
+    expect(find.byKey(const ValueKey('court-tournament-false')),
+        findsOneWidget);
+  });
+
   testWidgets('Portrait layout renders DOUBLES 2v2 and shows difficulty when tapped',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(400, 800);

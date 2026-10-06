@@ -105,7 +105,14 @@ class SingleSlantedCard extends StatelessWidget {
     );
 
     if (enableShine) {
-      cardContent = ShineSweep(child: cardContent);
+      cardContent = ShineSweep(
+        clipper: SingleSlantedClipper(
+          angleDegrees: angleDegrees,
+          radius: radius,
+          direction: direction,
+        ),
+        child: cardContent,
+      );
     }
 
     if (onTap != null) {

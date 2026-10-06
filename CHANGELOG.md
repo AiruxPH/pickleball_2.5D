@@ -833,3 +833,14 @@
 - Added a regression proving high-speed balls decelerate proportionally more than slower balls.
 - Validation: all 72 focused rules, AI, and bot tests passed.
 - A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.
+
+### 2026-10-06 - Mode selection visual refresh and consistent bot timing
+
+- Replaced the sparse four-column mode grid with a responsive bento layout: three balanced cards followed by two wider cards on desktop, two columns on medium screens, and one column on narrow screens.
+- Added supporting header copy and increased mode-card height so titles, descriptions, icons, and spacing use the available screen area more intentionally.
+- Fixed dialog-local state updates so Easy/Medium/Hard and court selections repaint their highlight/checkmark immediately without changing match format or reopening the dialog.
+- Made `ShineSweep` clip all animated light to its own bounds globally and added exact single-slanted path clipping to shared menu cards, selection tiles, primary buttons, game buttons, and court cards.
+- Standardized bot reaction/contact wait at 120 ms for Easy, Medium, Hard, and practice bots; difficulty continues to affect movement speed, accuracy, tactics, and error chance.
+- Added widget regression coverage for live difficulty and court selection repainting.
+- Validation: 72 combined mode-selection, rules, difficulty, and AI rally tests passed.
+- A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.

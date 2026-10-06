@@ -16,6 +16,7 @@ class ShineSweep extends StatefulWidget {
   final double angleDegrees;
   final double shineWidth;
   final Color shineColor;
+  final CustomClipper<Path>? clipper;
 
   const ShineSweep({
     super.key,
@@ -26,6 +27,7 @@ class ShineSweep extends StatefulWidget {
     this.angleDegrees = -22.0,
     this.shineWidth = 70.0,
     this.shineColor = Colors.white,
+    this.clipper,
   });
 
   @override
@@ -79,37 +81,43 @@ class _ShineSweepState extends State<ShineSweep>
 
   @override
   Widget build(BuildContext context) {
+    final sweep = Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        widget.child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _animation,
+              builder: (context, _) {
+                if (_animation.value <= 0.0 || _animation.value >= 1.0) {
+                  return const SizedBox.shrink();
+                }
+                return CustomPaint(
+                  painter: _ShineSweepPainter(
+                    progress: _animation.value,
+                    angleDegrees: widget.angleDegrees,
+                    shineWidth: widget.shineWidth,
+                    shineColor: widget.shineColor,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+    final clippedSweep = widget.clipper == null
+        ? ClipRect(child: sweep)
+        : ClipPath(clipper: widget.clipper, child: sweep);
+
     return FocusableActionDetector(
       onShowFocusHighlight: (focused) {
         if (focused) triggerSweep();
       },
       child: MouseRegion(
         onEnter: (_) => triggerSweep(),
-        child: Stack(
-          children: [
-            widget.child,
-            Positioned.fill(
-              child: IgnorePointer(
-                child: AnimatedBuilder(
-                  animation: _animation,
-                  builder: (context, _) {
-                    if (_animation.value <= 0.0 || _animation.value >= 1.0) {
-                      return const SizedBox.shrink();
-                    }
-                    return CustomPaint(
-                      painter: _ShineSweepPainter(
-                        progress: _animation.value,
-                        angleDegrees: widget.angleDegrees,
-                        shineWidth: widget.shineWidth,
-                        shineColor: widget.shineColor,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
+        child: clippedSweep,
       ),
     );
   }

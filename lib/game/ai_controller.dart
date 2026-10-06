@@ -86,15 +86,7 @@ class AIController {
   }
 
   double get effectiveReactionTime {
-    if (isPracticeMode) return 0.02;
-    switch (difficulty) {
-      case AIDifficulty.easy:
-        return 0.32;
-      case AIDifficulty.medium:
-        return 0.18;
-      case AIDifficulty.hard:
-        return 0.08;
-    }
+    return 0.12;
   }
 
   double get effectiveAccuracy {

@@ -150,6 +150,11 @@ class _PlayTileState extends State<PlayTile> {
               autoPeriodic: true,
               periodicInterval: const Duration(seconds: 6),
               shineColor: const Color(0xFFFFF7D6),
+              clipper: SingleSlantedClipper(
+                angleDegrees: 7.0,
+                radius: radius,
+                direction: SlantDirection.forward,
+              ),
               child: CustomPaint(
                 painter: SingleSlantedFramePainter(
                   colors: const [
@@ -365,6 +370,11 @@ class MenuTile extends StatelessWidget {
           final roomy = c.maxHeight > 74 * ui && c.maxWidth > 190 * ui;
 
           return ShineSweep(
+            clipper: SingleSlantedClipper(
+              angleDegrees: 7.0,
+              radius: radius,
+              direction: SlantDirection.forward,
+            ),
             child: CustomPaint(
               painter: SingleSlantedFramePainter(
                 colors: colors,

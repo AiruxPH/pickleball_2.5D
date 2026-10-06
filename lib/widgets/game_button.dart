@@ -304,6 +304,11 @@ class _MenuButtonState extends State<MenuButton>
             shineColor: isYellow
                 ? const Color(0xFFFFF7D6)
                 : const Color(0x40FFFFFF),
+            clipper: const SingleSlantedClipper(
+              angleDegrees: 7.0,
+              radius: 12.0,
+              direction: SlantDirection.forward,
+            ),
             child: SizedBox(
               width: double.infinity,
               height: 54,
@@ -376,4 +381,3 @@ class _MenuButtonState extends State<MenuButton>
     );
   }
 }
-

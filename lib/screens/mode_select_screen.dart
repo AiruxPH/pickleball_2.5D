@@ -150,30 +150,50 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
       opacity: _fadeAnim,
       child: MenuScreen(
         title: 'SELECT MODE',
+        subtitle: 'Choose a match type, then configure the court',
         body: _buildModeGrid(m.contentUi, m.landscape),
       ),
     );
   }
 
   Widget _buildModeGrid(double ui, bool landscape) {
-    return GridView.builder(
-      padding: EdgeInsets.all(16 * ui),
-      itemCount: _modes.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: landscape ? 4 : 2,
-        mainAxisSpacing: 14 * ui,
-        crossAxisSpacing: 14 * ui,
-        childAspectRatio: landscape ? 1.2 : 1.0,
-      ),
-      itemBuilder: (_, i) {
-        final mode = _modes[i];
-        return MenuSelectTile(
-          selected: false,
-          palette: mode.palette,
-          icon: mode.icon,
-          title: mode.label,
-          subtitle: mode.subtitle,
-          onTap: () => _showModeSetup(i, ui),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth - 32 * ui;
+        final gap = 14 * ui;
+        final wide = landscape && available >= 900 * ui;
+        final twoColumns = !wide && available >= 560 * ui;
+        final firstRowWidth = wide
+            ? (available - gap * 2) / 3
+            : twoColumns
+                ? (available - gap) / 2
+                : available;
+        final secondRowWidth = wide ? (available - gap) / 2 : firstRowWidth;
+        final cardHeight = (wide ? 128 : 116) * ui;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(16 * ui, 12 * ui, 16 * ui, 24 * ui),
+          child: Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: List.generate(_modes.length, (i) {
+              final mode = _modes[i];
+              final width = wide && i >= 3 ? secondRowWidth : firstRowWidth;
+              return SizedBox(
+                width: width,
+                height: cardHeight,
+                child: MenuSelectTile(
+                  selected: false,
+                  palette: mode.palette,
+                  icon: mode.icon,
+                  title: mode.label,
+                  subtitle: mode.subtitle,
+                  titleSize: wide ? 16 : 15,
+                  onTap: () => _showModeSetup(i, ui),
+                ),
+              );
+            }),
+          ),
         );
       },
     );
@@ -219,11 +239,11 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
                   ],
                   _buildSectionLabel('DIFFICULTY', Icons.speed_rounded),
                   SizedBox(height: 8 * ui),
-                  _buildDifficultyPicker(),
+                  _buildDifficultyPicker(refreshDialog: refreshDialog),
                   SizedBox(height: 16 * ui),
                   _buildSectionLabel('SELECT COURT', Icons.stadium_rounded),
                   SizedBox(height: 8 * ui),
-                  _buildCourtPicker(ui),
+                  _buildCourtPicker(ui, refreshDialog: refreshDialog),
                   SizedBox(height: 20 * ui),
                   MenuPrimaryButton(
                     label: 'START MATCH',
@@ -359,7 +379,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
     });
   }
 
-  Widget _buildDifficultyPicker() {
+  Widget _buildDifficultyPicker({StateSetter? refreshDialog}) {
     return MenuSegmented<int>(
       height: 48,
       current: _selectedDiffIndex,
@@ -374,6 +394,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
       ],
       onChanged: (i) {
         setState(() => _selectedDiffIndex = i);
+        refreshDialog?.call(() {});
         final settings = context.read<GameSettings>();
         const diffs = [
           AIDifficulty.easy,
@@ -398,7 +419,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
     );
   }
 
-  Widget _buildCourtPicker(double ui) {
+  Widget _buildCourtPicker(double ui, {StateSetter? refreshDialog}) {
     // All five courts side by side when they fit; a scrolling strip on
     // narrow phones.
     return LayoutBuilder(builder: (context, c) {
@@ -412,7 +433,14 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
             children: [
               for (int i = 0; i < n; i++) ...[
                 if (i > 0) SizedBox(width: gap),
-                Expanded(child: _courtCard(i, ui, null)),
+                Expanded(
+                  child: _courtCard(
+                    i,
+                    ui,
+                    null,
+                    refreshDialog: refreshDialog,
+                  ),
+                ),
               ],
             ],
           ),
@@ -424,13 +452,23 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           scrollDirection: Axis.horizontal,
           itemCount: n,
           separatorBuilder: (_, __) => SizedBox(width: gap),
-          itemBuilder: (_, i) => _courtCard(i, ui, 112 * ui),
+          itemBuilder: (_, i) => _courtCard(
+            i,
+            ui,
+            112 * ui,
+            refreshDialog: refreshDialog,
+          ),
         ),
       );
     });
   }
 
-  Widget _courtCard(int i, double ui, double? width) {
+  Widget _courtCard(
+    int i,
+    double ui,
+    double? width, {
+    StateSetter? refreshDialog,
+  }) {
     final theme = CourtTheme.values[i];
     final selected = _selectedCourtIndex == i;
     final radius = 12 * ui;
@@ -444,13 +482,22 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
     final borderColor = selected ? TilePalette.blue.border : kMenuPanelBorder;
 
     return MenuPressable(
-      onTap: () => setState(() => _selectedCourtIndex = i),
+      key: ValueKey('court-${theme.name}-$selected'),
+      onTap: () {
+        setState(() => _selectedCourtIndex = i);
+        refreshDialog?.call(() {});
+      },
       pressedScale: 1.035, // Snappy scale-up matching main menu tiles
       child: ShineSweep(
         autoPeriodic: selected,
         periodicInterval: const Duration(seconds: 5),
         shineColor:
             selected ? const Color(0x66FFFFFF) : const Color(0x22FFFFFF),
+        clipper: SingleSlantedClipper(
+          angleDegrees: 7.0,
+          radius: radius,
+          direction: SlantDirection.forward,
+        ),
         child: SizedBox(
           width: width,
           child: CustomPaint(

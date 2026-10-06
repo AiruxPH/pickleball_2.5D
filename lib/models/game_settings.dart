@@ -639,11 +639,9 @@ class GameSettings extends ChangeNotifier {
   }
 
   double get aiReactionTime {
-    switch (_difficulty) {
-      case AIDifficulty.easy:   return 0.32; // relaxed reaction
-      case AIDifficulty.medium: return 0.18; // solid reaction
-      case AIDifficulty.hard:   return 0.08; // near-instant tournament pro
-    }
+    // Contact timing is intentionally consistent across difficulty tiers.
+    // Difficulty still changes movement speed, accuracy, and error chance.
+    return 0.12;
   }
 
   double get aiAccuracy {

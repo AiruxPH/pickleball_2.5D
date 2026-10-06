@@ -62,6 +62,11 @@ class SingleSlantedButton extends StatelessWidget {
         autoPeriodic: autoPeriodic,
         periodicInterval: const Duration(seconds: 5),
         shineColor: shineColor ?? const Color(0xFFFFF7D6),
+        clipper: SingleSlantedClipper(
+          angleDegrees: angleDegrees,
+          radius: radius,
+          direction: SlantDirection.forward,
+        ),
         child: SizedBox(
           height: height,
           child: CustomPaint(

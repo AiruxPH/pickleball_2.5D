@@ -582,8 +582,8 @@ void main() {
 
       // Speed must be significantly higher than standard hard (110.0)
       expect(aiCtrl.effectiveSpeed, 145.0);
-      // Reaction time must be near-instantaneous
-      expect(aiCtrl.effectiveReactionTime, 0.02);
+      // Contact wait is consistent across every bot difficulty.
+      expect(aiCtrl.effectiveReactionTime, 0.12);
       // Accuracy must be elite
       expect(aiCtrl.effectiveAccuracy, 0.98);
       // Unforced error chance must be zero

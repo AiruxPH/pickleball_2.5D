@@ -402,6 +402,11 @@ class MenuSelectTile extends StatelessWidget {
         periodicInterval: const Duration(seconds: 6),
         shineColor:
             selected ? const Color(0x66FFFFFF) : const Color(0x33FFFFFF),
+        clipper: SingleSlantedClipper(
+          angleDegrees: 7.0,
+          radius: radius,
+          direction: SlantDirection.forward,
+        ),
         child: CustomPaint(
           painter: SingleSlantedFramePainter(
             colors: colors,
@@ -561,6 +566,9 @@ class MenuSegmented<T> extends StatelessWidget {
             child: MenuPressable(
               onTap: () => onChanged(segments[i].value),
               child: AnimatedContainer(
+                key: ValueKey(
+                  'menu-segment-${segments[i].label}-${segments[i].value == current}',
+                ),
                 duration: const Duration(milliseconds: 200),
                 height: height * ui,
                 decoration: segments[i].value == current
@@ -652,6 +660,11 @@ class MenuPrimaryButton extends StatelessWidget {
         autoPeriodic: true,
         periodicInterval: const Duration(seconds: 5),
         shineColor: isGold ? const Color(0xFFFFF7D6) : const Color(0x66FFFFFF),
+        clipper: SingleSlantedClipper(
+          angleDegrees: 7.0,
+          radius: radius,
+          direction: SlantDirection.forward,
+        ),
         child: SizedBox(
           height: height * ui,
           child: CustomPaint(
