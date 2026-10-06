@@ -41,6 +41,30 @@
             ".validate": "newData.hasChildren(['uid', 'slot', 'seq', 'cmd']) && newData.child('uid').val() === auth.uid && newData.child('slot').val() === 1 && newData.child('seq').isNumber() && newData.child('seq').val() > 0 && newData.child('cmd').child('type').isString()"
           }
         },
+        "webrtc": {
+          "offer": {
+            ".write": "auth != null && root.child('onlineRooms').child($code).child('meta/hostUid').val() === auth.uid",
+            ".validate": "newData.hasChildren(['sdp', 'type', 'uid']) && newData.child('uid').val() === auth.uid && newData.child('sdp').isString() && newData.child('type').val() === 'offer'"
+          },
+          "answer": {
+            ".write": "auth != null && root.child('onlineRooms').child($code).child('members').child(auth.uid).child('role').val() === 'client' && root.child('onlineRooms').child($code).child('members').child(auth.uid).child('slot').val() === 1",
+            ".validate": "newData.hasChildren(['sdp', 'type', 'uid']) && newData.child('uid').val() === auth.uid && newData.child('sdp').isString() && newData.child('type').val() === 'answer'"
+          },
+          "candidates": {
+            "host": {
+              "$candidate": {
+                ".write": "auth != null && root.child('onlineRooms').child($code).child('meta/hostUid').val() === auth.uid",
+                ".validate": "newData.hasChildren(['candidate', 'uid']) && newData.child('uid').val() === auth.uid && newData.child('candidate').isString()"
+              }
+            },
+            "client": {
+              "$candidate": {
+                ".write": "auth != null && root.child('onlineRooms').child($code).child('members').child(auth.uid).child('role').val() === 'client' && root.child('onlineRooms').child($code).child('members').child(auth.uid).child('slot').val() === 1",
+                ".validate": "newData.hasChildren(['candidate', 'uid']) && newData.child('uid').val() === auth.uid && newData.child('candidate').isString()"
+              }
+            }
+          }
+        },
         "snapshot": {
           ".write": "auth != null && root.child('onlineRooms').child($code).child('meta/hostUid').val() === auth.uid"
         },

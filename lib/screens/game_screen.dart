@@ -911,7 +911,9 @@ class _GameScreenState extends State<GameScreen>
                       : (_isLocalMultiplayer
                           ? (_isLanMultiplayer
                               ? 'LAN ${_lanRole == 'host' ? 'HOST' : 'CLIENT'} ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}'
-                              : 'LOCAL ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}')
+                              : (_isOnlineMultiplayer
+                                  ? 'ONLINE ${OnlineMultiplayerService.instance.isPeerToPeerConnected ? 'P2P' : 'FIREBASE'} ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}'
+                                  : 'LOCAL ${game.gameMode == GameMode.doubles ? '2v2' : '1v1'}'))
                           : (_isBotVsBot
                               ? 'BOT VS BOT'
                               : (game.gameMode == GameMode.doubles
@@ -987,7 +989,9 @@ class _GameScreenState extends State<GameScreen>
                             ? (isClient
                                 ? 'CLIENT (P2) • LAN MATCH'
                                 : 'HOST (P1) • LAN MATCH')
-                            : '${playerTwo ? 'P2' : 'P1'} TOUCH CONTROL',
+                            : _isOnlineMultiplayer
+                                ? '${isClient ? 'CHALLENGER (P2)' : 'HOST (P1)'} • ${OnlineMultiplayerService.instance.isPeerToPeerConnected ? 'DIRECT P2P' : 'FIREBASE FALLBACK'}'
+                                : '${playerTwo ? 'P2' : 'P1'} TOUCH CONTROL',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,

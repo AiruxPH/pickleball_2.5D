@@ -32,6 +32,7 @@ dependencies:
   firebase_core: ^4.15.0
   firebase_auth: ^6.7.0
   firebase_database: ^12.6.0
+  flutter_webrtc: 1.6.2+hotfix.3
 
 dev_dependencies:
   flutter_test:

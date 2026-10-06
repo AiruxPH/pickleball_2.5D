@@ -9,6 +9,7 @@ import '../../game/match_command_controller.dart';
 import '../../models/match_lobby.dart';
 import '../lan/lan_state_snapshot.dart';
 import 'firebase_bootstrap.dart';
+import 'webrtc_game_transport.dart';
 
 enum OnlineRole { none, host, client }
 
@@ -45,6 +46,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
   final Map<String, int> _lastCommandSequence = <String, int>{};
   bool _hostPresent = false;
   bool _challengerPresent = false;
+  WebRtcGameTransport? _webRtc;
 
   static const int _maxSnapshotWritesInFlight = 3;
   static const int _maxCommandWritesInFlight = 3;
@@ -67,6 +69,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
   bool get hostPresent => _hostPresent;
   bool get challengerPresent => _challengerPresent;
   bool get allPlayersPresent => _hostPresent && _challengerPresent;
+  bool get isPeerToPeerConnected => _webRtc?.isConnected ?? false;
   Stream<Map<String, dynamic>> get onStartMatch => _startController.stream;
   Stream<MatchCommand> get onCommandReceived => _commandController.stream;
   Stream<LanStateSnapshot> get onStateSyncReceived =>
@@ -136,6 +139,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
       await _room!.child('members/$_uid').onDisconnect().remove();
       await _room!.child('meta/status').onDisconnect().set('closed');
       _listenToRoom();
+      unawaited(_startWebRtc());
       _status = OnlineStatus.connected;
       notifyListeners();
     } catch (error) {
@@ -173,6 +177,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
       await _room!.child('ready/$_uid').set(false);
       await _room!.child('ready/$_uid').onDisconnect().set(false);
       _listenToRoom();
+      unawaited(_startWebRtc());
       _status = OnlineStatus.connected;
       notifyListeners();
     } catch (error) {
@@ -319,8 +324,35 @@ class OnlineMultiplayerService extends ChangeNotifier {
     await _room!.update({'start': payload, 'meta/status': 'inGame'});
   }
 
+  Future<void> _startWebRtc() async {
+    final room = _room;
+    final uid = _uid;
+    if (room == null || uid == null || _role == OnlineRole.none) return;
+    try {
+      await _webRtc?.close();
+      final transport = WebRtcGameTransport(
+        room: room,
+        uid: uid,
+        isHost: isHost,
+        onCommand: _commandController.add,
+        onSnapshot: _snapshotController.add,
+        onConnectionChanged: notifyListeners,
+      );
+      _webRtc = transport;
+      await transport.start();
+    } catch (error, stackTrace) {
+      debugPrint(
+          '[OnlineMultiplayer] WebRTC unavailable; using Firebase: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      await _webRtc?.close();
+      _webRtc = null;
+      notifyListeners();
+    }
+  }
+
   Future<void> sendMatchCommand(MatchCommand command) async {
     if (!isClient || _room == null || !_commandWritesEnabled) return;
+    if (_webRtc?.sendCommand(command) ?? false) return;
     if (command.type == MatchCommandType.movement) {
       _pendingCommand = command;
     } else {
@@ -370,6 +402,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
   }
 
   Future<void> sendStateSync(LanStateSnapshot snapshot) async {
+    if (_webRtc?.sendSnapshot(snapshot) ?? false) return;
     if (!isHost ||
         _room == null ||
         !_snapshotWriteEnabled ||
@@ -393,6 +426,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
   }
 
   Future<void> leaveRoom() async {
+    await _webRtc?.close();
+    _webRtc = null;
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }
