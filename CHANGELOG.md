@@ -792,3 +792,16 @@
 - Kept sequence-based host deduplication and circuit breakers for rejected Firebase writes.
 - Validation: targeted Flutter analysis passed with no issues; 21 focused multiplayer and control tests passed.
 - Built and deployed the bounded Firebase pipeline release to Firebase Hosting.
+### 2026-10-06 - Cross-platform WebRTC gameplay transport
+
+- Added `flutter_webrtc` 1.6.2+hotfix.3 for Web, Android, and iOS data-channel support.
+- Added Firebase-authenticated SDP offer/answer and ICE-candidate signaling scoped to each online room.
+- Added two peer-to-peer gameplay channels: unordered low-retry `realtime` traffic for movement/snapshots and ordered reliable traffic for Serve, shots, and other discrete commands.
+- Routed online gameplay through WebRTC whenever both channels are open, while retaining the bounded Firebase transport as an automatic fallback.
+- Added STUN-assisted direct connectivity, remote-candidate queuing until SDP is ready, malformed-message isolation, buffered-snapshot dropping, and full peer/channel cleanup on leaving a room.
+- Added an in-match `DIRECT P2P` versus `FIREBASE FALLBACK` indicator so transport selection is visible during testing.
+- Added Android Internet permission; data-only WebRTC requires no camera or microphone permission on Android or iOS.
+- Deployed the new authenticated Realtime Database signaling rules.
+- Validation: full Flutter analysis passed with no issues; 21 focused multiplayer/control tests passed; the WebRTC-enabled release web build completed successfully.
+- Built and deployed the WebRTC-enabled release to Firebase Hosting at `https://pickleball-simulator.web.app`.
+- Android native verification was attempted with `flutter build apk --debug`; the initial native dependency/Gradle build produced no error output but exceeded the six-minute command timeout before producing a new APK. Android compilation therefore remains to be confirmed in a follow-up build; iOS compilation requires macOS/Xcode.
