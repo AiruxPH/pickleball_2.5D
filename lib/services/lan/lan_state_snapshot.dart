@@ -202,18 +202,30 @@ class LanStateSnapshot {
     );
   }
 
-  void applyToGame(PickleballGame game) {
+  void applyToGame(PickleballGame game, {double positionBlend = 1.0}) {
+    final blend = positionBlend.clamp(0.0, 1.0);
+    Vec3 blended(Vec3 current, LanEntityState target, {bool velocity = false}) {
+      final tx = velocity ? target.vx : target.x;
+      final ty = velocity ? target.vy : target.y;
+      final tz = velocity ? target.vz : target.z;
+      return Vec3(
+        current.x + (tx - current.x) * blend,
+        current.y + (ty - current.y) * blend,
+        current.z + (tz - current.z) * blend,
+      );
+    }
+
     // Synchronize ball
-    game.ball.position = Vec3(ball.x, ball.y, ball.z);
-    game.ball.velocity = Vec3(ball.vx, ball.vy, ball.vz);
+    game.ball.position = blended(game.ball.position, ball);
+    game.ball.velocity = blended(game.ball.velocity, ball, velocity: true);
     game.ball.state = BallState.values.firstWhere(
       (e) => e.name == ballState,
       orElse: () => BallState.inFlight,
     );
 
     // Synchronize players
-    game.player.position = Vec3(player1.x, player1.y, player1.z);
-    game.player.velocity = Vec3(player1.vx, player1.vy, player1.vz);
+    game.player.position = blended(game.player.position, player1);
+    game.player.velocity = blended(game.player.velocity, player1, velocity: true);
     game.player.stamina = player1.stamina;
     game.player.isSwinging = player1.isSwinging;
     game.player.animState = PlayerAnimState.values.firstWhere(
@@ -221,8 +233,8 @@ class LanStateSnapshot {
       orElse: () => PlayerAnimState.idle,
     );
 
-    game.ai.position = Vec3(player2.x, player2.y, player2.z);
-    game.ai.velocity = Vec3(player2.vx, player2.vy, player2.vz);
+    game.ai.position = blended(game.ai.position, player2);
+    game.ai.velocity = blended(game.ai.velocity, player2, velocity: true);
     game.ai.stamina = player2.stamina;
     game.ai.isSwinging = player2.isSwinging;
     game.ai.animState = PlayerAnimState.values.firstWhere(
@@ -231,8 +243,10 @@ class LanStateSnapshot {
     );
 
     if (partner1 != null && game.playerPartner != null) {
-      game.playerPartner!.position = Vec3(partner1!.x, partner1!.y, partner1!.z);
-      game.playerPartner!.velocity = Vec3(partner1!.vx, partner1!.vy, partner1!.vz);
+      game.playerPartner!.position =
+          blended(game.playerPartner!.position, partner1!);
+      game.playerPartner!.velocity =
+          blended(game.playerPartner!.velocity, partner1!, velocity: true);
       game.playerPartner!.stamina = partner1!.stamina;
       game.playerPartner!.isSwinging = partner1!.isSwinging;
       game.playerPartner!.animState = PlayerAnimState.values.firstWhere(
@@ -242,8 +256,9 @@ class LanStateSnapshot {
     }
 
     if (partner2 != null && game.aiPartner != null) {
-      game.aiPartner!.position = Vec3(partner2!.x, partner2!.y, partner2!.z);
-      game.aiPartner!.velocity = Vec3(partner2!.vx, partner2!.vy, partner2!.vz);
+      game.aiPartner!.position = blended(game.aiPartner!.position, partner2!);
+      game.aiPartner!.velocity =
+          blended(game.aiPartner!.velocity, partner2!, velocity: true);
       game.aiPartner!.stamina = partner2!.stamina;
       game.aiPartner!.isSwinging = partner2!.isSwinging;
       game.aiPartner!.animState = PlayerAnimState.values.firstWhere(

@@ -726,3 +726,5 @@
 - Added an in-flight guard and failure circuit breaker to online snapshot publishing so one rejected write cannot spawn an unbounded 10 Hz console error loop or repeated UI state churn.
 - Normalized Firebase web JSON score, server, and timestamp values through `num` before converting to integers, preventing snapshot callbacks from throwing on JavaScript numeric values.
 - Guarded incoming snapshot decoding so one malformed or stale database value is reported once instead of becoming an uncaught repeating browser error.
+- Added a local Firebase Realtime Database rules smoke test covering distinct host and challenger identities, lobby access, ready actions, host cleanup, state snapshots, and match start authorization without mutating production data.
+- Changed online challengers to interpolate toward 10 Hz authoritative Firebase snapshots on every render tick instead of teleporting entities at each network update, eliminating visible challenger and ball snapping.

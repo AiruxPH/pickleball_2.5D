@@ -137,6 +137,25 @@ void main() {
       expect(snapshot.serverNumber, 2);
       expect(snapshot.timestamp, 123456789);
     });
+
+    test('can blend remote entity positions between network snapshots', () {
+      final game = PickleballGame(
+        screenSize: const Size(800, 600),
+        gameMode: GameMode.singles,
+        settings: GameSettings(),
+      );
+      final startX = game.player.position.x;
+      final targetX = startX + 20;
+      final snapshot = LanStateSnapshot.fromGame(game);
+      final moved = LanStateSnapshot.fromJson({
+        ...snapshot.toJson(),
+        'p1': {...snapshot.player1.toJson(), 'x': targetX},
+      });
+
+      moved.applyToGame(game, positionBlend: 0.25);
+
+      expect(game.player.position.x, closeTo(startX + 5, 0.001));
+    });
   });
 
   group('LanMultiplayerService', () {

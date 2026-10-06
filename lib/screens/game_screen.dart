@@ -85,6 +85,7 @@ class _GameScreenState extends State<GameScreen>
   String? _lanRole;
   StreamSubscription? _lanCommandSub;
   StreamSubscription? _lanStateSyncSub;
+  LanStateSnapshot? _latestOnlineSnapshot;
   int _lastLanSyncMs = 0;
   Map<String, dynamic> _rematchArguments = <String, dynamic>{};
   final FocusNode _focusNode = FocusNode();
@@ -214,7 +215,7 @@ class _GameScreenState extends State<GameScreen>
       } else if (_lanRole == 'client') {
         _lanStateSyncSub = OnlineMultiplayerService
             .instance.onStateSyncReceived
-            .listen((snapshot) => snapshot.applyToGame(_game!));
+            .listen((snapshot) => _latestOnlineSnapshot = snapshot);
         _presentation!.cameraController.setView(CameraView.baseline);
       }
     }
@@ -283,6 +284,17 @@ class _GameScreenState extends State<GameScreen>
       _simulationAccumulator -= _simulationStep;
     }
     final game = _game;
+    if (_isOnlineMultiplayer &&
+        _lanRole == 'client' &&
+        game != null &&
+        _latestOnlineSnapshot != null) {
+      // Firebase snapshots arrive at 10 Hz. Ease toward the latest
+      // authoritative state every rendered frame to avoid visible snapping.
+      _latestOnlineSnapshot!.applyToGame(
+        game,
+        positionBlend: (clampedDt * 15).clamp(0.0, 1.0),
+      );
+    }
     if (game != null &&
         game.state != GameState.paused &&
         game.state != GameState.gameOver) {
