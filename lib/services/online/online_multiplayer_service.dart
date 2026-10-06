@@ -35,21 +35,23 @@ class OnlineMultiplayerService extends ChangeNotifier {
   MatchLobby? _lobby;
   DatabaseReference? _room;
   bool _snapshotWriteEnabled = true;
-  bool _snapshotWriteInFlight = false;
+  int _snapshotWritesInFlight = 0;
   bool _snapshotDecodeErrorReported = false;
-  bool _commandWriteInFlight = false;
+  int _commandWritesInFlight = 0;
   bool _commandWritesEnabled = true;
   MatchCommand? _pendingCommand;
+  final List<MatchCommand> _pendingPriorityCommands = <MatchCommand>[];
   int _commandSequence = 0;
   final Map<String, int> _lastCommandSequence = <String, int>{};
   bool _hostPresent = false;
   bool _challengerPresent = false;
 
-  final _startController =
-      StreamController<Map<String, dynamic>>.broadcast();
+  static const int _maxSnapshotWritesInFlight = 3;
+  static const int _maxCommandWritesInFlight = 3;
+
+  final _startController = StreamController<Map<String, dynamic>>.broadcast();
   final _commandController = StreamController<MatchCommand>.broadcast();
-  final _snapshotController =
-      StreamController<LanStateSnapshot>.broadcast();
+  final _snapshotController = StreamController<LanStateSnapshot>.broadcast();
   final List<StreamSubscription<DatabaseEvent>> _subscriptions = [];
 
   OnlineRole get role => _role;
@@ -107,7 +109,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
     if (!await initialize()) return;
     _role = OnlineRole.host;
     _snapshotWriteEnabled = true;
-    _snapshotWriteInFlight = false;
+    _snapshotWritesInFlight = 0;
     _status = OnlineStatus.creating;
     _roomCode = _generateRoomCode();
     _lobby = MatchLobby.online(_roomCode, format: format);
@@ -287,9 +289,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
     if (!_challengerPresent) return;
     try {
       await _ensureClientMembership();
-      final slot = _lobby?.humanSlots
-          .where((player) => player.id == slotId)
-          .firstOrNull;
+      final slot =
+          _lobby?.humanSlots.where((player) => player.id == slotId).firstOrNull;
       if (slot == null) return;
       await _room?.child('ready/$_uid').set(!slot.isReady);
     } catch (error) {
@@ -320,41 +321,62 @@ class OnlineMultiplayerService extends ChangeNotifier {
 
   Future<void> sendMatchCommand(MatchCommand command) async {
     if (!isClient || _room == null || !_commandWritesEnabled) return;
-    _pendingCommand = command;
-    if (_commandWriteInFlight) return;
-    _commandWriteInFlight = true;
-    try {
-      while (_pendingCommand != null && _commandWritesEnabled) {
-        final next = _pendingCommand!;
-        _pendingCommand = null;
-        await _room!.child('commands/$_uid').set({
-          'uid': _uid,
-          'slot': 1,
-          'seq': ++_commandSequence,
-          'cmd': next.toJson(),
-          'createdAt': ServerValue.timestamp,
-        });
+    if (command.type == MatchCommandType.movement) {
+      _pendingCommand = command;
+    } else {
+      if (_pendingPriorityCommands.length >= 8) {
+        _pendingPriorityCommands.removeAt(0);
       }
-    } catch (error) {
+      _pendingPriorityCommands.add(command);
+    }
+    _flushPendingCommands();
+  }
+
+  void _flushPendingCommands() {
+    final room = _room;
+    if (!isClient ||
+        room == null ||
+        !_commandWritesEnabled ||
+        _commandWritesInFlight >= _maxCommandWritesInFlight) {
+      return;
+    }
+    final MatchCommand? next = _pendingPriorityCommands.isNotEmpty
+        ? _pendingPriorityCommands.removeAt(0)
+        : _pendingCommand;
+    if (next == null) return;
+    if (identical(next, _pendingCommand)) _pendingCommand = null;
+
+    _commandWritesInFlight++;
+    room.child('commands/$_uid').set({
+      'uid': _uid,
+      'slot': 1,
+      'seq': ++_commandSequence,
+      'cmd': next.toJson(),
+      'createdAt': ServerValue.timestamp,
+    }).catchError((Object error) {
       _pendingCommand = null;
+      _pendingPriorityCommands.clear();
       _commandWritesEnabled = false;
       _status = OnlineStatus.error;
       _errorMessage = 'Challenger input was rejected: $error';
       debugPrint('[OnlineMultiplayer] $_errorMessage');
       notifyListeners();
-    } finally {
-      _commandWriteInFlight = false;
-    }
+    }).whenComplete(() {
+      _commandWritesInFlight = max(0, _commandWritesInFlight - 1);
+      _flushPendingCommands();
+    });
+
+    _flushPendingCommands();
   }
 
   Future<void> sendStateSync(LanStateSnapshot snapshot) async {
     if (!isHost ||
         _room == null ||
         !_snapshotWriteEnabled ||
-        _snapshotWriteInFlight) {
+        _snapshotWritesInFlight >= _maxSnapshotWritesInFlight) {
       return;
     }
-    _snapshotWriteInFlight = true;
+    _snapshotWritesInFlight++;
     try {
       await _room!.child('snapshot').set(snapshot.toJson());
     } catch (error) {
@@ -366,7 +388,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
       debugPrint('[OnlineMultiplayer] $_errorMessage');
       notifyListeners();
     } finally {
-      _snapshotWriteInFlight = false;
+      _snapshotWritesInFlight = max(0, _snapshotWritesInFlight - 1);
     }
   }
 
@@ -390,11 +412,12 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _roomCode = '';
     _role = OnlineRole.none;
     _snapshotWriteEnabled = true;
-    _snapshotWriteInFlight = false;
+    _snapshotWritesInFlight = 0;
     _snapshotDecodeErrorReported = false;
-    _commandWriteInFlight = false;
+    _commandWritesInFlight = 0;
     _commandWritesEnabled = true;
     _pendingCommand = null;
+    _pendingPriorityCommands.clear();
     _commandSequence = 0;
     _lastCommandSequence.clear();
     _hostPresent = false;

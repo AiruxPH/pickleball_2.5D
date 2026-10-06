@@ -784,3 +784,11 @@
 - Extended snapshot application with per-player blend overrides and regression coverage for extrapolation and preserving predicted Player 2 state.
 - Validation: targeted Flutter analysis passed with no issues; 17 focused multiplayer and input tests passed.
 - Built and deployed the challenger prediction and 20 Hz snapshot release to Firebase Hosting.
+### 2026-10-06 - Bounded Firebase realtime pipelining
+
+- Replaced the single in-flight Firebase snapshot gate with a bounded three-write pipeline, allowing the 20 Hz host target to survive ordinary 150 ms database acknowledgement latency.
+- Replaced the challenger's single in-flight command gate with a bounded three-write pipeline and latest-movement coalescing, improving authoritative input cadence without allowing an unbounded network queue.
+- Preserved Serve/shot/skill commands in a small priority queue so continuous joystick updates cannot overwrite discrete actions while writes are busy.
+- Kept sequence-based host deduplication and circuit breakers for rejected Firebase writes.
+- Validation: targeted Flutter analysis passed with no issues; 21 focused multiplayer and control tests passed.
+- Built and deployed the bounded Firebase pipeline release to Firebase Hosting.
