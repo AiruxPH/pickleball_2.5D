@@ -751,3 +751,4 @@
 - Made the host mirror the challenger's exact ready value into the lobby instead of repeatedly toggling state, eliminating checked/unchecked flicker when an event is replayed.
 - Registered disconnect cleanup and explicit leave cleanup for challenger readiness so stale sessions cannot remain ready.
 - Removed host-side processing and deletion of ready action records, eliminating the repeated `/actions` permission-denied loop.
+- Added no-cache Hosting headers for `index.html`, `flutter_service_worker.js`, and `main.dart.js` so browsers cannot remain pinned to the retired `/actions` multiplayer protocol after a deployment.
