@@ -34,6 +34,7 @@ final class WebRtcGameTransport {
   final List<RTCIceCandidate> _pendingRemoteCandidates = [];
   final Set<String> _seenCandidateKeys = <String>{};
   bool _remoteDescriptionReady = false;
+  bool _remoteDescriptionPending = false;
   bool _closed = false;
 
   bool get isConnected =>
@@ -53,7 +54,10 @@ final class WebRtcGameTransport {
 
   Future<void> start() async {
     _peer = await createPeerConnection(_configuration);
-    _peer!.onConnectionState = (_) => onConnectionChanged();
+    _peer!.onConnectionState = (state) {
+      debugPrint('[WebRTC] Peer connection: ${state.name}');
+      onConnectionChanged();
+    };
     _peer!.onIceCandidate = _publishLocalCandidate;
 
     if (isHost) {
@@ -81,8 +85,17 @@ final class WebRtcGameTransport {
     _listenForCandidates('client');
     _subscriptions.add(room.child('webrtc/answer').onValue.listen((event) {
       final value = event.snapshot.value;
-      if (value is! Map || _remoteDescriptionReady || _closed) return;
-      unawaited(_acceptAnswer(Map<String, dynamic>.from(value)));
+      if (value is! Map ||
+          _remoteDescriptionReady ||
+          _remoteDescriptionPending ||
+          _closed) {
+        return;
+      }
+      _remoteDescriptionPending = true;
+      _guard(
+        _acceptAnswer(Map<String, dynamic>.from(value)),
+        'accept answer',
+      );
     }));
 
     final offer = await _peer!.createOffer({});
@@ -100,35 +113,52 @@ final class WebRtcGameTransport {
     _listenForCandidates('host');
     _subscriptions.add(room.child('webrtc/offer').onValue.listen((event) {
       final value = event.snapshot.value;
-      if (value is! Map || _remoteDescriptionReady || _closed) return;
-      unawaited(_acceptOffer(Map<String, dynamic>.from(value)));
+      if (value is! Map ||
+          _remoteDescriptionReady ||
+          _remoteDescriptionPending ||
+          _closed) {
+        return;
+      }
+      _remoteDescriptionPending = true;
+      _guard(
+        _acceptOffer(Map<String, dynamic>.from(value)),
+        'accept offer',
+      );
     }));
   }
 
   Future<void> _acceptOffer(Map<String, dynamic> value) async {
-    final sdp = value['sdp'] as String?;
-    final type = value['type'] as String?;
-    if (sdp == null || type == null || _peer == null) return;
-    await _peer!.setRemoteDescription(RTCSessionDescription(sdp, type));
-    _remoteDescriptionReady = true;
-    await _flushRemoteCandidates();
-    final answer = await _peer!.createAnswer({});
-    await _peer!.setLocalDescription(answer);
-    await room.child('webrtc/answer').set({
-      'sdp': answer.sdp,
-      'type': answer.type,
-      'uid': uid,
-      'createdAt': ServerValue.timestamp,
-    });
+    try {
+      final sdp = value['sdp'] as String?;
+      final type = value['type'] as String?;
+      if (sdp == null || type == null || _peer == null) return;
+      await _peer!.setRemoteDescription(RTCSessionDescription(sdp, type));
+      _remoteDescriptionReady = true;
+      await _flushRemoteCandidates();
+      final answer = await _peer!.createAnswer({});
+      await _peer!.setLocalDescription(answer);
+      await room.child('webrtc/answer').set({
+        'sdp': answer.sdp,
+        'type': answer.type,
+        'uid': uid,
+        'createdAt': ServerValue.timestamp,
+      });
+    } finally {
+      _remoteDescriptionPending = false;
+    }
   }
 
   Future<void> _acceptAnswer(Map<String, dynamic> value) async {
-    final sdp = value['sdp'] as String?;
-    final type = value['type'] as String?;
-    if (sdp == null || type == null || _peer == null) return;
-    await _peer!.setRemoteDescription(RTCSessionDescription(sdp, type));
-    _remoteDescriptionReady = true;
-    await _flushRemoteCandidates();
+    try {
+      final sdp = value['sdp'] as String?;
+      final type = value['type'] as String?;
+      if (sdp == null || type == null || _peer == null) return;
+      await _peer!.setRemoteDescription(RTCSessionDescription(sdp, type));
+      _remoteDescriptionReady = true;
+      await _flushRemoteCandidates();
+    } finally {
+      _remoteDescriptionPending = false;
+    }
   }
 
   void _listenForCandidates(String remoteRole) {
@@ -146,7 +176,7 @@ final class WebRtcGameTransport {
         (data['sdpMLineIndex'] as num?)?.toInt(),
       );
       if (_remoteDescriptionReady) {
-        unawaited(_peer?.addCandidate(candidate));
+        _guard(_peer?.addCandidate(candidate), 'add ICE candidate');
       } else {
         _pendingRemoteCandidates.add(candidate);
       }
@@ -156,11 +186,14 @@ final class WebRtcGameTransport {
   void _publishLocalCandidate(RTCIceCandidate candidate) {
     if (_closed || candidate.candidate == null) return;
     final role = isHost ? 'host' : 'client';
-    unawaited(room.child('webrtc/candidates/$role').push().set({
-      ...candidate.toMap() as Map,
-      'uid': uid,
-      'createdAt': ServerValue.timestamp,
-    }));
+    _guard(
+      room.child('webrtc/candidates/$role').push().set({
+        ...candidate.toMap() as Map,
+        'uid': uid,
+        'createdAt': ServerValue.timestamp,
+      }),
+      'publish ICE candidate',
+    );
   }
 
   Future<void> _flushRemoteCandidates() async {
@@ -178,10 +211,13 @@ final class WebRtcGameTransport {
     } else if (channel.label == 'reliable') {
       _reliable = channel;
     } else {
-      unawaited(channel.close());
+      _guard(channel.close(), 'close unknown data channel');
       return;
     }
-    channel.onDataChannelState = (_) => onConnectionChanged();
+    channel.onDataChannelState = (state) {
+      debugPrint('[WebRTC] ${channel.label} channel: ${state.name}');
+      onConnectionChanged();
+    };
     channel.onMessage = _handleMessage;
     onConnectionChanged();
   }
@@ -210,10 +246,13 @@ final class WebRtcGameTransport {
     final channel =
         command.type == MatchCommandType.movement ? _realtime : _reliable;
     if (channel?.state != RTCDataChannelState.RTCDataChannelOpen) return false;
-    unawaited(channel!.send(RTCDataChannelMessage(jsonEncode({
-      't': 'command',
-      'd': command.toJson(),
-    }))));
+    _guard(
+      channel!.send(RTCDataChannelMessage(jsonEncode({
+        't': 'command',
+        'd': command.toJson(),
+      }))),
+      'send command',
+    );
     return true;
   }
 
@@ -221,11 +260,24 @@ final class WebRtcGameTransport {
     final channel = _realtime;
     if (channel?.state != RTCDataChannelState.RTCDataChannelOpen) return false;
     if ((channel!.bufferedAmount ?? 0) > 262144) return true;
-    unawaited(channel.send(RTCDataChannelMessage(jsonEncode({
-      't': 'snapshot',
-      'd': snapshot.toJson(),
-    }))));
+    _guard(
+      channel.send(RTCDataChannelMessage(jsonEncode({
+        't': 'snapshot',
+        'd': snapshot.toJson(),
+      }))),
+      'send snapshot',
+    );
     return true;
+  }
+
+  void _guard(Future<void>? operation, String label) {
+    if (operation == null) return;
+    unawaited(operation.catchError((Object error, StackTrace stackTrace) {
+      if (!_closed) {
+        debugPrint('[WebRTC] $label failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }));
   }
 
   Future<void> close() async {

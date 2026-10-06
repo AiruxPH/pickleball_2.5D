@@ -805,3 +805,11 @@
 - Validation: full Flutter analysis passed with no issues; 21 focused multiplayer/control tests passed; the WebRTC-enabled release web build completed successfully.
 - Built and deployed the WebRTC-enabled release to Firebase Hosting at `https://pickleball-simulator.web.app`.
 - Android native verification was attempted with `flutter build apk --debug`; the initial native dependency/Gradle build produced no error output but exceeded the six-minute command timeout before producing a new APK. Android compilation therefore remains to be confirmed in a follow-up build; iOS compilation requires macOS/Xcode.
+### 2026-10-06 - WebRTC asynchronous error containment
+
+- Confirmed from the in-match `DIRECT P2P` indicator that SDP/ICE negotiation and both gameplay channels opened successfully in Chrome and Edge.
+- Guarded every fire-and-forget WebRTC operation (SDP callbacks, ICE publication/addition, data-channel sends, and unknown-channel cleanup) so transient channel-close or ICE races cannot surface as generic unhandled browser errors.
+- Added named peer-connection and data-channel state diagnostics to the console for actionable follow-up logs.
+- Prevented duplicate concurrent offer/answer acceptance while an asynchronous remote-description operation is pending.
+- Validation: targeted Flutter analysis passed with no issues.
+- Rebuilt the release web bundle and deployed the hardened WebRTC client to Firebase Hosting at `https://pickleball-simulator.web.app`.
