@@ -759,3 +759,9 @@
 - Mirrored the challenger camera's horizontal joystick and swipe axes so controls remain screen-relative from the reversed baseline view.
 - Made Serve controls local-slot aware: only the currently serving browser receives the Serve button and actionable prompt; the other browser sees `OPPONENT SERVING`.
 - Corrected online HUD role detection so online challengers are consistently identified as P2.
+### 2026-10-06 - Camera-aware multiplayer input proposal
+
+- Reworked `1v1_flame_court_game_dynamic_joystick_and_camera_guide.md` into a project-specific implementation proposal.
+- Corrected the guide's assumption that the current match uses Flame's `World` and `CameraComponent`; documented the actual `PickleballGame` + `PerspectiveCamera` + `CourtPainter` architecture.
+- Replaced the recommended Player 2 axis-negation workaround with a staged screen-to-court unprojection and camera-aware input mapper design.
+- Added dynamic-joystick pointer ownership, world-space command semantics, Firebase input-rate guidance, delivery milestones, acceptance criteria, risks, and an optional future Flame migration boundary.
