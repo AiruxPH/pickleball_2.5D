@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/game_settings.dart';
 import '../models/shop_items.dart';
+import '../models/ultimate_skill.dart';
 import '../services/settings_service.dart';
 import '../utils/constants.dart';
 import '../widgets/shop_paddle_preview.dart';
@@ -1005,6 +1006,42 @@ class _ShopScreenState extends State<ShopScreen>
             diff: paddle.staminaEfficiency - currentEquipped.staminaEfficiency,
             color: const Color(0xFF10B981),
           ),
+          if (paddle.specialSkill != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: getUltimateByType(paddle.specialSkill!).primaryColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: getUltimateByType(paddle.specialSkill!).primaryColor.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'ULTIMATE SKILL',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white70,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    getUltimateByType(paddle.specialSkill!).name.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: getUltimateByType(paddle.specialSkill!).primaryColor,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

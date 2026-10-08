@@ -163,7 +163,7 @@ TrajectorySolution solvePlayerShotTrajectory({
     upSpeed = math.max(upSpeed, minimumUpSpeed.clamp(0.0, 82.0).toDouble());
 
     // In-bounds guard: cap forward pace so non-smash returns land legally inside the court
-    if (shotType != ShotType.smash && shotType != ShotType.ultimate) {
+    if (shotType != ShotType.smash) {
       final heightAboveGround = math.max(0.0, ball.position.y - PhysicsConstants.ballRadius);
       final discriminant = upSpeed * upSpeed + 2 * PhysicsConstants.gravity * heightAboveGround;
       final flightTime = (upSpeed + math.sqrt(discriminant)) / PhysicsConstants.gravity;

@@ -1202,15 +1202,10 @@ class _GameScreenState extends State<GameScreen>
           if (!_isBotVsBot &&
               (!settings.dynamicJoystick || _customizingControls))
             Positioned(
-              left: _customizingControls
-                  ? settings.joystickHudPosition.dx * size.width -
-                      joystickSize / 2
-                  : (isLandscape ? 16 : 20),
-              top: _customizingControls
-                  ? settings.joystickHudPosition.dy * size.height -
-                      joystickSize / 2
-                  : null,
-              bottom: _customizingControls ? null : (isLandscape ? 8 : 28),
+              left: settings.joystickHudPosition.dx * size.width -
+                  joystickSize / 2,
+              top: settings.joystickHudPosition.dy * size.height -
+                  joystickSize / 2,
               child: GestureDetector(
                 onPanUpdate: _customizingControls
                     ? (details) {
@@ -1237,14 +1232,8 @@ class _GameScreenState extends State<GameScreen>
           // ── Compact Ergonomic Action Buttons (bottom right) ──
           if (!_isBotVsBot)
             Positioned(
-              left: _customizingControls
-                  ? settings.actionsHudPosition.dx * size.width - 90
-                  : null,
-              top: _customizingControls
-                  ? settings.actionsHudPosition.dy * size.height - 70
-                  : null,
-              bottom: _customizingControls ? null : (isLandscape ? 8 : 24),
-              right: _customizingControls ? null : 16,
+              left: settings.actionsHudPosition.dx * size.width - 90,
+              top: settings.actionsHudPosition.dy * size.height - 70,
               child: GestureDetector(
                 onPanUpdate: _customizingControls
                     ? (details) {
