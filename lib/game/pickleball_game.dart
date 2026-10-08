@@ -2101,8 +2101,7 @@ class PickleballGame extends ChangeNotifier {
   }
 
   void _recordEvent(MatchEvent Function(int revision) create) {
-    final event = matchEvents.publish(create);
-    matchStats.record(event);
+    matchEvents.publish(create, beforeEmit: matchStats.record);
   }
 
   void queueOpponentShot(

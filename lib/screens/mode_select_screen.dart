@@ -103,7 +103,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         Navigator.pushReplacementNamed(context, '/game', arguments: {
           'mode': 'singles',
           'difficulty': _selectedDiffIndex + 1,
-          'balanceProfile': _balanceProfile.name,
+          if (_balanceProfile != MatchBalanceProfile.standard)
+            'balanceProfile': _balanceProfile.name,
         });
         break;
       case 1: // Doubles
@@ -117,7 +118,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         Navigator.pushReplacementNamed(context, '/game', arguments: {
           'mode': 'doubles',
           'difficulty': _selectedDiffIndex + 1,
-          'balanceProfile': _balanceProfile.name,
+          if (_balanceProfile != MatchBalanceProfile.standard)
+            'balanceProfile': _balanceProfile.name,
         });
         break;
       case 2: // Bot vs Bot spectator match
@@ -133,7 +135,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           'botVsBot': true,
           'gameMode': _botVsBotDoubles ? 'doubles' : 'singles',
           'difficulty': _selectedDiffIndex + 1,
-          'balanceProfile': _balanceProfile.name,
+          if (_balanceProfile != MatchBalanceProfile.standard)
+            'balanceProfile': _balanceProfile.name,
         });
         break;
       case 3: // Online room
@@ -249,13 +252,14 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
                   _buildSectionLabel('SELECT COURT', Icons.stadium_rounded),
                   SizedBox(height: 8 * ui),
                   _buildCourtPicker(ui, refreshDialog: refreshDialog),
-                  SizedBox(height: 16 * ui),
+                  SizedBox(height: 10 * ui),
                   _buildSectionLabel(
                     'MATCH BALANCE',
                     Icons.balance_rounded,
                   ),
-                  SizedBox(height: 8 * ui),
+                  SizedBox(height: 4 * ui),
                   MenuSegmented<MatchBalanceProfile>(
+                    height: 34,
                     current: _balanceProfile,
                     segments: const [
                       MenuSegment(
@@ -272,16 +276,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
                       refreshDialog(() {});
                     },
                   ),
-                  SizedBox(height: 6 * ui),
-                  Text(
-                    _balanceProfile.description,
-                    style: TextStyle(
-                      color: kMenuMuted,
-                      fontSize: 10 * ui,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 20 * ui),
+                  SizedBox(height: 12 * ui),
                   MenuPrimaryButton(
                     label: 'START MATCH',
                     icon: Icons.play_arrow_rounded,

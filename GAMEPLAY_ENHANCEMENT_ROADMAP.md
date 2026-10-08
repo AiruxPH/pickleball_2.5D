@@ -82,14 +82,14 @@ Compatibility requirements:
 
 ## Phase 0 — Shared Gameplay Foundation
 
-Status: Planned
+Status: Complete and verified
 
-- [ ] Add the typed match-event stream and one authoritative `MatchStats` collector.
-- [ ] Add deterministic rally-phase classification using ball state, contact height, player positions, and two-bounce state.
-- [ ] Add `MatchBalanceProfile` to local match setup, LAN rooms, and online rooms.
-- [ ] For `competitive`, normalize paddle/character gameplay modifiers, disable paddle-bound specials, and retain all equipped cosmetics.
-- [ ] Keep private/offline/LAN/online defaults on `standard` for backward compatibility.
-- [ ] Add versioned optional snapshot fields for rally phase, balance profile, and event revisions.
+- [x] Add the typed match-event stream and one authoritative `MatchStats` collector.
+- [x] Add deterministic rally-phase classification using ball state, contact height, player positions, and two-bounce state.
+- [x] Add `MatchBalanceProfile` to local match setup, LAN rooms, and online rooms.
+- [x] For `competitive`, normalize paddle/character gameplay modifiers, disable paddle-bound specials, and retain all equipped cosmetics.
+- [x] Keep private/offline/LAN/online defaults on `standard` for backward compatibility.
+- [x] Add versioned optional snapshot fields for rally phase, balance profile, and event revisions.
 
 Acceptance gate:
 
@@ -310,4 +310,7 @@ Each phase must land as a playable, testable increment. Multiplayer schema work 
 - [x] Audited current rules, timing/spin, AI, game modes, effects, progression, and multiplayer foundations.
 - [x] Locked the product direction and major scope decisions.
 - [x] Created the staged implementation and acceptance plan.
-- [ ] Next action: begin Phase 0 with shared match events/statistics and the balance-profile contract.
+- [x] Completed Phase 0 with typed events/statistics, rally phases, competitive balance, room integration, and protocol revision 2 snapshots.
+- [x] Verified Phase 0 focused gameplay, rules, lobby, snapshot, and mode-selection coverage.
+- [x] Final release gate passed: `flutter analyze` reported no issues and the complete Flutter suite passed 207/207 tests.
+- [ ] Next action: begin Phase 1 with world-space directional placement and tactical aim lanes.

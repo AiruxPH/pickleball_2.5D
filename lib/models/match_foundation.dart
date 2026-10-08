@@ -78,8 +78,12 @@ class MatchEventLog {
   Stream<MatchEvent> get events => _controller.stream;
   int get revision => _revision;
 
-  MatchEvent publish(MatchEvent Function(int revision) create) {
+  MatchEvent publish(
+    MatchEvent Function(int revision) create, {
+    void Function(MatchEvent event)? beforeEmit,
+  }) {
     final event = create(++_revision);
+    beforeEmit?.call(event);
     _controller.add(event);
     return event;
   }

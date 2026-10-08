@@ -2,6 +2,21 @@
 
 ## 2026-10-08
 
+### Gameplay enhancement Phase 0 — shared foundation
+- **Reason of Change:** Establish one host-authoritative foundation for later tactical gameplay, movement assists, AI personalities, Arcade goals, highlights, and match review.
+- **Changes Applied:**
+  1. Added typed match events and duplicate-safe authoritative `MatchStats` for contacts, timing grades, spin choices, bounces, rally phases, point outcomes, rally length, and match duration.
+  2. Added deterministic opening, baseline, kitchen, and attackable rally-phase classification in world coordinates.
+  3. Added Standard and Competitive balance profiles to offline mode setup, LAN lobbies/discovery, online Firebase lobbies, and match-start arguments. Missing or legacy values default to Standard.
+  4. Competitive matches keep equipped paddle/character visuals while normalizing paddle, movement, and stamina modifiers and disabling paddle-bound special skills.
+  5. Added protocol revision 2 LAN/Firebase/WebRTC snapshots carrying rally phase, balance profile, event revision, and compact match statistics with backward-compatible defaults.
+  6. Added compact responsive balance selectors and preserved legacy Standard route payloads to avoid unnecessary compatibility changes.
+- **Verification:**
+  - `flutter analyze` completed with no issues before the final documentation update.
+  - Focused foundation, rules, LAN, lobby, and mode-selection suites passed (92/92 combined test executions).
+  - Complete Flutter suite passed (207/207 tests); the existing compact-Shop `PLAYERS` hit-test warning remains non-fatal.
+  - No Dart DTD application-control tool was exposed to this session; the attempted discovery and fallback status are recorded in the handoff.
+
 ### Gameplay enhancement roadmap
 - **Reason of Change:** Establish one durable, offline source of truth for the planned gameplay, AI, Arcade, presentation, replay, and multiplayer enhancement work.
 - **Changes Applied:**

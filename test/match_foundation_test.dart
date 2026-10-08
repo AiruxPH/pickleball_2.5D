@@ -3,11 +3,13 @@ import 'package:pickleball_3d/game/pickleball_game.dart';
 import 'package:pickleball_3d/game/rally_phase_classifier.dart';
 import 'package:pickleball_3d/models/game_settings.dart';
 import 'package:pickleball_3d/models/match_foundation.dart';
+import 'package:pickleball_3d/models/match_lobby.dart';
 import 'package:pickleball_3d/models/pickleball.dart';
 import 'package:pickleball_3d/models/player.dart';
 import 'package:pickleball_3d/models/shot_mechanics.dart';
 import 'package:pickleball_3d/utils/constants.dart';
 import 'package:pickleball_3d/utils/game_math.dart';
+import 'package:pickleball_3d/services/lan/lan_state_snapshot.dart';
 
 void main() {
   group('Match foundation', () {
@@ -66,6 +68,49 @@ void main() {
       expect(game.gameplayMoveSpeedMultiplier, 1.0);
       expect(game.gameplayStaminaRegenMultiplier, 1.0);
       expect(game.specialSkillsEnabled, isFalse);
+      game.dispose();
+    });
+
+    test('lobby serializes balance and legacy payload defaults to standard', () {
+      final competitive = MatchLobby.local(
+        format: LobbyFormat.doubles,
+        balanceProfile: MatchBalanceProfile.competitive,
+      );
+      final restored = MatchLobby.fromJson(competitive.toJson());
+      final legacy = MatchLobby.fromJson({
+        'id': 'legacy',
+        'type': 'online',
+        'format': 'singles',
+      });
+
+      expect(restored.balanceProfile, MatchBalanceProfile.competitive);
+      expect(legacy.balanceProfile, MatchBalanceProfile.standard);
+    });
+
+    test('snapshot carries foundation state and keeps legacy defaults', () {
+      final game = PickleballGame(
+        settings: GameSettings(),
+        balanceProfile: MatchBalanceProfile.competitive,
+      )..rallyPhase = RallyPhase.kitchen;
+      final restored = LanStateSnapshot.fromJson(
+        LanStateSnapshot.fromGame(game).toJson(),
+      );
+      final legacy = LanStateSnapshot.fromJson({
+        'ball': {'x': 0, 'y': 0, 'z': 0},
+        'p1': {'x': 0, 'y': 0, 'z': 10},
+        'p2': {'x': 0, 'y': 0, 'z': -10},
+      });
+
+      expect(
+        restored.protocolRevision,
+        LanStateSnapshot.currentProtocolRevision,
+      );
+      expect(restored.rallyPhase, 'kitchen');
+      expect(restored.balanceProfile, 'competitive');
+      expect(restored.matchStats, isNotNull);
+      expect(legacy.protocolRevision, 1);
+      expect(legacy.rallyPhase, 'opening');
+      expect(legacy.balanceProfile, 'standard');
       game.dispose();
     });
   });
