@@ -86,6 +86,12 @@ class _GameScreenState extends State<GameScreen>
   String? _lanRole;
   StreamSubscription? _lanCommandSub;
   StreamSubscription? _lanStateSyncSub;
+  Timer? _onlineDisconnectTimer;
+  bool _onlinePeerWasPresent = false;
+  bool _onlineConnectionInterrupted = false;
+  bool _onlineDisconnectDialogVisible = false;
+  bool _pausedForOnlineDisconnect = false;
+  bool _wasPausedBeforeOnlineDisconnect = false;
   LanStateSnapshot? _latestOnlineSnapshot;
   int _onlineSnapshotRevision = 0;
   int _appliedOnlineSnapshotRevision = 0;
@@ -213,12 +219,14 @@ class _GameScreenState extends State<GameScreen>
       }
     }
     if (_isOnlineMultiplayer) {
+      final onlineService = OnlineMultiplayerService.instance;
+      _onlinePeerWasPresent = onlineService.remotePlayerPresent;
+      onlineService.addListener(_handleOnlineConnectionChanged);
       if (_lanRole == 'host') {
-        _lanCommandSub = OnlineMultiplayerService.instance.onCommandReceived
+        _lanCommandSub = onlineService.onCommandReceived
             .listen((cmd) => _opponentCommands?.dispatch(cmd));
       } else if (_lanRole == 'client') {
-        _lanStateSyncSub = OnlineMultiplayerService.instance.onStateSyncReceived
-            .listen((snapshot) {
+        _lanStateSyncSub = onlineService.onStateSyncReceived.listen((snapshot) {
           _latestOnlineSnapshot = snapshot;
           _onlineSnapshotReceivedAtMs = DateTime.now().millisecondsSinceEpoch;
           _onlineSnapshotRevision++;
@@ -254,6 +262,100 @@ class _GameScreenState extends State<GameScreen>
     // Start game loop at 60 FPS
     _ticker = createTicker(_onTick);
     _ticker!.start();
+  }
+
+  void _handleOnlineConnectionChanged() {
+    if (!mounted || !_isOnlineMultiplayer) return;
+    final service = OnlineMultiplayerService.instance;
+    final peerPresent = service.remotePlayerPresent;
+
+    if (peerPresent && service.status != OnlineStatus.disconnected) {
+      _onlinePeerWasPresent = true;
+      _onlineDisconnectTimer?.cancel();
+      _onlineDisconnectTimer = null;
+      if (_onlineConnectionInterrupted && !_onlineDisconnectDialogVisible) {
+        _onlineConnectionInterrupted = false;
+        if (_pausedForOnlineDisconnect && !_wasPausedBeforeOnlineDisconnect) {
+          _game?.resume();
+        }
+        _pausedForOnlineDisconnect = false;
+        if (mounted) setState(() {});
+      }
+      return;
+    }
+
+    final matchStillOwnedLocally = service.role != OnlineRole.none;
+    final peerLost = service.status == OnlineStatus.disconnected ||
+        (_onlinePeerWasPresent && !peerPresent);
+    if (!matchStillOwnedLocally ||
+        !peerLost ||
+        _onlineDisconnectDialogVisible) {
+      return;
+    }
+
+    if (!_onlineConnectionInterrupted) {
+      _onlineConnectionInterrupted = true;
+      _wasPausedBeforeOnlineDisconnect = _game?.isPaused ?? false;
+      if (!_wasPausedBeforeOnlineDisconnect) {
+        _game?.pause();
+        _pausedForOnlineDisconnect = true;
+      }
+      setState(() {});
+    }
+    _onlineDisconnectTimer ??= Timer(
+      const Duration(seconds: 4),
+      _confirmOnlineDisconnect,
+    );
+  }
+
+  Future<void> _confirmOnlineDisconnect() async {
+    _onlineDisconnectTimer = null;
+    if (!mounted || _onlineDisconnectDialogVisible) return;
+    final service = OnlineMultiplayerService.instance;
+    if (service.role == OnlineRole.none ||
+        (service.remotePlayerPresent &&
+            service.status != OnlineStatus.disconnected)) {
+      return;
+    }
+
+    _onlineDisconnectDialogVisible = true;
+    _ticker?.stop();
+    await service.leaveRoom();
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF0F1E36),
+        icon: const Icon(
+          Icons.wifi_off_rounded,
+          color: Color(0xFFFCA5A5),
+          size: 42,
+        ),
+        title: const Text(
+          'OPPONENT DISCONNECTED',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+        ),
+        content: const Text(
+          'The other player left the match or lost their connection. '
+          'This match has ended.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Color(0xFFCBD5E1)),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext),
+            icon: const Icon(Icons.home_rounded),
+            label: const Text('RETURN TO MENU'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, '/menu', (_) => false);
   }
 
   void _onTick(Duration elapsed) {
@@ -429,6 +531,11 @@ class _GameScreenState extends State<GameScreen>
 
   @override
   void dispose() {
+    _onlineDisconnectTimer?.cancel();
+    if (_isOnlineMultiplayer) {
+      OnlineMultiplayerService.instance
+          .removeListener(_handleOnlineConnectionChanged);
+    }
     _lanCommandSub?.cancel();
     _lanStateSyncSub?.cancel();
     _audioService?.stopMatchMusic();
@@ -816,6 +923,10 @@ class _GameScreenState extends State<GameScreen>
 
                 // ── Pause menu overlay ──────────────────────────────
                 if (game.isPaused) _buildPauseMenu(game),
+
+                if (_onlineConnectionInterrupted &&
+                    !_onlineDisconnectDialogVisible)
+                  const _OnlineReconnectOverlay(),
 
                 // ── Serve prompt (only updates on state changes) ─────
                 ValueListenableBuilder<GameState>(
@@ -1804,6 +1915,69 @@ class _GameScreenState extends State<GameScreen>
                   ),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OnlineReconnectOverlay extends StatelessWidget {
+  const _OnlineReconnectOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: ColoredBox(
+        color: const Color(0xCC071426),
+        child: AbsorbPointer(
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 360),
+              margin: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F1E36),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFFBBF24), width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x66000000),
+                    blurRadius: 24,
+                    offset: Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: Color(0xFFFBBF24),
+                    ),
+                  ),
+                  SizedBox(height: 18),
+                  Text(
+                    'CONNECTION INTERRUPTED',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Waiting briefly for your opponent to reconnect…',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFFCBD5E1)),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

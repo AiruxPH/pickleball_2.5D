@@ -856,3 +856,14 @@
 - Validation: all 82 focused targeting, bot, AI, difficulty, and rules tests passed.
 - Confirmed the `Intl.v8BreakIterator` browser warning originates only from Flutter-generated `build/web/main.dart.js`, not application source. It is a non-fatal Flutter web runtime feature check and generated output was not patched.
 - A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.
+
+### 2026-10-08 - Online match disconnect recovery
+
+- Connected the active online match screen to Firebase room presence so host and challenger departures are handled during gameplay instead of leaving the remaining player frozen indefinitely.
+- Paused the match and blocked gameplay controls when the opponent disappears, with a visible four-second reconnection grace period that automatically resumes the match if presence returns.
+- Re-registers the player membership and disconnect hooks through Firebase `.info/connected` after a temporary network recovery; a returning host also restores the room's in-game status.
+- Added a non-dismissible opponent-disconnected result dialog that ends the abandoned session and returns the remaining player safely to the main menu.
+- Made online room exit cleanup best-effort: local WebRTC, listeners, state, and navigation now finish even if Firebase cleanup writes fail during a network outage; registered `onDisconnect` operations remain the remote fallback.
+- Added a role-aware `remotePlayerPresent` service signal so host and challenger use the same disconnect flow.
+- Validation: Flutter analysis passed with no issues; all 17 widget and LAN/network regression tests passed.
+- A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.

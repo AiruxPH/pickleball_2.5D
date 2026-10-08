@@ -46,6 +46,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
   final Map<String, int> _lastCommandSequence = <String, int>{};
   bool _hostPresent = false;
   bool _challengerPresent = false;
+  bool _restoringPresence = false;
   WebRtcGameTransport? _webRtc;
 
   static const int _maxSnapshotWritesInFlight = 3;
@@ -69,6 +70,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
   bool get hostPresent => _hostPresent;
   bool get challengerPresent => _challengerPresent;
   bool get allPlayersPresent => _hostPresent && _challengerPresent;
+  bool get remotePlayerPresent =>
+      isHost ? _challengerPresent : isClient && _hostPresent;
   bool get isPeerToPeerConnected => _webRtc?.isConnected ?? false;
   Stream<Map<String, dynamic>> get onStartMatch => _startController.stream;
   Stream<MatchCommand> get onCommandReceived => _commandController.stream;
@@ -187,6 +190,14 @@ class OnlineMultiplayerService extends ChangeNotifier {
 
   void _listenToRoom() {
     final room = _room!;
+    _subscriptions.add(FirebaseDatabase.instance
+        .ref('.info/connected')
+        .onValue
+        .listen((event) {
+      if (event.snapshot.value == true) {
+        unawaited(_restorePresence(room));
+      }
+    }));
     _subscriptions.add(room.child('lobby').onValue.listen((event) {
       if (!isClient || event.snapshot.value is! Map) return;
       _replaceLobby(MatchLobby.fromJson(
@@ -259,12 +270,52 @@ class OnlineMultiplayerService extends ChangeNotifier {
         }
       }));
       _subscriptions.add(room.child('meta/status').onValue.listen((event) {
-        if (event.snapshot.value == 'closed') {
+        final value = event.snapshot.value;
+        if (value == 'closed') {
           _status = OnlineStatus.disconnected;
           _errorMessage = 'The host closed the room.';
           notifyListeners();
+        } else if (value == 'inGame' && _status == OnlineStatus.disconnected) {
+          _status = OnlineStatus.inGame;
+          _errorMessage = null;
+          notifyListeners();
         }
       }));
+    }
+  }
+
+  Future<void> _restorePresence(DatabaseReference room) async {
+    final uid = _uid;
+    if (_restoringPresence ||
+        uid == null ||
+        _room != room ||
+        _role == OnlineRole.none) {
+      return;
+    }
+    _restoringPresence = true;
+    try {
+      await room.child('members/$uid').onDisconnect().remove();
+      if (isHost) {
+        await room.child('meta/status').onDisconnect().set('closed');
+      } else {
+        await room.child('ready/$uid').onDisconnect().set(false);
+      }
+      if (_room != room || _role == OnlineRole.none) return;
+      await room.update({
+        'members/$uid': {
+          'role': isHost ? 'host' : 'client',
+          'slot': isHost ? 0 : 1,
+          'online': true,
+          'joinedAt': ServerValue.timestamp,
+        },
+        if (isHost)
+          'meta/status': _status == OnlineStatus.inGame ? 'inGame' : 'lobby',
+        'meta/updatedAt': ServerValue.timestamp,
+      });
+    } catch (error) {
+      debugPrint('[OnlineMultiplayer] Presence restore failed: $error');
+    } finally {
+      _restoringPresence = false;
     }
   }
 
@@ -426,20 +477,39 @@ class OnlineMultiplayerService extends ChangeNotifier {
   }
 
   Future<void> leaveRoom() async {
-    await _webRtc?.close();
+    final room = _room;
+    final uid = _uid;
+    final wasHost = isHost;
+    final wasClient = isClient;
+
+    try {
+      await _webRtc?.close();
+    } catch (error) {
+      debugPrint('[OnlineMultiplayer] WebRTC close failed: $error');
+    }
     _webRtc = null;
     for (final subscription in _subscriptions) {
-      await subscription.cancel();
+      try {
+        await subscription.cancel();
+      } catch (error) {
+        debugPrint('[OnlineMultiplayer] Listener cleanup failed: $error');
+      }
     }
     _subscriptions.clear();
     _lobby?.removeListener(_writeLobby);
-    if (_room != null && _uid != null) {
-      if (isClient) {
-        await _room!.child('ready/$_uid').set(false);
-      }
-      await _room!.child('members/$_uid').remove();
-      if (isHost) {
-        await _room!.child('meta/status').set('closed');
+    if (room != null && uid != null) {
+      try {
+        if (wasClient) {
+          await room.child('ready/$uid').set(false);
+        }
+        await room.child('members/$uid').remove();
+        if (wasHost) {
+          await room.child('meta/status').set('closed');
+        }
+      } catch (error) {
+        // Local exit must still complete when the network disappears. The
+        // registered Firebase onDisconnect handlers perform remote cleanup.
+        debugPrint('[OnlineMultiplayer] Remote room cleanup failed: $error');
       }
     }
     _room = null;
@@ -457,6 +527,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _lastCommandSequence.clear();
     _hostPresent = false;
     _challengerPresent = false;
+    _restoringPresence = false;
     _status = FirebaseBootstrap.isReady
         ? OnlineStatus.idle
         : OnlineStatus.unavailable;
