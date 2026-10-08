@@ -68,6 +68,20 @@ class _SettingsScreenState extends State<SettingsScreen>
         SizedBox(height: 10 * ui),
         const _Hint(
             'Dynamic follows your first touch. Control positions can also be moved while customizing the HUD in a paused match.'),
+        SizedBox(height: 18 * ui),
+        _Label('Preferred POV', settings.preferredPOV == PreferredPOV.normal ? 'NORMAL' : 'OVERHEAD'),
+        SizedBox(height: 10 * ui),
+        MenuSegmented<PreferredPOV>(
+          current: settings.preferredPOV,
+          segments: const [
+            MenuSegment(PreferredPOV.normal, 'NORMAL', icon: Icons.person_rounded),
+            MenuSegment(PreferredPOV.overhead, 'OVERHEAD', icon: Icons.arrow_downward_rounded),
+          ],
+          onChanged: (pov) {
+            settings.preferredPOV = pov;
+            _save(settings);
+          },
+        ),
       ],
     );
 

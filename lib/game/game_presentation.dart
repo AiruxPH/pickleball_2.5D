@@ -72,6 +72,7 @@ final class GamePresentation implements GameEffects {
       player: player,
       ball: ball,
     );
+    cameraController.setView(settings.preferredPOV == PreferredPOV.overhead ? CameraView.overhead : CameraView.playerFollow);
   }
 
   final GameSettings settings;

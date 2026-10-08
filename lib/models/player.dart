@@ -205,14 +205,14 @@ class Player {
     if (isNearSide) {
       // Human / partner stays on near half (positive Z)
       position.x = position.x.clamp(
-          -CourtDimensions.halfWidth + 5, CourtDimensions.halfWidth - 5);
-      position.z = position.z.clamp(2.0, CourtDimensions.halfLength - 5);
+          -CourtDimensions.halfWidth - 40, CourtDimensions.halfWidth + 40);
+      position.z = position.z.clamp(2.0, CourtDimensions.halfLength + 60);
     } else {
       // AI opponent stays on far half (negative Z)
       position.x = position.x.clamp(
-          -CourtDimensions.halfWidth + 5, CourtDimensions.halfWidth - 5);
+          -CourtDimensions.halfWidth - 40, CourtDimensions.halfWidth + 40);
       position.z = position.z.clamp(
-          -CourtDimensions.halfLength + 5, -2.0);
+          -CourtDimensions.halfLength - 60, -2.0);
     }
   }
 

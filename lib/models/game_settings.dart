@@ -16,6 +16,8 @@ enum AIDifficulty { easy, medium, hard }
 
 enum GraphicsQuality { low, medium, high }
 
+enum PreferredPOV { normal, overhead }
+
 class GameSettings extends ChangeNotifier {
   // ── AI ─────────────────────────────────────────────────────
   AIDifficulty _difficulty = AIDifficulty.medium;
@@ -86,6 +88,13 @@ class GameSettings extends ChangeNotifier {
   bool get dynamicJoystick => _dynamicJoystick;
   set dynamicJoystick(bool value) {
     _dynamicJoystick = value;
+    notifyListeners();
+  }
+
+  PreferredPOV _preferredPOV = PreferredPOV.normal;
+  PreferredPOV get preferredPOV => _preferredPOV;
+  set preferredPOV(PreferredPOV v) {
+    _preferredPOV = v;
     notifyListeners();
   }
 
@@ -489,6 +498,7 @@ class GameSettings extends ChangeNotifier {
       'targetFps': _targetFps,
       'joystickSensitivity': _joystickSensitivity,
       'dynamicJoystick': _dynamicJoystick,
+      'preferredPOV': _preferredPOV.index,
       'joystickHudX': _joystickX,
       'joystickHudY': _joystickY,
       'actionsHudX': _actionsX,
@@ -537,6 +547,7 @@ class GameSettings extends ChangeNotifier {
     _targetFps = (json['targetFps'] as int?) ?? 60;
     _joystickSensitivity = (json['joystickSensitivity'] as double? ?? 1.0).clamp(0.5, 2.0);
     _dynamicJoystick = json['dynamicJoystick'] as bool? ?? true;
+    _preferredPOV = PreferredPOV.values[json['preferredPOV'] as int? ?? 0];
     _joystickX = (json['joystickHudX'] as num?)?.toDouble() ?? 0.13;
     _joystickY = (json['joystickHudY'] as num?)?.toDouble() ?? 0.78;
     _actionsX = (json['actionsHudX'] as num?)?.toDouble() ?? 0.84;
