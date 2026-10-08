@@ -688,6 +688,23 @@ class AIController {
         ? 0.0
         : (0.75 + paddleSpin * 0.50).clamp(0.0, 1.25).toDouble();
 
+    // Compensate for horizontal curve (Magnus effect)
+    double lateralCurve = 0;
+    if (selectedSpin == ShotSpin.topspin) {
+      lateralCurve = 40.0 * spinStrength;
+    } else if (selectedSpin == ShotSpin.slice) {
+      lateralCurve = -40.0 * spinStrength;
+    }
+
+    if (lateralCurve != 0) {
+       final distZ = isPartner ? -55.0 - ball.position.z : 55.0 - ball.position.z;
+       final forwardSpeed = shotPlan.launchVelocity.z.abs();
+       final approxTime = distZ.abs() / math.max(1.0, forwardSpeed);
+       final directionSign = shotPlan.launchVelocity.z > 0 ? 1.0 : -1.0;
+       final correction = 0.5 * lateralCurve * directionSign * approxTime;
+       shotPlan.launchVelocity.x -= correction;
+    }
+
     // Launch the exact trajectory that was validated against drag and net sag.
     ball.velocity = shotPlan.launchVelocity.copy();
     ball.state = BallState.inFlight;

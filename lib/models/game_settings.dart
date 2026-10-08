@@ -102,8 +102,11 @@ class GameSettings extends ChangeNotifier {
   double _joystickY = 0.78;
   double _actionsX = 0.84;
   double _actionsY = 0.76;
+  double _serveX = 0.84;
+  double _serveY = 0.76;
   Offset get joystickHudPosition => Offset(_joystickX, _joystickY);
   Offset get actionsHudPosition => Offset(_actionsX, _actionsY);
+  Offset get serveHudPosition => Offset(_serveX, _serveY);
 
   void setJoystickHudPosition(Offset value) {
     _joystickX = value.dx.clamp(0.06, 0.94);
@@ -114,6 +117,12 @@ class GameSettings extends ChangeNotifier {
   void setActionsHudPosition(Offset value) {
     _actionsX = value.dx.clamp(0.06, 0.94);
     _actionsY = value.dy.clamp(0.12, 0.92);
+    notifyListeners();
+  }
+
+  void setServeHudPosition(Offset value) {
+    _serveX = value.dx.clamp(0.06, 0.94);
+    _serveY = value.dy.clamp(0.12, 0.92);
     notifyListeners();
   }
 
@@ -503,6 +512,8 @@ class GameSettings extends ChangeNotifier {
       'joystickHudY': _joystickY,
       'actionsHudX': _actionsX,
       'actionsHudY': _actionsY,
+      'serveHudX': _serveX,
+      'serveHudY': _serveY,
       'courtTheme': _courtTheme.index,
       'playerName': _playerName,
       'playerLevel': _playerLevel,
@@ -552,6 +563,8 @@ class GameSettings extends ChangeNotifier {
     _joystickY = (json['joystickHudY'] as num?)?.toDouble() ?? 0.78;
     _actionsX = (json['actionsHudX'] as num?)?.toDouble() ?? 0.84;
     _actionsY = (json['actionsHudY'] as num?)?.toDouble() ?? 0.76;
+    _serveX = (json['serveHudX'] as num?)?.toDouble() ?? 0.84;
+    _serveY = (json['serveHudY'] as num?)?.toDouble() ?? 0.76;
     final courtIdx = (json['courtTheme'] as int?) ?? 0;
     _courtTheme = (courtIdx >= 0 && courtIdx < CourtTheme.values.length)
         ? CourtTheme.values[courtIdx]

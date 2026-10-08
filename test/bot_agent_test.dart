@@ -240,7 +240,7 @@ void main() {
         difficulty: AIDifficulty.hard,
         id: 'far-bot',
         side: BotCourtSide.far,
-        personality: BotPersonality.aggressive,
+        personality: BotPersonality.aggressor,
         randomSeed: 22,
       );
       versusGame.state = GameState.rally;
@@ -297,14 +297,14 @@ void main() {
         observe: () => observation,
         commands: patientCommands,
         difficulty: AIDifficulty.medium,
-        personality: BotPersonality.patient,
+        personality: BotPersonality.counterpuncher,
         randomSeed: 1,
       );
       final aggressive = BotAgent(
         observe: () => observation,
         commands: aggressiveCommands,
         difficulty: AIDifficulty.medium,
-        personality: BotPersonality.aggressive,
+        personality: BotPersonality.aggressor,
         randomSeed: 2,
       );
 
@@ -404,7 +404,7 @@ void main() {
         commands: MatchCommandController(game: versusGame),
         difficulty: AIDifficulty.medium,
         id: 'near-counterpuncher',
-        personality: BotPersonality.patient,
+        personality: BotPersonality.counterpuncher,
         randomSeed: 1103,
       );
       final farAgent = BotAgent(
@@ -413,7 +413,7 @@ void main() {
         difficulty: AIDifficulty.medium,
         id: 'far-attacker',
         side: BotCourtSide.far,
-        personality: BotPersonality.aggressive,
+        personality: BotPersonality.aggressor,
         randomSeed: 2909,
       );
 

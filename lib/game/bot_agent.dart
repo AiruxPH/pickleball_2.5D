@@ -25,7 +25,7 @@ final class BotPersonality {
   final double recoveryDepth;
   final double aimSpread;
 
-  static const patient = BotPersonality(
+  static const counterpuncher = BotPersonality(
     name: 'Counterpuncher',
     aggressionAdjustment: -0.22,
     recoveryDepth: 52,
@@ -33,18 +33,40 @@ final class BotPersonality {
   );
 
   static const balanced = BotPersonality(
-    name: 'All Court',
+    name: 'Balanced',
     aggressionAdjustment: 0,
     recoveryDepth: 46,
     aimSpread: 0.06,
   );
 
-  static const aggressive = BotPersonality(
-    name: 'Attacker',
+  static const aggressor = BotPersonality(
+    name: 'Aggressor',
     aggressionAdjustment: 0.25,
     recoveryDepth: 35,
     aimSpread: 0.1,
   );
+
+  static const dinker = BotPersonality(
+    name: 'Dinker',
+    aggressionAdjustment: -0.15,
+    recoveryDepth: 20, // Approaches the kitchen
+    aimSpread: 0.05,
+  );
+
+  static const trickster = BotPersonality(
+    name: 'Trickster',
+    aggressionAdjustment: 0.10,
+    recoveryDepth: 42,
+    aimSpread: 0.12, // More erratic aim
+  );
+
+  static const values = [
+    counterpuncher,
+    balanced,
+    aggressor,
+    dinker,
+    trickster,
+  ];
 }
 
 /// Decision-only controller for the near-side player.
@@ -276,14 +298,27 @@ class BotAgent {
     final playerZ = _localZ(player.position.z);
     final opponentZ = _localZ(opponent.position.z);
 
+    if (personality == BotPersonality.trickster) {
+      if (_random.nextDouble() < 0.2) return ShotType.lob;
+      if (_random.nextDouble() < 0.2) return ShotType.drop;
+    }
+
     if (aggression >= 0.55 &&
         observation.ball.position.y > CourtDimensions.netHeight + 5) {
       return ShotType.smash;
     }
+    
+    if (personality == BotPersonality.dinker &&
+        playerZ < CourtDimensions.kitchenDepth + 14) {
+      if (_random.nextDouble() < 0.7) return ShotType.drop;
+    }
+
     if (difficulty != AIDifficulty.easy &&
         opponentZ < CourtDimensions.aiStartZ - 5 &&
         playerZ < CourtDimensions.kitchenDepth + 14) {
-      return ShotType.drop;
+      if (_random.nextDouble() < 0.5 || personality == BotPersonality.counterpuncher) {
+        return ShotType.drop;
+      }
     }
     if (difficulty != AIDifficulty.easy &&
         opponentZ > -CourtDimensions.kitchenDepth - 12 &&
@@ -301,17 +336,30 @@ class BotAgent {
     if (shot != ShotType.normal && shot != ShotType.power) {
       return ShotSpin.flat;
     }
+
+    if (personality == BotPersonality.trickster) {
+      final r = _random.nextDouble();
+      if (r < 0.33) return ShotSpin.topspin;
+      if (r < 0.66) return ShotSpin.slice;
+      return ShotSpin.flat;
+    }
+
+    if (personality == BotPersonality.dinker && shot == ShotType.normal) {
+      return _random.nextDouble() < 0.6 ? ShotSpin.slice : ShotSpin.flat;
+    }
+
     return switch (difficulty) {
       AIDifficulty.easy => _random.nextDouble() < 0.12
           ? ShotSpin.topspin
           : ShotSpin.flat,
-      AIDifficulty.medium => shot == ShotType.power
+      AIDifficulty.medium => shot == ShotType.power || personality == BotPersonality.aggressor
           ? ShotSpin.topspin
           : (_random.nextDouble() < 0.22
               ? ShotSpin.slice
               : ShotSpin.topspin),
       AIDifficulty.hard => shot == ShotType.power ||
-              observation.ball.position.y > CourtDimensions.netHeight + 2
+              observation.ball.position.y > CourtDimensions.netHeight + 2 ||
+              personality == BotPersonality.aggressor
           ? ShotSpin.topspin
           : ShotSpin.slice,
     };

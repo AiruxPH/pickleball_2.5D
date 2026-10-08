@@ -1451,14 +1451,6 @@ class PickleballGame extends ChangeNotifier {
     final spinBonus = 1.0 + (paddle.spin - 0.50) * 0.35;
     final baseSpin = activeShot == ShotType.drop ? -500.0 : 500.0;
 
-    ball.velocity = solution.launchVelocity;
-    ball.state = BallState.inFlight;
-    ball.lastHitByPlayer = true;
-    ball.bounceCount = 0;
-    ball.secondBounceGraceTimer = 0;
-    ball.hasBounced = false;
-    ball.isServe = false;
-    ball.impactFlash = activeShot == ShotType.power ? 1.0 : 0.7;
     final appliedSpin = activeShot == ShotType.normal ||
             activeShot == ShotType.power
         ? requestedSpin
@@ -1468,6 +1460,31 @@ class PickleballGame extends ChangeNotifier {
         : ((0.75 + paddle.spin * 0.50) * timing.spinMultiplier)
             .clamp(0.0, 1.35)
             .toDouble();
+
+    // Compensate for horizontal curve (Magnus effect)
+    double lateralCurve = 0;
+    if (appliedSpin == ShotSpin.topspin) {
+      lateralCurve = 40.0 * physicalSpinStrength;
+    } else if (appliedSpin == ShotSpin.slice) {
+      lateralCurve = -40.0 * physicalSpinStrength;
+    }
+
+    if (lateralCurve != 0) {
+       final distZ = true ? -55.0 - ball.position.z : 55.0 - ball.position.z;
+       final approxTime = distZ.abs() / math.max(1.0, solution.forwardSpeed);
+       final directionSign = solution.launchVelocity.z > 0 ? 1.0 : -1.0;
+       final correction = 0.5 * lateralCurve * directionSign * approxTime;
+       solution.launchVelocity.x -= correction;
+    }
+
+    ball.velocity = solution.launchVelocity;
+    ball.state = BallState.inFlight;
+    ball.lastHitByPlayer = true;
+    ball.bounceCount = 0;
+    ball.secondBounceGraceTimer = 0;
+    ball.hasBounced = false;
+    ball.isServe = false;
+    ball.impactFlash = activeShot == ShotType.power ? 1.0 : 0.7;
     ball.shotSpin = appliedSpin;
     ball.spinStrength = physicalSpinStrength;
     ball.spinRate = switch (appliedSpin) {

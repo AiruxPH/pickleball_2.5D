@@ -56,9 +56,9 @@ class BallController {
     // ── Magnus Effect (Horizontal Curve) ─────────────────────
     double lateralCurve = 0;
     if (ball.shotSpin == ShotSpin.topspin) {
-      lateralCurve = 15.0 * ball.spinStrength;
+      lateralCurve = 40.0 * ball.spinStrength;
     } else if (ball.shotSpin == ShotSpin.slice) {
-      lateralCurve = -15.0 * ball.spinStrength;
+      lateralCurve = -40.0 * ball.spinStrength;
     }
 
     if (lateralCurve != 0) {

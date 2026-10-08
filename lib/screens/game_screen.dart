@@ -249,7 +249,7 @@ class _GameScreenState extends State<GameScreen>
         commands: _commands!,
         difficulty: diffOverride ?? settings.difficulty,
         id: 'near-counterpuncher',
-        personality: BotPersonality.patient,
+        personality: BotPersonality.counterpuncher,
         randomSeed: 1103,
       );
       _opponentBot = BotAgent(
@@ -258,7 +258,7 @@ class _GameScreenState extends State<GameScreen>
         difficulty: diffOverride ?? settings.difficulty,
         id: 'far-attacker',
         side: BotCourtSide.far,
-        personality: BotPersonality.aggressive,
+        personality: BotPersonality.aggressor,
         randomSeed: 2909,
       );
       _presentation!.cameraController.setView(CameraView.baseline);
@@ -422,12 +422,12 @@ class _GameScreenState extends State<GameScreen>
             ((now - _onlineSnapshotReceivedAtMs) / 1000).clamp(0.0, 0.15),
       );
     }
-    if (game != null &&
-        game.state != GameState.paused &&
-        game.state != GameState.gameOver) {
+    if (game != null && game.state != GameState.gameOver) {
       _presentation?.update(
         clampedDt,
-        effectTimeScale: game.state == GameState.rally ? game.timeDilation : 1,
+        effectTimeScale: game.state == GameState.paused 
+            ? 0.0 
+            : (game.state == GameState.rally ? game.timeDilation : 1.0),
       );
     }
 
@@ -1252,12 +1252,56 @@ class _GameScreenState extends State<GameScreen>
                   child: RepaintBoundary(
                     child: ValueListenableBuilder<GameState>(
                       valueListenable: _stateNotifier,
-                      builder: (_, __, ___) => _buildActionButtons(
-                        game,
-                        isLandscape: isLandscape,
-                        screenHeight: size.height,
-                        forceShowAll: _customizingControls,
-                      ),
+                      builder: (_, __, ___) {
+                        final isServing = _localPlayerCanServe(game);
+                        if (!isServing || _customizingControls) {
+                          return _buildActionButtons(
+                            game,
+                            isLandscape: isLandscape,
+                            screenHeight: size.height,
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Serve Buttons (bottom right) ──
+          if (!_isBotVsBot)
+            Positioned(
+              left: settings.serveHudPosition.dx * size.width - 90,
+              top: settings.serveHudPosition.dy * size.height - 70,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: _customizingControls
+                    ? (details) {
+                        final next = settings.serveHudPosition +
+                            Offset(
+                              details.delta.dx / size.width,
+                              details.delta.dy / size.height,
+                            );
+                        settings.setServeHudPosition(next);
+                      }
+                    : null,
+                child: IgnorePointer(
+                  ignoring: _customizingControls,
+                  child: RepaintBoundary(
+                    child: ValueListenableBuilder<GameState>(
+                      valueListenable: _stateNotifier,
+                      builder: (_, __, ___) {
+                        final isServing = _localPlayerCanServe(game);
+                        if (isServing || _customizingControls) {
+                          return _buildServeButtons(
+                            game,
+                            isLandscape: isLandscape,
+                            screenHeight: size.height,
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
                     ),
                   ),
                 ),
@@ -1477,11 +1521,42 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  Widget _buildServeButtons(PickleballGame game,
+      {required bool isLandscape, double screenHeight = 400}) {
+    double ultBtnSize, hitBtnSize, btnSpacing;
+
+    if (isLandscape) {
+      final clusterH = (screenHeight * 0.82).clamp(180.0, 340.0);
+      hitBtnSize = (clusterH * 0.46).clamp(52.0, 80.0);
+      ultBtnSize = (clusterH * 0.42).clamp(48.0, 72.0);
+      btnSpacing = (screenHeight * 0.025).clamp(5.0, 10.0);
+    } else {
+      ultBtnSize = 54.0;
+      hitBtnSize = UISizes.hitButtonSize;
+      btnSpacing = 6.0;
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _buildUltimateButton(game, size: ultBtnSize),
+        SizedBox(width: isLandscape ? btnSpacing + 4 : 12),
+        GameButton(
+          label: 'SERVE',
+          icon: Icons.sports_tennis_rounded,
+          size: hitBtnSize,
+          color: const Color(0xFF0284C7),
+          glowColor: const Color(0x770284C7),
+          onTap: () => _activeTouchCommands?.serve(),
+        ),
+      ],
+    );
+  }
+
   // ── Action Controls: Context-Aware & Ultra-Compact Thumb Cluster ──
   Widget _buildActionButtons(PickleballGame game,
-      {required bool isLandscape, double screenHeight = 400, bool forceShowAll = false}) {
-    final isServing = !forceShowAll && _localPlayerCanServe(game);
-
+      {required bool isLandscape, double screenHeight = 400}) {
     // In landscape, derive button sizes from screen height so they scale
     // proportionally across all mobile device sizes (phones ~320-420px tall)
     double smallBtnSize, powerBtnSize, ultBtnSize, hitBtnSize;
@@ -1505,26 +1580,6 @@ class _GameScreenState extends State<GameScreen>
       hitBtnSize = UISizes.hitButtonSize;
       btnSpacing = 6.0;
       rowSpacing = 6.0;
-    }
-
-    // During player serve: only display hero SERVE button & ULTIMATE
-    if (isServing) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _buildUltimateButton(game, size: ultBtnSize),
-          SizedBox(width: isLandscape ? btnSpacing + 4 : 12),
-          GameButton(
-            label: 'SERVE',
-            icon: Icons.sports_tennis_rounded,
-            size: hitBtnSize,
-            color: const Color(0xFF0284C7),
-            glowColor: const Color(0x770284C7),
-            onTap: () => _activeTouchCommands?.serve(),
-          ),
-        ],
-      );
     }
 
     // In-play rally: 2-tier ergonomic thumb cluster
