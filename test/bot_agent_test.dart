@@ -11,7 +11,7 @@ import 'package:pickleball_3d/models/pickleball.dart';
 import 'package:pickleball_3d/models/shot_mechanics.dart';
 import 'package:pickleball_3d/utils/constants.dart';
 import 'package:pickleball_3d/utils/game_math.dart';
-
+import 'package:pickleball_3d/models/bot_personality.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

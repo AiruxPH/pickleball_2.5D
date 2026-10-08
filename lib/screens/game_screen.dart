@@ -11,6 +11,7 @@ import '../game/camera_controller.dart';
 import '../game/court_input_mapper.dart';
 import '../game/game_loop.dart';
 import '../game/game_presentation.dart';
+import '../models/bot_personality.dart';
 import '../game/match_command_controller.dart';
 import '../game/match_observation.dart';
 import '../game/pickleball_game.dart';

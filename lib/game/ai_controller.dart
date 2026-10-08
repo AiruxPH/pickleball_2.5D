@@ -8,6 +8,7 @@ import '../utils/constants.dart';
 import '../utils/game_math.dart';
 import 'ai_shot_planner.dart';
 import 'shot_targeting.dart';
+import '../models/bot_personality.dart';
 
 /// ─────────────────────────────────────────────────────────────
 /// AIController — State-machine based AI opponent
@@ -42,6 +43,7 @@ class AIController {
   final double? Function()? preferredTargetX;
   final void Function(bool isPower)? onHit;
   final double paddleSpin;
+  final BotPersonality personality;
 
   AIState _state = AIState.idle;
   double _reactionTimer = 0;
@@ -74,6 +76,7 @@ class AIController {
     this.preferredTargetX,
     this.onHit,
     this.paddleSpin = 0.5,
+    this.personality = BotPersonality.balanced,
   });
 
   /// Active difficulty for this AI instance (respects match override)
@@ -492,144 +495,100 @@ class AIController {
           }
         }
       }
-    } else if (difficulty == AIDifficulty.hard) {
-      // ── HARD: TOURNAMENT PRO TACTICS ─────────────────────────────
-      if (isServeReturn) {
-        // Return of serve: deep aggressive drive to baseline
-        chosenShot = ShotType.normal;
-        forwardPower = PhysicsConstants.normalHitPower * 1.15;
+    } else if (isUnforcedError) {
+      // ── AUTHENTIC UNFORCED ERROR ─────────────────────────────────
+      chosenShot = ShotType.normal;
+      if (_rng.nextBool()) {
+        forwardPower = PhysicsConstants.normalHitPower * (difficulty == AIDifficulty.easy ? 1.0 : 1.35);
+        upPower = 44.0;
+        targetZ = isPartner ? -75.0 : 75.0;
+        aimX = (_rng.nextDouble() - 0.5) * CourtDimensions.halfWidth * 0.6;
+      } else {
+        forwardPower = PhysicsConstants.normalHitPower * (difficulty == AIDifficulty.easy ? 0.8 : 1.05);
         upPower = 40.0;
-        targetZ = 55.0;
-        aimX = (humanPlayer != null && humanPlayer!.position.x <= 0)
-            ? CourtDimensions.halfWidth * 0.80
-            : -CourtDimensions.halfWidth * 0.80;
-        aimX += (_rng.nextDouble() - 0.5) * 3.0;
-      } else if (ball.position.y > 17.0) {
-        // Overhead Smash on high ball
+        targetZ = isPartner ? -50.0 : 50.0;
+        aimX = (_rng.nextBool() ? 1 : -1) * (CourtDimensions.halfWidth + 4.0);
+      }
+    } else {
+      // ── TACTICAL SHOT SELECTION ──────────────────────────────────
+      // Base tactical chances based on personality
+      double smashChance = 0.5 + personality.aggressionAdjustment * 1.5;
+      double lobChance = 0.3 + (personality.name == 'Trickster' ? 0.4 : 0.0);
+      double dropChance = 0.4 + (personality.name == 'Dinker' ? 0.4 : (personality.name == 'Trickster' ? 0.3 : 0.0));
+      double thirdShotDropChance = personality.name == 'Dinker' ? 0.6 : (personality.name == 'Counterpuncher' ? 0.3 : 0.0);
+
+      // Scale down tactics for easier difficulties
+      if (difficulty == AIDifficulty.easy) {
+        smashChance = 0.0;
+        lobChance = 0.0;
+        dropChance = 0.0;
+        thirdShotDropChance = 0.0;
+      } else if (difficulty == AIDifficulty.medium) {
+        smashChance *= 0.4;
+        lobChance *= 0.4;
+        dropChance *= 0.4;
+        thirdShotDropChance *= 0.3;
+      }
+
+      bool attemptSmash = ball.position.y > 17.0 && _rng.nextDouble() < smashChance;
+      bool attemptLob = opponentAtKitchen && aiAtKitchenLine && _rng.nextDouble() < lobChance;
+      bool attemptDrop = opponentPinnedDeep && aiAtKitchenLine && _rng.nextDouble() < dropChance;
+      bool attemptThirdShotDrop = !aiAtKitchenLine && ball.rallyHitCount == 2 && _rng.nextDouble() < thirdShotDropChance;
+
+      if (isServeReturn) {
+        // Return of serve: deep aggressive drive to baseline or safe return
+        chosenShot = ShotType.normal;
+        double returnAggression = 1.0 + personality.aggressionAdjustment;
+        forwardPower = PhysicsConstants.normalHitPower * (difficulty == AIDifficulty.easy ? 1.0 : (1.05 * returnAggression));
+        upPower = difficulty == AIDifficulty.easy ? 43.0 : 40.0;
+        targetZ = difficulty == AIDifficulty.easy ? 50.0 : 55.0;
+        if (humanPlayer != null) {
+          final oppSideX = humanPlayer!.position.x <= 0 ? CourtDimensions.halfWidth * 0.75 : -CourtDimensions.halfWidth * 0.75;
+          aimX = oppSideX + (_rng.nextDouble() - 0.5) * 4.0 * (1.0 + personality.aimSpread);
+        } else {
+          aimX = (_rng.nextBool() ? 1 : -1) * CourtDimensions.halfWidth * 0.7;
+        }
+      } else if (attemptSmash && ai.stamina >= StaminaConstants.powerShotCost) {
         chosenShot = ShotType.smash;
-        forwardPower = PhysicsConstants.powerHitPower * 1.15;
+        ai.useStamina(StaminaConstants.powerShotCost * (difficulty == AIDifficulty.hard ? 0.5 : 1.0));
+        forwardPower = PhysicsConstants.powerHitPower * (1.0 + personality.aggressionAdjustment * 0.5);
         upPower = 28.0;
-        targetZ = 46.0;
-        aimX = (humanPlayer != null && humanPlayer!.position.x < 0)
-            ? CourtDimensions.halfWidth * 0.82
-            : -CourtDimensions.halfWidth * 0.82;
-        ai.useStamina(StaminaConstants.powerShotCost * 0.5);
-      } else if (opponentAtKitchen && aiAtKitchenLine) {
+        targetZ = 48.0;
+        aimX = (humanPlayer != null && humanPlayer!.position.x < 0) ? CourtDimensions.halfWidth * 0.82 : -CourtDimensions.halfWidth * 0.82;
+      } else if (attemptLob && ai.stamina >= StaminaConstants.lobShotCost) {
         chosenShot = ShotType.lob;
+        ai.useStamina(StaminaConstants.lobShotCost * (difficulty == AIDifficulty.hard ? 0.5 : 1.0));
         forwardPower = PhysicsConstants.lobHitPower;
         upPower = PhysicsConstants.lobUpPower;
         targetZ = CourtDimensions.halfLength - 8.0;
-        aimX = humanPlayer!.position.x < 0 ? 18.0 : -18.0;
-        ai.useStamina(StaminaConstants.lobShotCost * 0.5);
-      } else if (opponentPinnedDeep && aiAtKitchenLine) {
-        // Human is pinned deep: punish with kitchen drop shot (only from near kitchen)
+        aimX = (humanPlayer != null && humanPlayer!.position.x < 0) ? 18.0 : -18.0;
+      } else if ((attemptDrop || attemptThirdShotDrop) && ai.stamina >= StaminaConstants.dropShotCost) {
         chosenShot = ShotType.drop;
-        forwardPower = PhysicsConstants.dropHitPower * 1.05;
-        upPower = 36.0;
-        aimX = (humanPlayer!.position.x < 0) ? 14.0 : -14.0;
-        targetZ = 16.0;
-        ai.useStamina(StaminaConstants.dropShotCost * 0.5);
-      } else if (isUnforcedError) {
-        // Authentic unforced error on baseline exchange
-        chosenShot = ShotType.normal;
-        if (_rng.nextBool()) {
-          forwardPower = PhysicsConstants.normalHitPower * 1.35;
-          upPower = 44.0;
-          targetZ = isPartner ? -75.0 : 75.0;
-          aimX = (_rng.nextDouble() - 0.5) * CourtDimensions.halfWidth * 0.6;
-        } else {
-          forwardPower = PhysicsConstants.normalHitPower * 1.05;
-          upPower = 40.0;
-          targetZ = isPartner ? -50.0 : 50.0;
-          aimX = (_rng.nextBool() ? 1 : -1) * (CourtDimensions.halfWidth + 4.0);
-        }
+        ai.useStamina(StaminaConstants.dropShotCost * (difficulty == AIDifficulty.hard ? 0.5 : 1.0));
+        forwardPower = PhysicsConstants.dropHitPower * (attemptThirdShotDrop ? 1.2 : 1.05); // slightly more power from baseline
+        upPower = attemptThirdShotDrop ? 42.0 : 36.0;
+        targetZ = 16.0; // Aiming for the kitchen
+        aimX = (humanPlayer != null && humanPlayer!.position.x < 0) ? 14.0 : -14.0;
       } else {
-        // Fast flat drive targeting deep corners
+        // Fast flat drive targeting deep corners, or safe center ball for easy
         chosenShot = ShotType.normal;
-        forwardPower = PhysicsConstants.normalHitPower * 1.12;
-        upPower = 39.0;
-        targetZ = 54.0;
-        if (humanPlayer != null) {
-          final oppSideX = humanPlayer!.position.x <= 0
-              ? CourtDimensions.halfWidth * 0.80
-              : -CourtDimensions.halfWidth * 0.80;
-          aimX = oppSideX + (_rng.nextDouble() - 0.5) * 4.0;
-        } else {
-          aimX = (_rng.nextBool() ? 1 : -1) * CourtDimensions.halfWidth * 0.78;
-        }
-      }
-    } else if (difficulty == AIDifficulty.medium) {
-      // ── MEDIUM: BALANCED CLUB PLAYER ─────────────────────────────
-      if (isServeReturn) {
-        chosenShot = ShotType.normal;
-        forwardPower = PhysicsConstants.normalHitPower * 1.05;
-        upPower = 41.0;
-        targetZ = 52.0;
-        aimX = (humanPlayer != null && humanPlayer!.position.x <= 0)
-            ? CourtDimensions.halfWidth * 0.60
-            : -CourtDimensions.halfWidth * 0.60;
-      } else {
-        final roll = _rng.nextDouble();
-        if (ball.position.y > 19.0 &&
-            roll < 0.35 &&
-            ai.stamina >= StaminaConstants.powerShotCost) {
-          chosenShot = ShotType.smash;
-          ai.useStamina(StaminaConstants.powerShotCost);
-          forwardPower = PhysicsConstants.powerHitPower;
-          upPower = 38.0;
-          targetZ = 50.0;
-          aimX = (humanPlayer != null && humanPlayer!.position.x < 0)
-              ? CourtDimensions.halfWidth * 0.65
-              : -CourtDimensions.halfWidth * 0.65;
-        } else if (opponentAtKitchen && aiAtKitchenLine && roll < 0.35) {
-          chosenShot = ShotType.lob;
-          ai.useStamina(StaminaConstants.lobShotCost);
-          forwardPower = PhysicsConstants.lobHitPower;
-          upPower = PhysicsConstants.lobUpPower;
-          targetZ = CourtDimensions.halfLength - 10.0;
-          aimX = humanPlayer!.position.x < 0 ? 14.0 : -14.0;
-        } else if (opponentPinnedDeep &&
-            aiAtKitchenLine &&
-            roll < 0.35 &&
-            ai.stamina >= StaminaConstants.dropShotCost) {
-          chosenShot = ShotType.drop;
-          ai.useStamina(StaminaConstants.dropShotCost);
-          forwardPower = PhysicsConstants.dropHitPower * 1.05;
-          upPower = 36.0;
-          targetZ = 16.0;
-          aimX = (_rng.nextDouble() - 0.5) * 16.0;
-        } else if (isUnforcedError) {
-          chosenShot = ShotType.normal;
-          forwardPower = PhysicsConstants.normalHitPower * 1.25;
+        if (difficulty == AIDifficulty.easy) {
+          forwardPower = 125.0;
           upPower = 43.0;
-          targetZ = isPartner ? -75.0 : 75.0;
-          aimX = (_rng.nextDouble() - 0.5) * CourtDimensions.halfWidth * 0.8;
+          targetZ = isPartner ? -50.0 : 50.0;
+          aimX = (_rng.nextDouble() - 0.5) * 12.0;
         } else {
-          chosenShot = ShotType.normal;
-          forwardPower = PhysicsConstants.normalHitPower;
-          upPower = 40.0;
-          targetZ = 52.0;
-          final targetSide =
-              (humanPlayer != null && humanPlayer!.position.x <= 0) ? 1 : -1;
-          aimX = targetSide * CourtDimensions.halfWidth * 0.60 +
-              (_rng.nextDouble() - 0.5) * 8.0;
+          double driveAggression = 1.0 + personality.aggressionAdjustment;
+          forwardPower = PhysicsConstants.normalHitPower * (1.05 * driveAggression).clamp(0.9, 1.2);
+          upPower = 39.0;
+          targetZ = 54.0;
+          if (humanPlayer != null) {
+            final oppSideX = humanPlayer!.position.x <= 0 ? CourtDimensions.halfWidth * 0.80 : -CourtDimensions.halfWidth * 0.80;
+            aimX = oppSideX + (_rng.nextDouble() - 0.5) * 6.0 * personality.aimSpread;
+          } else {
+            aimX = (_rng.nextBool() ? 1 : -1) * CourtDimensions.halfWidth * 0.78;
+          }
         }
-      }
-    } else {
-      // ── EASY: FORGIVING RALLIES (CENTERED & PREDICTABLE) ──────────
-      if (isUnforcedError) {
-        chosenShot = ShotType.normal;
-        forwardPower = 115.0;
-        upPower = 41.0;
-        targetZ = isPartner ? -50.0 : 50.0;
-        aimX = (_rng.nextBool() ? 1 : -1) * (CourtDimensions.halfWidth + 3.0);
-      } else {
-        chosenShot = ShotType.normal;
-        forwardPower = 125.0;
-        upPower = 43.0; // High, comfortable arc clearing the net easily
-        targetZ = isPartner ? -50.0 : 50.0;
-        aimX = (_rng.nextDouble() - 0.5) *
-            12.0; // Centered directly into player's court
       }
     }
 
@@ -758,8 +717,8 @@ class AIController {
   // ── Recover: return to court position ─────────────────────────
   void _updateRecover(double dt) {
     final defaultZ = ai.isPartner
-        ? CourtDimensions.playerStartZ * 0.6
-        : CourtDimensions.aiStartZ * 0.6;
+        ? personality.recoveryDepth
+        : -personality.recoveryDepth;
     final defaultX = ai.assignedRightSide
         ? (ai.isPartner ? 16.0 : -16.0)
         : (ai.isPartner ? -16.0 : 16.0);
