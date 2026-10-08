@@ -1177,20 +1177,40 @@ class PickleballGame extends ChangeNotifier {
       );
       final hitRadius =
           30.0 + (gameplayPaddleFor(player).control - 0.50) * 12.0;
-      if (distToBall < hitRadius &&
+      final lungeRadius = hitRadius * 1.15;
+      
+      bool withinNormalReach = distToBall < hitRadius;
+      bool withinLungeReach = distToBall < lungeRadius;
+
+      if (withinLungeReach &&
           ball.position.y < 42 &&
           ball.position.z > -8 &&
           ball.canBeHitAfterBounce) {
-        _executePlayerHit(
-          bufferedShot ??
-              (isUltimateArmed ? ShotType.ultimate : ShotType.normal),
-          requestedSpin: bufferedSpin,
-          timingIntent: bufferedTimingIntent,
-        );
-        bufferedShot = null;
-        bufferedSpin = ShotSpin.flat;
-        bufferedTimingIntent = null;
-        swingBufferTimer = 0;
+        
+        if (!withinNormalReach) {
+          if (player.stamina >= StaminaConstants.maxStamina * 0.15) {
+            player.useStamina(StaminaConstants.maxStamina * 0.15);
+            player.isLunging = true;
+            player.hasLungedThisShot = true;
+            player.lungeRecoveryTimer = 0.35;
+          } else {
+            // Can't reach it and don't have stamina to lunge
+            withinLungeReach = false; 
+          }
+        }
+
+        if (withinLungeReach) {
+          _executePlayerHit(
+            bufferedShot ??
+                (isUltimateArmed ? ShotType.ultimate : ShotType.normal),
+            requestedSpin: bufferedSpin,
+            timingIntent: bufferedTimingIntent,
+          );
+          bufferedShot = null;
+          bufferedSpin = ShotSpin.flat;
+          bufferedTimingIntent = null;
+          swingBufferTimer = 0;
+        }
       }
     }
 
@@ -1375,6 +1395,7 @@ class PickleballGame extends ChangeNotifier {
       joystickY: joystickY,
       isNearSide: true,
       timingGrade: timingGrade,
+      paceMultiplier: player.hasLungedThisShot ? 0.88 : 1.0,
     );
 
     switch (activeShot) {
@@ -1456,6 +1477,12 @@ class PickleballGame extends ChangeNotifier {
     };
     ball.shotType = activeShot;
     ball.rallyHitCount++;
+    
+    if (ai.velocity.x.abs() < 2.0 && ai.velocity.z.abs() < 2.0) {
+      ai.splitStepTimer = 0.35;
+    }
+    ai.hasLungedThisShot = false;
+    
     _lastRallyHitter = player;
     _publishContactFeedback(player, timingGrade, playerSlot: 0);
     _publishContactEvent(
@@ -1637,6 +1664,12 @@ class PickleballGame extends ChangeNotifier {
     };
     ball.shotType = activeShot;
     ball.rallyHitCount++;
+    
+    if (player.velocity.x.abs() < 2.0 && player.velocity.z.abs() < 2.0) {
+      player.splitStepTimer = 0.35;
+    }
+    player.hasLungedThisShot = false;
+
     _lastRallyHitter = ai;
     _publishContactFeedback(ai, timingGrade, playerSlot: 1);
     final isPower =

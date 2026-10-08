@@ -18,9 +18,12 @@ class PlayerController {
     final targetVz = jy * PhysicsConstants.playerSpeed * speedMultiplier;
 
     // Smooth acceleration/deceleration
-    final accel = jx.abs() < 0.05 && jy.abs() < 0.05
+    final baseAccel = jx.abs() < 0.05 && jy.abs() < 0.05
         ? PhysicsConstants.playerDeceleration
         : PhysicsConstants.playerAcceleration;
+    
+    // Apply split-step buff
+    final accel = player.splitStepTimer > 0 ? baseAccel * 1.12 : baseAccel;
 
     player.velocity.x = _approachVelocity(
         player.velocity.x, targetVx, accel * dt);
@@ -76,6 +79,18 @@ class PlayerController {
   void updateAnimation(double dt) {
     player.animTimer += dt;
     player.swingCooldown = math.max(0, player.swingCooldown - dt);
+    
+    if (player.splitStepTimer > 0) {
+      player.splitStepTimer = math.max(0, player.splitStepTimer - dt);
+    }
+    
+    if (player.lungeRecoveryTimer > 0) {
+      player.lungeRecoveryTimer -= dt;
+      if (player.lungeRecoveryTimer <= 0) {
+        player.isLunging = false;
+        player.lungeRecoveryTimer = 0;
+      }
+    }
 
     // Progress swing arm
     if (player.isSwinging) {

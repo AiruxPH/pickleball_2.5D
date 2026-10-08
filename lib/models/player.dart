@@ -41,6 +41,10 @@ class Player {
   double stamina;
   final bool isPartner;
   bool assignedRightSide;
+  bool isLunging = false;
+  double lungeRecoveryTimer = 0.0;
+  bool hasLungedThisShot = false;
+  double splitStepTimer = 0.0;
 
   // ── Visual ─────────────────────────────────────────────────
   double facingAngle;     // radians, 0 = facing toward net

@@ -35,6 +35,7 @@ TrajectorySolution solvePlayerShotTrajectory({
   required double joystickY,
   required bool isNearSide,
   SwingTimingGrade timingGrade = SwingTimingGrade.good,
+  double paceMultiplier = 1.0,
 }) {
   double forwardSpeed;
   double upSpeed;
@@ -137,6 +138,10 @@ TrajectorySolution solvePlayerShotTrajectory({
         : (shotType == ShotType.power ? 18.0 : 15.0);
     upSpeed += liftBoost * deepRecoveryFactor;
   }
+
+  // Apply Pace Multiplier (e.g. from lunging)
+  forwardSpeed *= paceMultiplier;
+  upSpeed *= paceMultiplier;
 
   // 5. Directional unit vectors
   final aimDirX = aimDirection.dx.clamp(-0.85, 0.85);
