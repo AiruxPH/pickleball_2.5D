@@ -586,6 +586,7 @@ class PhysicsConstants {
   /// This keeps the bounce visually readable and prevents a same-tick hit from
   /// making the required opening bounces appear to have been skipped.
   static const double postBounceHitDelay = 0.08;
+  static const double minimumOpeningBounceTravel = 3.0;
 
   // Air drag coefficient: perforated ball Cd ≈ 0.45
   // Applied as: velocity *= (1 - dragScale * speed * dt)

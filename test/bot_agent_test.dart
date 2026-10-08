@@ -316,6 +316,82 @@ void main() {
       expect(patient.plannedAim, isNot(aggressive.plannedAim));
     });
 
+    test('opening return waits for visible bounce travel and records intent',
+        () {
+      MatchObservation observation = const MatchObservation(
+        state: GameState.rally,
+        nearPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, 40),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        farPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, -40),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        ball: BallObservation(
+          position: ObservedVector(0, 10, 36.5),
+          velocity: ObservedVector(0, -2, 20),
+          lastHitByNearSide: false,
+          rallyHitCount: 0,
+          hasBounced: true,
+          isInPlay: true,
+          mustBounceBeforeHit: true,
+          lastBounceZ: 34.5,
+        ),
+        controlledPlayerServing: false,
+        serverShouldBeOnRight: true,
+      );
+      final commands = _RecordingCommandSink();
+      final agent = BotAgent(
+        observe: () => observation,
+        commands: commands,
+        difficulty: AIDifficulty.medium,
+      );
+
+      agent.update(1 / 120);
+      expect(commands.lastShot, isNull);
+
+      observation = const MatchObservation(
+        state: GameState.rally,
+        nearPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, 40),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        farPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, -40),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        ball: BallObservation(
+          position: ObservedVector(0, 10, 36.5),
+          velocity: ObservedVector(0, -2, 20),
+          lastHitByNearSide: false,
+          rallyHitCount: 0,
+          hasBounced: true,
+          isInPlay: true,
+          mustBounceBeforeHit: true,
+          lastBounceZ: 30,
+        ),
+        controlledPlayerServing: false,
+        serverShouldBeOnRight: true,
+      );
+      agent.update(1 / 120);
+
+      expect(commands.lastShot, isNotNull);
+      expect(commands.lastTimingIntent, 0.15);
+    });
+
     test('two side-aware agents complete the opening three shots', () {
       final versusGame = PickleballGame(
         screenSize: const Size(800, 600),
@@ -342,11 +418,21 @@ void main() {
       );
 
       var longestRally = 0;
+      var previousHitCount = 0;
+      final openingGrades = <SwingTimingGrade>[];
+      final openingBounceTravel = <double>[];
       for (var i = 0; i < 2400 && longestRally < 2; i++) {
         nearAgent.update(1 / 120);
         farAgent.update(1 / 120);
         versusGame.update(1 / 120);
         longestRally = math.max(longestRally, versusGame.ball.rallyHitCount);
+        if (versusGame.ball.rallyHitCount > previousHitCount) {
+          openingGrades.add(versusGame.contactFeedback!.grade);
+          openingBounceTravel.add(
+            (versusGame.ball.position.z - versusGame.ball.lastBounceZ).abs(),
+          );
+          previousHitCount = versusGame.ball.rallyHitCount;
+        }
       }
 
       expect(longestRally, greaterThanOrEqualTo(2),
@@ -357,6 +443,14 @@ void main() {
               'ball=${versusGame.ball.position}, '
               'near=${versusGame.player.position}, '
               'far=${versusGame.ai.position}');
+      expect(openingGrades, hasLength(2));
+      expect(openingGrades, isNot(contains(SwingTimingGrade.late)));
+      expect(
+        openingBounceTravel,
+        everyElement(
+          greaterThanOrEqualTo(PhysicsConstants.minimumOpeningBounceTravel),
+        ),
+      );
     });
 
     test('easy doubles bots coordinate without wrong-receiver conflicts', () {
@@ -459,6 +553,7 @@ final class _RecordingCommandSink implements MatchCommandSink {
   Offset? aimDirection;
   ShotType? lastShot;
   ShotSpin lastSpin = ShotSpin.flat;
+  double? lastTimingIntent;
 
   @override
   void aim(Offset direction) => aimDirection = direction;
@@ -473,9 +568,14 @@ final class _RecordingCommandSink implements MatchCommandSink {
   void serve() {}
 
   @override
-  void shot(ShotType type, {ShotSpin spin = ShotSpin.flat}) {
+  void shot(
+    ShotType type, {
+    ShotSpin spin = ShotSpin.flat,
+    double? timingIntent,
+  }) {
     lastShot = type;
     lastSpin = spin;
+    lastTimingIntent = timingIntent;
   }
 
   @override

@@ -2,6 +2,18 @@
 
 ## 2026-10-08
 
+### Opening-bounce bot timing correction
+- **Reason of Change:** Timing feedback revealed that command-driven bots finalized their first two return inputs at the contact frame, producing misleading `LATE` grades and visually striking as soon as the post-bounce lock ended.
+- **Changes Applied:**
+  1. Added a separate minimum opening-bounce travel requirement. On the serve return and the following required groundstroke, every AI path now waits until the ball has visibly travelled at least 3 world units after its legal bounce before contact is allowed.
+  2. Kept the forgiving bot reach envelope so Easy, Medium, and Hard opponents do not miss otherwise playable returns while waiting.
+  3. Extended the shared command sink with an optional timing-intent override. Command-driven bots now submit the timing decision they planned before contact (Easy `GOOD`; Medium/Hard capable of `PERFECT`) instead of being graded from the final dispatch frame. Human and network commands continue capturing real press timing automatically.
+  4. Added regression coverage proving an opening bot return cannot fire before the travel threshold, carries its planned intent, completes both opening exchanges, and never reports `LATE` for those legal returns.
+- **Verification:**
+  - Focused BotAgent, AI rally, AI trajectory, and AI context suites passed (33/33 tests).
+  - `flutter analyze` completed with no issues.
+  - Complete Flutter suite passed (198/198 tests); the existing compact-Shop `PLAYERS` hit-test warning remains non-fatal.
+
 ### Timing and spin gameplay enhancement
 - **Reason of Change:** Add a forgiving contact-timing reward system and persistent Flat/Topspin/Slice choices without changing official rules, paddle-bound specials, or host-authoritative multiplayer.
 - **Changes Applied:**

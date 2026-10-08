@@ -335,6 +335,7 @@ class AIController {
     if (mustWaitBounce) return;
     if (_ballBouncedThisTick) return;
     if (!ball.canBeHitAfterBounce) return;
+    if (!_openingBounceHasTravelled) return;
     if (_teamSideTravelTimer < minimumTeamSideTravelTime) return;
 
     // Never strike while touching the NVZ unless the current ball bounced
@@ -382,6 +383,7 @@ class AIController {
 
     if (_ballBouncedThisTick ||
         !ball.canBeHitAfterBounce ||
+        !_openingBounceHasTravelled ||
         _teamSideTravelTimer < minimumTeamSideTravelTime ||
         !canContactBall()) {
       _state = AIState.approach;
@@ -720,6 +722,12 @@ class AIController {
 
     _state = AIState.recover;
   }
+
+  bool get _openingBounceHasTravelled =>
+      ball.rallyHitCount >= 2 ||
+      (ball.hasBounced &&
+          (ball.position.z - ball.lastBounceZ).abs() >=
+              PhysicsConstants.minimumOpeningBounceTravel);
 
   bool get _ballBouncedInOwnKitchen {
     if (!ball.hasBounced) return false;

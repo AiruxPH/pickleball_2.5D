@@ -203,17 +203,24 @@ class BotAgent {
     final mustBounce = ball.mustBounceBeforeHit && !ball.hasBounced;
     final lateral = (ball.position.x - player.position.x).abs();
     final forward = localPlayerZ - localBallZ;
+    final openingExchange = ball.rallyHitCount < 2;
+    final postBounceTravel = (ball.position.z - ball.lastBounceZ).abs();
+    final hasVisibleOpeningTravel = !openingExchange ||
+        (ball.hasBounced &&
+            postBounceTravel >= PhysicsConstants.minimumOpeningBounceTravel);
     final insideContactEnvelope = lateral <= 10 &&
         forward >= -5 &&
         forward <= 10 &&
         ball.position.y >= PhysicsConstants.ballRadius &&
-        ball.position.y <= CourtDimensions.playerHeight + 8;
+        ball.position.y <=
+            (openingExchange ? 42 : CourtDimensions.playerHeight + 8);
     final legalKitchenContact = !player.isInKitchen || bouncedInOwnKitchen;
     final legalVolleyStance =
         ball.hasBounced || player.hasEstablishedOutsideKitchen;
     if (mustBounce ||
         _shotCooldown > 0 ||
         !player.canSwing ||
+        !hasVisibleOpeningTravel ||
         !insideContactEnvelope ||
         !legalKitchenContact ||
         !legalVolleyStance) {
@@ -222,7 +229,15 @@ class BotAgent {
 
     if (!_hasShotPlan) _planReturn(observation);
     commands.aim(_plannedAim);
-    commands.shot(_plannedShot, spin: _plannedSpin);
+    commands.shot(
+      _plannedShot,
+      spin: _plannedSpin,
+      timingIntent: switch (difficulty) {
+        AIDifficulty.easy => 0.20,
+        AIDifficulty.medium => 0.15,
+        AIDifficulty.hard => 0.11,
+      },
+    );
     _shotCooldown = 0.48;
     _hasShotPlan = false;
     return true;

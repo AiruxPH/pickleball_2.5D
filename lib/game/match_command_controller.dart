@@ -98,7 +98,11 @@ abstract interface class MatchCommandSink {
   void aim(Offset direction);
   void clearAim();
   void serve();
-  void shot(ShotType type, {ShotSpin spin = ShotSpin.flat});
+  void shot(
+    ShotType type, {
+    ShotSpin spin = ShotSpin.flat,
+    double? timingIntent,
+  });
   void toggleUltimate();
 }
 
@@ -183,11 +187,17 @@ class MatchCommandController implements MatchCommandSink {
   void serve() => dispatch(const MatchCommand.serve());
 
   @override
-  void shot(ShotType type, {ShotSpin spin = ShotSpin.flat}) => dispatch(
+  void shot(
+    ShotType type, {
+    ShotSpin spin = ShotSpin.flat,
+    double? timingIntent,
+  }) =>
+      dispatch(
         MatchCommand.shot(
           type,
           spin: spin,
-          timingIntent: game.captureSwingTimingIntent(playerSlot: playerSlot),
+          timingIntent: timingIntent ??
+              game.captureSwingTimingIntent(playerSlot: playerSlot),
         ),
       );
 
