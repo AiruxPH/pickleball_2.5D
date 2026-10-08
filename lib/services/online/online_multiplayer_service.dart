@@ -50,8 +50,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
   bool _restoringPresence = false;
   WebRtcGameTransport? _webRtc;
 
-  static const int _maxSnapshotWritesInFlight = 3;
-  static const int _maxCommandWritesInFlight = 3;
+  static const int _maxSnapshotWritesInFlight = 1;
+  static const int _maxCommandWritesInFlight = 1;
 
   final _startController = StreamController<Map<String, dynamic>>.broadcast();
   final _commandController = StreamController<MatchCommand>.broadcast();
@@ -453,13 +453,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
       'cmd': next.toJson(),
       'createdAt': ServerValue.timestamp,
     }).catchError((Object error) {
-      _pendingCommand = null;
-      _pendingPriorityCommands.clear();
-      _commandWritesEnabled = false;
-      _status = OnlineStatus.error;
-      _errorMessage = 'Challenger input was rejected: $error';
-      debugPrint('[OnlineMultiplayer] $_errorMessage');
-      notifyListeners();
+      debugPrint('[OnlineMultiplayer] Challenger input write failed: $error');
     }).whenComplete(() {
       _commandWritesInFlight = max(0, _commandWritesInFlight - 1);
       _flushPendingCommands();
@@ -480,13 +474,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
     try {
       await _room!.child('snapshot').set(snapshot.toJson());
     } catch (error) {
-      // A frame-driven caller must never create an unbounded stream of
-      // rejected futures. Disable sync until the next room connection.
-      _snapshotWriteEnabled = false;
-      _status = OnlineStatus.error;
-      _errorMessage = 'Online state sync failed: $error';
-      debugPrint('[OnlineMultiplayer] $_errorMessage');
-      notifyListeners();
+      debugPrint('[OnlineMultiplayer] Online state sync failed: $error');
     } finally {
       _snapshotWritesInFlight = max(0, _snapshotWritesInFlight - 1);
     }

@@ -69,11 +69,9 @@ final class WebRtcGameTransport {
 
   Future<void> _startHost() async {
     final realtimeInit = RTCDataChannelInit()
-      ..id = 1
       ..ordered = false
       ..maxRetransmits = 1;
     final reliableInit = RTCDataChannelInit()
-      ..id = 3
       ..ordered = true;
     _attachChannel(
       await _peer!.createDataChannel('realtime', realtimeInit),
