@@ -1011,10 +1011,10 @@ class _ShopScreenState extends State<ShopScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: getUltimateByType(paddle.specialSkill!).primaryColor.withOpacity(0.15),
+                color: getUltimateByType(paddle.specialSkill!).primaryColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: getUltimateByType(paddle.specialSkill!).primaryColor.withOpacity(0.3),
+                  color: getUltimateByType(paddle.specialSkill!).primaryColor.withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
