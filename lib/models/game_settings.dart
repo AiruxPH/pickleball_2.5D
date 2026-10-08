@@ -278,7 +278,7 @@ class GameSettings extends ChangeNotifier {
   String _equippedPlayerId = 'player_rookie';
   String get equippedPlayerId => _equippedPlayerId;
 
-  List<String> _unlockedPlayerIds = ['player_rookie'];
+  List<String> _unlockedPlayerIds = ['player_rookie', 'player_rookie_girl'];
   List<String> get unlockedPlayerIds => List.unmodifiable(_unlockedPlayerIds);
 
   bool isPaddleUnlocked(String id) => _unlockedPaddleIds.contains(id);
@@ -597,6 +597,9 @@ class GameSettings extends ChangeNotifier {
       _unlockedPlayerIds = List<String>.from(json['unlockedPlayerIds'] as List);
       if (!_unlockedPlayerIds.contains('player_rookie')) {
         _unlockedPlayerIds.insert(0, 'player_rookie');
+      }
+      if (!_unlockedPlayerIds.contains('player_rookie_girl')) {
+        _unlockedPlayerIds.insert(1, 'player_rookie_girl');
       }
     }
     _lastBonusClaimDate = (json['lastBonusClaimDate'] as String?) ?? '';

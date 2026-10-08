@@ -1458,10 +1458,11 @@ class _ShopScreenState extends State<ShopScreen>
                           children: [
                             ShopPlayerPreview(
                               playerSkin: skin,
-                              width: 100,
-                              height: 120,
+                              width: 110,
+                              height: 130,
                               isInteractive: false,
                             ),
+                            ShopCharacterViews(skin: skin, height: 36),
                             const SizedBox(height: 8),
                             Text(
                               skin.name,
@@ -1512,11 +1513,12 @@ class _ShopScreenState extends State<ShopScreen>
                       Center(
                         child: ShopPlayerPreview(
                           playerSkin: skin,
-                          width: 110,
-                          height: 135,
+                          width: 130,
+                          height: 160,
                           isInteractive: false,
                         ),
                       ),
+                      ShopCharacterViews(skin: skin, height: 54),
                       const SizedBox(height: 10),
                       Text(
                         skin.name,

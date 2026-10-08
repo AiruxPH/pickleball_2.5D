@@ -1,0 +1,17 @@
+{
+  "cellWidth": 224,
+  "cellHeight": 216,
+  "anchorX": 112,
+  "anchorY": 202,
+  "bodyHeight": 150.0,
+  "rows": {
+    "hit_left": {
+      "row": 0,
+      "frames": 5
+    },
+    "hit_right": {
+      "row": 1,
+      "frames": 5
+    }
+  }
+}

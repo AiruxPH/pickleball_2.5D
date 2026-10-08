@@ -53,6 +53,7 @@ class Player {
   double smoothedLean;    // smoothed lateral banking angle
   double swingArm;        // 0..1, arm swing progress
   double speedMultiplier; // temporary buff/debuff (e.g. frostbite freeze)
+  double staminaRegenMultiplier; // multiplier for stamina regeneration rate
   double facingFlip;      // -1..1 eased horizontal facing used by the renderer
   double facingFlipTarget;
 
@@ -100,6 +101,7 @@ class Player {
         smoothedLean = 0.0,
         swingArm = 0,
         speedMultiplier = 1.0,
+        staminaRegenMultiplier = 1.0,
         facingFlip = 1.0,
         facingFlipTarget = 1.0,
         kitchenMomentumFlag = false,
@@ -128,7 +130,7 @@ class Player {
 
   // ── Stamina management ─────────────────────────────────────
   void regenStamina(double dt) {
-    stamina = (stamina + StaminaConstants.recoveryRate * dt)
+    stamina = (stamina + (StaminaConstants.recoveryRate * staminaRegenMultiplier) * dt)
         .clamp(0.0, StaminaConstants.maxStamina);
   }
 

@@ -14,8 +14,9 @@ class PlayerController {
   // ── Movement ────────────────────────────────────────────────
   void updateMovement(double dt, double jx, double jy, {double speedMultiplier = 1.0}) {
     // Target velocity from joystick
-    final targetVx = jx * PhysicsConstants.playerSpeed * speedMultiplier;
-    final targetVz = jy * PhysicsConstants.playerSpeed * speedMultiplier;
+    final totalMultiplier = speedMultiplier * player.speedMultiplier;
+    final targetVx = jx * PhysicsConstants.playerSpeed * totalMultiplier;
+    final targetVz = jy * PhysicsConstants.playerSpeed * totalMultiplier;
 
     // Smooth acceleration/deceleration
     final baseAccel = jx.abs() < 0.05 && jy.abs() < 0.05
