@@ -226,6 +226,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('SELECT COURT'), findsOneWidget);
+    final courtStrip = tester.widget<ListView>(
+      find.byKey(const ValueKey('court-scroll-strip')),
+    );
+    expect(courtStrip.scrollDirection, Axis.horizontal);
     expect(find.text('CENTER COURT'), findsOneWidget);
     expect(find.text('TROPICAL BEACH'), findsOneWidget);
     expect(find.text('SKY ARENA'), findsOneWidget);

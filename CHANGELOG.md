@@ -2,6 +2,14 @@
 
 ## 2026-10-08
 
+### Mode selection frame and court-strip alignment
+- **Reason of Change:** Bring the refreshed Mode Selection screen back into the shared athletic frame language and ensure court browsing remains usable with desktop input.
+- **Changes Applied:**
+  1. Replaced rounded mode-card shells with the shared chamfered/angular card treatment and converted their icon wells and badges to matching beveled and parallelogram shapes.
+  2. Applied a palette-accented beveled frame to the match setup popup.
+  3. Made the court picker an always-horizontal strip with a visible track and thumb, fixed-width venue cards, and touch, mouse, trackpad, and stylus drag support on every screen size.
+- **Verification:** Focused mode-selection suite passed (8/8 tests), including desktop horizontal court-strip coverage, and `flutter analyze` completed with no issues.
+
 ### Mode selection visual revamp
 - **Reason of Change:** Give match selection a clearer hierarchy and a more energetic, premium sports-game presentation.
 - **Changes Applied:**

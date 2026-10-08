@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -24,6 +25,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
     with TickerProviderStateMixin {
   late AnimationController _enterCtrl;
   late Animation<double> _fadeAnim;
+  final ScrollController _courtScrollController = ScrollController();
 
   int _selectedModeIndex = 0;
   bool _botVsBotDoubles = false;
@@ -83,6 +85,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
 
   @override
   void dispose() {
+    _courtScrollController.dispose();
     _enterCtrl.dispose();
     super.dispose();
   }
@@ -235,6 +238,16 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
       builder: (dialogContext) => StatefulBuilder(
         builder: (_, refreshDialog) => Dialog(
           backgroundColor: const Color(0xFF0F1E36),
+          elevation: 18,
+          shadowColor: Colors.black.withAlpha(190),
+          shape: BeveledRectangleBorder(
+            side: BorderSide(
+              color: _modes[index].palette.border,
+              width: 1.8,
+            ),
+            borderRadius: BorderRadius.circular(18 * ui),
+          ),
+          clipBehavior: Clip.antiAlias,
           insetPadding: const EdgeInsets.all(18),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720, maxHeight: 620),
@@ -470,47 +483,41 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
   }
 
   Widget _buildCourtPicker(double ui, {StateSetter? refreshDialog}) {
-    // All five courts side by side when they fit; a scrolling strip on
-    // narrow phones.
-    return LayoutBuilder(builder: (context, c) {
-      final n = CourtTheme.values.length;
-      final gap = 10 * ui;
-      final fitWidth = (c.maxWidth - gap * (n - 1)) / n;
-      if (fitWidth >= 86 * ui) {
-        return SizedBox(
-          height: 118 * ui,
-          child: Row(
-            children: [
-              for (int i = 0; i < n; i++) ...[
-                if (i > 0) SizedBox(width: gap),
-                Expanded(
-                  child: _courtCard(
-                    i,
-                    ui,
-                    null,
-                    refreshDialog: refreshDialog,
-                  ),
-                ),
-              ],
-            ],
+    final gap = 10 * ui;
+    return SizedBox(
+      height: 132 * ui,
+      child: Scrollbar(
+        controller: _courtScrollController,
+        thumbVisibility: true,
+        trackVisibility: true,
+        scrollbarOrientation: ScrollbarOrientation.bottom,
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(
+            dragDevices: const {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+              PointerDeviceKind.stylus,
+            },
           ),
-        );
-      }
-      return SizedBox(
-        height: 118 * ui,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: n,
-          separatorBuilder: (_, __) => SizedBox(width: gap),
-          itemBuilder: (_, i) => _courtCard(
-            i,
-            ui,
-            112 * ui,
-            refreshDialog: refreshDialog,
+          child: ListView.separated(
+            key: const ValueKey('court-scroll-strip'),
+            controller: _courtScrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.only(bottom: 14 * ui, right: 8 * ui),
+            itemCount: CourtTheme.values.length,
+            separatorBuilder: (_, __) => SizedBox(width: gap),
+            itemBuilder: (_, i) => _courtCard(
+              i,
+              ui,
+              136 * ui,
+              refreshDialog: refreshDialog,
+            ),
           ),
         ),
-      );
-    });
+      ),
+    );
   }
 
   Widget _courtCard(
@@ -690,19 +697,12 @@ class _ModeCard extends StatelessWidget {
         child: Container(
           height: featured ? 158 * ui : null,
           constraints: BoxConstraints(minHeight: featured ? 148 * ui : 0),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                mode.palette.colors.first,
-                mode.palette.colors[1],
-                mode.palette.colors.last,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: mode.palette.border, width: 1.5),
-            boxShadow: [
+          decoration: angularCardDecoration(
+            colors: mode.palette.colors,
+            border: mode.palette.border,
+            cut: radius,
+            borderWidth: 1.8,
+            shadows: [
               BoxShadow(
                 color: mode.palette.colors.last.withAlpha(105),
                 blurRadius: featured ? 24 : 16,
@@ -710,8 +710,8 @@ class _ModeCard extends StatelessWidget {
               ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(radius - 1),
+          child: ClipPath(
+            clipper: ChamferClipper(cut: radius),
             child: Stack(
               children: [
                 Positioned(
@@ -742,10 +742,14 @@ class _ModeCard extends StatelessWidget {
                       Container(
                         width: (featured ? 72 : 58) * ui,
                         height: (featured ? 72 : 58) * ui,
-                        decoration: BoxDecoration(
+                        decoration: ShapeDecoration(
                           color: const Color(0x3308172C),
-                          borderRadius: BorderRadius.circular(18 * ui),
-                          border: Border.all(color: Colors.white.withAlpha(80)),
+                          shape: BeveledRectangleBorder(
+                            side: BorderSide(
+                              color: Colors.white.withAlpha(80),
+                            ),
+                            borderRadius: BorderRadius.circular(10 * ui),
+                          ),
                         ),
                         child: Icon(
                           mode.icon,
@@ -759,17 +763,12 @@ class _ModeCard extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
+                            ParallelogramBadge(
+                              color: const Color(0x3D071426),
+                              borderColor: Colors.white.withAlpha(65),
                               padding: EdgeInsets.symmetric(
                                 horizontal: 8 * ui,
                                 vertical: 3 * ui,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0x3D071426),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withAlpha(65),
-                                ),
                               ),
                               child: Text(
                                 badge,
