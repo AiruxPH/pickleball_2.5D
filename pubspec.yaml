@@ -51,6 +51,7 @@ flutter:
     - assets/images/menu/
     - assets/images/courts/
     - assets/models/
+    - assets/images/characters/shop/
 
 
   fonts:

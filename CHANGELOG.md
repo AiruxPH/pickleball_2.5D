@@ -1,5 +1,16 @@
 # Change Log
 
+## 2026-10-09
+
+### Pickleball Champions internal showcase presentation
+- **Reason of Change:** Create an editable internal/demo-review presentation that accurately showcases the game's implemented modes, mechanics, progression, presentation, customization, multiplayer foundation, and approved roadmap.
+- **Changes Applied:**
+  1. Created a 12-slide, 16:9 Canva presentation with a competitive-sports visual direction and concise live-demo narrative.
+  2. Uploaded and incorporated authentic project media, including the game logo, menu artwork, court environments, character artwork, gameplay screenshot, and trailer.
+  3. Fact-checked the generated copy against the repository, removed unsupported product claims, and clearly labeled planned roadmap features.
+  4. Saved the editable Canva presentation at https://canva.link/jrxha6jvj777jx7 (design ID `DAHXdX30R-4`).
+- **Verification:** Confirmed exactly 12 editable pages at 1920x1080, reviewed all page previews, and verified slide copy after the correction pass. Documentation-only repository change; no Dart source changed and no Flutter hot reload was required.
+
 ## 2026-10-08
 
 ### Mode selection frame and court-strip alignment
