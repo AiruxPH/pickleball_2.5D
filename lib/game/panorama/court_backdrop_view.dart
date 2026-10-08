@@ -80,9 +80,9 @@ class _CourtBackdropViewState extends State<CourtBackdropView> {
   Widget build(BuildContext context) {
     final panorama = _cachedPanorama;
     final view = widget.presentation.cameraController.view;
-    final blurForAlternateView = view == CameraView.sideline ||
-        view == CameraView.overhead ||
-        view == CameraView.freeRoam;
+    final isOverhead = view == CameraView.overhead;
+    final blurForAlternateView = view == CameraView.sideline || view == CameraView.freeRoam;
+    
     if (panorama != null) {
       return ImageFiltered(
         imageFilter: ui.ImageFilter.blur(
@@ -111,7 +111,9 @@ class _CourtBackdropViewState extends State<CourtBackdropView> {
         duration: const Duration(milliseconds: 700),
         curve: Curves.easeOutCubic,
         child: Image.asset(
-          widget.game.settings.courtTheme.assetPath,
+          isOverhead 
+              ? widget.game.settings.courtTheme.overheadAssetPath
+              : widget.game.settings.courtTheme.assetPath,
           fit: BoxFit.cover,
           alignment: Alignment.center,
           cacheWidth: widget.game.settings.isLowEndMode ? 960 : 1920,

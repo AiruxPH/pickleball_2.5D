@@ -284,6 +284,25 @@ extension CourtThemeExtension on CourtTheme {
     }
   }
 
+  String get overheadAssetPath {
+    switch (this) {
+      case CourtTheme.tournament:
+        return 'assets/images/courts/court_7_overhead.jpg';
+      case CourtTheme.beach:
+        return 'assets/images/courts/court_1_overhead.jpg';
+      case CourtTheme.indoor:
+        return 'assets/images/courts/court_2_overhead.jpg';
+      case CourtTheme.outdoor:
+        return assetPath; // Uses court_3.png as fallback
+      case CourtTheme.midnight:
+        return 'assets/images/courts/court_4_overhead.jpg';
+      case CourtTheme.volcano:
+        return 'assets/images/courts/court_5_overhead.jpg';
+      case CourtTheme.canyon:
+        return 'assets/images/courts/court_6_overhead.jpg';
+    }
+  }
+
   /// Optional 360-degree equirectangular panorama backdrop for dynamic camera rendering
   String? get panoramaAssetPath {
     return null;
