@@ -1596,7 +1596,7 @@ class CourtPainter extends CustomPainter {
     final a = cam.projectCoords(0, 0, z - 0.5);
     final b = cam.projectCoords(0, 0, z + 0.5);
     if (a == null || b == null) return 1.0;
-    return (b.dy - a.dy).abs().clamp(0.05, 1000.0);
+    return (b - a).distance.clamp(0.05, 1000.0);
   }
 
   void _drawCourtLines(Canvas canvas, PerspectiveCamera cam, double hw,
