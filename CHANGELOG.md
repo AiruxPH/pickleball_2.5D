@@ -2,6 +2,15 @@
 
 ## 2026-10-08
 
+### Mode selection visual revamp
+- **Reason of Change:** Give match selection a clearer hierarchy and a more energetic, premium sports-game presentation.
+- **Changes Applied:**
+  1. Reframed the screen with a punchier match-focused heading and supporting copy.
+  2. Promoted Singles into a full-width Quick Play hero card, with the remaining modes organized under a clear secondary section.
+  3. Added responsive, palette-driven cards with oversized sport iconography, format badges, depth, stronger typography, and explicit forward affordances.
+  4. Preserved all mode setup dialogs, match configuration behavior, navigation payloads, and accessibility semantics.
+- **Verification:** Focused mode-selection suite passed (8/8 tests), and `flutter analyze` completed with no issues. No Dart DTD/VM-service tool was exposed to this session, so no running app could be hot reloaded automatically.
+
 ### Gameplay enhancement Phase 0 — shared foundation
 - **Reason of Change:** Establish one host-authoritative foundation for later tactical gameplay, movement assists, AI personalities, Arcade goals, highlights, and match review.
 - **Changes Applied:**

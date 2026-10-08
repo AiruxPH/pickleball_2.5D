@@ -11,7 +11,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  Future<Widget> buildTestWidget({Size size = const Size(1000, 600), Object? arguments}) async {
+  Future<Widget> buildTestWidget(
+      {Size size = const Size(1000, 600), Object? arguments}) async {
     final settingsService = SettingsService();
     await settingsService.init();
     final gameSettings = GameSettings();
@@ -26,7 +27,8 @@ void main() {
           if (routeSettings.name == '/mode-select') {
             return MaterialPageRoute(
               builder: (_) => const ModeSelectScreen(),
-              settings: RouteSettings(name: '/mode-select', arguments: arguments),
+              settings:
+                  RouteSettings(name: '/mode-select', arguments: arguments),
             );
           }
           if (routeSettings.name == '/game') {
@@ -65,7 +67,7 @@ void main() {
     await tester.pumpWidget(await buildTestWidget(size: const Size(1280, 720)));
     await tester.pumpAndSettle();
 
-    expect(find.text('SELECT MODE'), findsOneWidget);
+    expect(find.text('CHOOSE YOUR MATCH'), findsOneWidget);
     expect(find.text('QUICK MATCH'), findsNothing);
     expect(find.text('SINGLES 1v1'), findsOneWidget);
     expect(find.text('DOUBLES 2v2'), findsOneWidget);
@@ -119,7 +121,8 @@ void main() {
     expect(find.text('HARD'), findsOneWidget);
   });
 
-  testWidgets('Tapping PLAY NOW with DOUBLES 2v2 navigates with doubles mode and difficulty',
+  testWidgets(
+      'Tapping PLAY NOW with DOUBLES 2v2 navigates with doubles mode and difficulty',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1280, 720);
     tester.view.devicePixelRatio = 1.0;
@@ -141,7 +144,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify destination received doubles mode and difficulty 3 (Hard)
-    expect(find.textContaining('GameScreen: {mode: doubles, difficulty: 3}'), findsOneWidget);
+    expect(find.textContaining('GameScreen: {mode: doubles, difficulty: 3}'),
+        findsOneWidget);
   });
 
   testWidgets('Selecting SINGLES 1v1 updates selected mode',
@@ -172,12 +176,12 @@ void main() {
     await tester.tap(find.text('SINGLES 1v1'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('menu-segment-MEDIUM-true')),
-        findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('menu-segment-MEDIUM-true')), findsOneWidget);
     await tester.tap(find.text('HARD'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('menu-segment-HARD-true')),
-        findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('menu-segment-HARD-true')), findsOneWidget);
     expect(find.byKey(const ValueKey('menu-segment-MEDIUM-false')),
         findsOneWidget);
 
@@ -185,11 +189,12 @@ void main() {
     await tester.tap(find.text('FOREST PARK'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('court-outdoor-true')), findsOneWidget);
-    expect(find.byKey(const ValueKey('court-tournament-false')),
-        findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('court-tournament-false')), findsOneWidget);
   });
 
-  testWidgets('Portrait layout renders DOUBLES 2v2 and shows difficulty when tapped',
+  testWidgets(
+      'Portrait layout renders DOUBLES 2v2 and shows difficulty when tapped',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -207,7 +212,8 @@ void main() {
     expect(find.text('DIFFICULTY'), findsOneWidget);
   });
 
-  testWidgets('Court selection renders all professional courts with badges and allows switching',
+  testWidgets(
+      'Court selection renders all professional courts with badges and allows switching',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1280, 720);
     tester.view.devicePixelRatio = 1.0;

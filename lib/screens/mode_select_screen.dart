@@ -41,8 +41,11 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         Icons.smart_toy_rounded, TilePalette.green),
     _ModeOption('ONLINE MULTIPLAYER', 'Create or join a Firebase room',
         Icons.public_rounded, TilePalette.gold),
-    _ModeOption('LAN MULTIPLAYER', 'Device vs device over Wi-Fi / Local Network',
-        Icons.wifi_rounded, TilePalette.red),
+    _ModeOption(
+        'LAN MULTIPLAYER',
+        'Device vs device over Wi-Fi / Local Network',
+        Icons.wifi_rounded,
+        TilePalette.red),
   ];
 
   @override
@@ -157,8 +160,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
     return FadeTransition(
       opacity: _fadeAnim,
       child: MenuScreen(
-        title: 'SELECT MODE',
-        subtitle: 'Choose a match type, then configure the court',
+        title: 'CHOOSE YOUR MATCH',
+        subtitle: 'Pick a format. Own the court.',
         body: _buildModeGrid(m.contentUi, m.landscape),
       ),
     );
@@ -168,39 +171,53 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         final available = constraints.maxWidth - 32 * ui;
-        final gap = 14 * ui;
-        final wide = landscape && available >= 900 * ui;
-        final twoColumns = !wide && available >= 560 * ui;
-        final firstRowWidth = wide
-            ? (available - gap * 2) / 3
-            : twoColumns
-                ? (available - gap) / 2
-                : available;
-        final secondRowWidth = wide ? (available - gap) / 2 : firstRowWidth;
-        final cardHeight = (wide ? 128 : 116) * ui;
+        final gap = 12 * ui;
+        final wide = landscape && available >= 760 * ui;
+        final cardWidth = wide ? (available - gap) / 2 : available;
+        final cardHeight = (wide ? 138 : 124) * ui;
 
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(16 * ui, 12 * ui, 16 * ui, 24 * ui),
-          child: Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: List.generate(_modes.length, (i) {
-              final mode = _modes[i];
-              final width = wide && i >= 3 ? secondRowWidth : firstRowWidth;
-              return SizedBox(
-                width: width,
-                height: cardHeight,
-                child: MenuSelectTile(
-                  selected: false,
-                  palette: mode.palette,
-                  icon: mode.icon,
-                  title: mode.label,
-                  subtitle: mode.subtitle,
-                  titleSize: wide ? 16 : 15,
-                  onTap: () => _showModeSetup(i, ui),
-                ),
-              );
-            }),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ModeCard(
+                key: const ValueKey('mode-card-singles'),
+                mode: _modes.first,
+                ui: ui,
+                featured: true,
+                badge: 'QUICK PLAY',
+                onTap: () => _showModeSetup(0, ui),
+              ),
+              SizedBox(height: 18 * ui),
+              _buildSectionLabel('MORE WAYS TO PLAY', Icons.apps_rounded),
+              SizedBox(height: 10 * ui),
+              Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: List.generate(_modes.length - 1, (offset) {
+                  final i = offset + 1;
+                  final mode = _modes[i];
+                  return SizedBox(
+                    width: cardWidth,
+                    height: cardHeight,
+                    child: _ModeCard(
+                      key: ValueKey('mode-card-$i'),
+                      mode: mode,
+                      ui: ui,
+                      badge: i == 2
+                          ? 'SPECTATE'
+                          : i == 3
+                              ? 'ONLINE'
+                              : i == 4
+                                  ? 'LOCAL'
+                                  : 'TEAM PLAY',
+                      onTap: () => _showModeSetup(i, ui),
+                    ),
+                  );
+                }),
+              ),
+            ],
           ),
         );
       },
@@ -373,7 +390,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSectionLabel('SELECT COURT', Icons.stadium_rounded),
+                          _buildSectionLabel(
+                              'SELECT COURT', Icons.stadium_rounded),
                           SizedBox(height: 10 * ui),
                           _buildCourtPicker(ui),
                         ],
@@ -537,7 +555,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
               colors: colors,
               borderColor: borderColor,
               borderWidth: selected ? 2.0 : 1.5,
-              angleDegrees: 7.0, // Matching 7° athletic slant on right edge only
+              angleDegrees:
+                  7.0, // Matching 7° athletic slant on right edge only
               radius: radius,
               direction: SlantDirection.forward,
             ),
@@ -640,6 +659,174 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
       icon: Icons.play_arrow_rounded,
       palette: TilePalette.gold,
       onTap: _onPlay,
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  final _ModeOption mode;
+  final double ui;
+  final bool featured;
+  final String badge;
+  final VoidCallback onTap;
+
+  const _ModeCard({
+    super.key,
+    required this.mode,
+    required this.ui,
+    required this.badge,
+    required this.onTap,
+    this.featured = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = 18 * ui;
+    return Semantics(
+      button: true,
+      label: '${mode.label}. ${mode.subtitle}',
+      child: MenuPressable(
+        onTap: onTap,
+        child: Container(
+          height: featured ? 158 * ui : null,
+          constraints: BoxConstraints(minHeight: featured ? 148 * ui : 0),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                mode.palette.colors.first,
+                mode.palette.colors[1],
+                mode.palette.colors.last,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: mode.palette.border, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: mode.palette.colors.last.withAlpha(105),
+                blurRadius: featured ? 24 : 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius - 1),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: -18 * ui,
+                  bottom: -26 * ui,
+                  child: Icon(
+                    mode.icon,
+                    size: (featured ? 156 : 116) * ui,
+                    color: Colors.white.withAlpha(24),
+                  ),
+                ),
+                Positioned(
+                  left: -30 * ui,
+                  top: -55 * ui,
+                  child: Container(
+                    width: 150 * ui,
+                    height: 150 * ui,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withAlpha(18),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.all((featured ? 20 : 16) * ui),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: (featured ? 72 : 58) * ui,
+                        height: (featured ? 72 : 58) * ui,
+                        decoration: BoxDecoration(
+                          color: const Color(0x3308172C),
+                          borderRadius: BorderRadius.circular(18 * ui),
+                          border: Border.all(color: Colors.white.withAlpha(80)),
+                        ),
+                        child: Icon(
+                          mode.icon,
+                          size: (featured ? 39 : 31) * ui,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 16 * ui),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8 * ui,
+                                vertical: 3 * ui,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0x3D071426),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withAlpha(65),
+                                ),
+                              ),
+                              child: Text(
+                                badge,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontFamily: AppFonts.orbitron,
+                                  fontSize: 8.5 * ui,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 8 * ui),
+                            Text(
+                              mode.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: menuTitleStyle((featured ? 23 : 17) * ui),
+                            ),
+                            SizedBox(height: 4 * ui),
+                            Text(
+                              mode.subtitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withAlpha(215),
+                                fontSize: (featured ? 12 : 10.5) * ui,
+                                fontWeight: FontWeight.w700,
+                                height: 1.25,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 8 * ui),
+                      Container(
+                        width: 38 * ui,
+                        height: 38 * ui,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(35),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withAlpha(70)),
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Colors.white,
+                          size: 21 * ui,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
