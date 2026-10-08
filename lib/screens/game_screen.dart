@@ -1207,6 +1207,7 @@ class _GameScreenState extends State<GameScreen>
               top: settings.joystickHudPosition.dy * size.height -
                   joystickSize / 2,
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onPanUpdate: _customizingControls
                     ? (details) {
                         final next = settings.joystickHudPosition +
@@ -1235,6 +1236,7 @@ class _GameScreenState extends State<GameScreen>
               left: settings.actionsHudPosition.dx * size.width - 90,
               top: settings.actionsHudPosition.dy * size.height - 70,
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onPanUpdate: _customizingControls
                     ? (details) {
                         final next = settings.actionsHudPosition +
@@ -1254,6 +1256,7 @@ class _GameScreenState extends State<GameScreen>
                         game,
                         isLandscape: isLandscape,
                         screenHeight: size.height,
+                        forceShowAll: _customizingControls,
                       ),
                     ),
                   ),
@@ -1476,8 +1479,8 @@ class _GameScreenState extends State<GameScreen>
 
   // ── Action Controls: Context-Aware & Ultra-Compact Thumb Cluster ──
   Widget _buildActionButtons(PickleballGame game,
-      {required bool isLandscape, double screenHeight = 400}) {
-    final isServing = _localPlayerCanServe(game);
+      {required bool isLandscape, double screenHeight = 400, bool forceShowAll = false}) {
+    final isServing = !forceShowAll && _localPlayerCanServe(game);
 
     // In landscape, derive button sizes from screen height so they scale
     // proportionally across all mobile device sizes (phones ~320-420px tall)
