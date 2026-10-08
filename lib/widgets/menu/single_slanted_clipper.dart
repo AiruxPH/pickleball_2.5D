@@ -59,7 +59,7 @@ Path buildSingleSlantedPath({
   // Clamped angle between 6.0° and 8.5°
   final clampedAngle = angleDegrees.clamp(5.0, 9.0);
   final angleRad = clampedAngle * math.pi / 180.0;
-  final offset = (h * math.tan(angleRad)).clamp(4.0, w * 0.25);
+  final offset = (h * math.tan(angleRad)).clamp(4.0, math.max(4.0, w * 0.25));
 
   final double maxRadius = math.min(h / 3, 16.0).toDouble();
   final double r = radius.clamp(0.0, maxRadius);

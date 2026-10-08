@@ -58,6 +58,7 @@ final class GamePresentation implements GameEffects {
     required Pickleball ball,
     required this.settings,
   }) {
+    _lastPreferredPOV = settings.preferredPOV;
     camera = PerspectiveCamera(
       position: Vec3(
         0,
@@ -83,12 +84,21 @@ final class GamePresentation implements GameEffects {
   double animTime = 0;
   double cameraZoom = 1;
   double screenShake = 0;
+  late PreferredPOV _lastPreferredPOV;
 
   void resize(Size size) {
     camera.screenSize = size;
   }
 
   void update(double dt, {double effectTimeScale = 1}) {
+    if (settings.preferredPOV != _lastPreferredPOV) {
+      _lastPreferredPOV = settings.preferredPOV;
+      cameraController.setView(
+        settings.preferredPOV == PreferredPOV.overhead 
+            ? CameraView.overhead 
+            : CameraView.playerFollow,
+      );
+    }
     animTime += dt;
     screenShake = (screenShake - dt * 3).clamp(0.0, 1.0).toDouble();
     cameraZoom = (cameraZoom + dt * 1.5).clamp(0.0, 1.0).toDouble();
