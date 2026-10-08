@@ -80,6 +80,7 @@ class _LocalLobbyScreenState extends State<LocalLobbyScreen> {
       'mode': lobby.format.name,
       'lobby': lobby.toJson(),
       'court': args?['court'] ?? 'classic',
+      'balanceProfile': lobby.balanceProfile.name,
     });
   }
 

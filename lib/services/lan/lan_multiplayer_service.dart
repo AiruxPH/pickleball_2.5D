@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../game/match_command_controller.dart';
 import '../../models/match_lobby.dart';
+import '../../models/match_foundation.dart';
 import 'lan_discovery_service.dart';
 import 'lan_message.dart';
 import 'lan_room_code.dart';
@@ -82,6 +83,7 @@ class LanMultiplayerService extends ChangeNotifier {
   Future<void> startHosting({
     int port = 7777,
     LobbyFormat format = LobbyFormat.singles,
+    MatchBalanceProfile balanceProfile = MatchBalanceProfile.standard,
     String? customRoomCode,
   }) async {
     await disconnect();
@@ -97,7 +99,10 @@ class LanMultiplayerService extends ChangeNotifier {
       _roomCode = LanRoomCode.generateRandom();
     }
 
-    _lobby = MatchLobby.local(format: format);
+    _lobby = MatchLobby.local(
+      format: format,
+      balanceProfile: balanceProfile,
+    );
     _lobby!.addListener(_onLocalLobbyChanged);
 
     try {
@@ -119,6 +124,7 @@ class LanMultiplayerService extends ChangeNotifier {
         hostAddress: _hostAddresses.isNotEmpty ? _hostAddresses.first : '127.0.0.1',
         port: port,
         format: format,
+        balanceProfile: balanceProfile,
         createdAt: DateTime.now().millisecondsSinceEpoch,
       );
       await _beacon.startBroadcasting(roomInfo);
@@ -270,6 +276,13 @@ class LanMultiplayerService extends ChangeNotifier {
   void setFormat(LobbyFormat format) {
     if (!isHost) return;
     _lobby?.setFormat(format);
+    _sendLobbySync();
+    notifyListeners();
+  }
+
+  void setBalanceProfile(MatchBalanceProfile profile) {
+    if (!isHost) return;
+    _lobby?.setBalanceProfile(profile);
     _sendLobbySync();
     notifyListeners();
   }

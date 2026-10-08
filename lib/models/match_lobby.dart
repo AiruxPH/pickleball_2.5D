@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'match_foundation.dart';
+
 enum LobbyType { local, online }
 
 enum LobbyFormat { singles, doubles }
@@ -59,15 +61,21 @@ class MatchLobby extends ChangeNotifier {
     required this.id,
     required this.type,
     required LobbyFormat format,
+    required MatchBalanceProfile balanceProfile,
     required List<LobbyPlayerSlot> slots,
   })  : _format = format,
+        _balanceProfile = balanceProfile,
         _slots = slots;
 
-  factory MatchLobby.local({LobbyFormat format = LobbyFormat.singles}) {
+  factory MatchLobby.local({
+    LobbyFormat format = LobbyFormat.singles,
+    MatchBalanceProfile balanceProfile = MatchBalanceProfile.standard,
+  }) {
     return MatchLobby._(
       id: 'local-lobby',
       type: LobbyType.local,
       format: format,
+      balanceProfile: balanceProfile,
       slots: _slotsFor(format),
     );
   }
@@ -75,11 +83,13 @@ class MatchLobby extends ChangeNotifier {
   factory MatchLobby.online(
     String roomCode, {
     LobbyFormat format = LobbyFormat.singles,
+    MatchBalanceProfile balanceProfile = MatchBalanceProfile.standard,
   }) {
     return MatchLobby._(
       id: roomCode,
       type: LobbyType.online,
       format: format,
+      balanceProfile: balanceProfile,
       slots: _slotsFor(format),
     );
   }
@@ -87,9 +97,11 @@ class MatchLobby extends ChangeNotifier {
   final String id;
   final LobbyType type;
   LobbyFormat _format;
+  MatchBalanceProfile _balanceProfile;
   List<LobbyPlayerSlot> _slots;
 
   LobbyFormat get format => _format;
+  MatchBalanceProfile get balanceProfile => _balanceProfile;
   List<LobbyPlayerSlot> get slots => List.unmodifiable(_slots);
   int get playerCount => humanSlots.length;
   int get maxPlayers => _slots.length;
@@ -101,6 +113,12 @@ class MatchLobby extends ChangeNotifier {
     if (_format == value) return;
     _format = value;
     _slots = _slotsFor(value);
+    notifyListeners();
+  }
+
+  void setBalanceProfile(MatchBalanceProfile value) {
+    if (_balanceProfile == value) return;
+    _balanceProfile = value;
     notifyListeners();
   }
 
@@ -125,6 +143,7 @@ class MatchLobby extends ChangeNotifier {
         'id': id,
         'type': type.name,
         'format': format.name,
+        'balanceProfile': balanceProfile.name,
         'slots': _slots.map((slot) => slot.toJson()).toList(),
       };
 
@@ -141,6 +160,8 @@ class MatchLobby extends ChangeNotifier {
         orElse: () => LobbyType.local,
       ),
       format: format,
+      balanceProfile:
+          MatchBalanceProfileX.fromName(json['balanceProfile']),
       slots: rawSlots is List
           ? rawSlots
               .whereType<Map>()

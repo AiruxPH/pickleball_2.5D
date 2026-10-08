@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/game_settings.dart';
+import '../models/match_foundation.dart';
 import '../utils/constants.dart';
 import '../services/settings_service.dart';
 import '../widgets/menu_backdrop.dart';
@@ -28,6 +29,7 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
   bool _botVsBotDoubles = false;
   int _selectedCourtIndex = 0;
   int _selectedDiffIndex = 1; // 0=Easy, 1=Medium, 2=Hard
+  MatchBalanceProfile _balanceProfile = MatchBalanceProfile.standard;
   bool _initialized = false;
 
   final List<_ModeOption> _modes = const [
@@ -100,7 +102,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         context.read<SettingsService>().save(settings);
         Navigator.pushReplacementNamed(context, '/game', arguments: {
           'mode': 'singles',
-          'difficulty': _selectedDiffIndex + 1
+          'difficulty': _selectedDiffIndex + 1,
+          'balanceProfile': _balanceProfile.name,
         });
         break;
       case 1: // Doubles
@@ -113,7 +116,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
         context.read<SettingsService>().save(settings);
         Navigator.pushReplacementNamed(context, '/game', arguments: {
           'mode': 'doubles',
-          'difficulty': _selectedDiffIndex + 1
+          'difficulty': _selectedDiffIndex + 1,
+          'balanceProfile': _balanceProfile.name,
         });
         break;
       case 2: // Bot vs Bot spectator match
@@ -128,7 +132,8 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
           'mode': 'bot-vs-bot',
           'botVsBot': true,
           'gameMode': _botVsBotDoubles ? 'doubles' : 'singles',
-          'difficulty': _selectedDiffIndex + 1
+          'difficulty': _selectedDiffIndex + 1,
+          'balanceProfile': _balanceProfile.name,
         });
         break;
       case 3: // Online room
@@ -244,6 +249,38 @@ class _ModeSelectScreenState extends State<ModeSelectScreen>
                   _buildSectionLabel('SELECT COURT', Icons.stadium_rounded),
                   SizedBox(height: 8 * ui),
                   _buildCourtPicker(ui, refreshDialog: refreshDialog),
+                  SizedBox(height: 16 * ui),
+                  _buildSectionLabel(
+                    'MATCH BALANCE',
+                    Icons.balance_rounded,
+                  ),
+                  SizedBox(height: 8 * ui),
+                  MenuSegmented<MatchBalanceProfile>(
+                    current: _balanceProfile,
+                    segments: const [
+                      MenuSegment(
+                        MatchBalanceProfile.standard,
+                        'STANDARD',
+                      ),
+                      MenuSegment(
+                        MatchBalanceProfile.competitive,
+                        'COMPETITIVE',
+                      ),
+                    ],
+                    onChanged: (value) {
+                      _balanceProfile = value;
+                      refreshDialog(() {});
+                    },
+                  ),
+                  SizedBox(height: 6 * ui),
+                  Text(
+                    _balanceProfile.description,
+                    style: TextStyle(
+                      color: kMenuMuted,
+                      fontSize: 10 * ui,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   SizedBox(height: 20 * ui),
                   MenuPrimaryButton(
                     label: 'START MATCH',

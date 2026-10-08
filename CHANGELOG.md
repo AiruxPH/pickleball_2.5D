@@ -2,6 +2,15 @@
 
 ## 2026-10-08
 
+### Gameplay enhancement roadmap
+- **Reason of Change:** Establish one durable, offline source of truth for the planned gameplay, AI, Arcade, presentation, replay, and multiplayer enhancement work.
+- **Changes Applied:**
+  1. Added `GAMEPLAY_ENHANCEMENT_ROADMAP.md` with confirmed design decisions, architecture contracts, staged implementation checklists, acceptance gates, a cross-system test matrix, and dated decision/progress logs.
+  2. Chose competitive-casual tuning, automatic contextual movement assists, control-focused rally momentum, cosmetic-only equipment in competitive rooms, a separate Arcade hub, and eight-second in-memory highlights.
+  3. Explicitly deferred true ranked play until persistent accounts and trusted server authority are available.
+- **Verification:**
+  - Documentation-only change; no Dart source or runtime behavior changed.
+
 ### Opening-bounce bot timing correction
 - **Reason of Change:** Timing feedback revealed that command-driven bots finalized their first two return inputs at the contact frame, producing misleading `LATE` grades and visually striking as soon as the post-bounce lock ended.
 - **Changes Applied:**

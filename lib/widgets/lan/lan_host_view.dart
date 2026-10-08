@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/match_lobby.dart';
+import '../../models/match_foundation.dart';
 import '../../services/lan/lan_multiplayer_service.dart';
 import '../menu_ui.dart';
 import 'lan_room_code_card.dart';
@@ -105,6 +106,27 @@ class LanHostView extends StatelessWidget {
               ),
             );
           }).toList(),
+        ),
+        SizedBox(height: 14 * ui),
+
+        MenuSegmented<MatchBalanceProfile>(
+          current:
+              lobby?.balanceProfile ?? MatchBalanceProfile.standard,
+          segments: const [
+            MenuSegment(MatchBalanceProfile.standard, 'STANDARD'),
+            MenuSegment(MatchBalanceProfile.competitive, 'COMPETITIVE'),
+          ],
+          onChanged: service.setBalanceProfile,
+        ),
+        SizedBox(height: 6 * ui),
+        Text(
+          (lobby?.balanceProfile ?? MatchBalanceProfile.standard).description,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: kMenuMuted,
+            fontSize: 10 * ui,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         SizedBox(height: 14 * ui),
 

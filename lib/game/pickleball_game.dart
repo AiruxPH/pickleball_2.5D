@@ -9,6 +9,7 @@ import '../models/game_settings.dart';
 import '../models/shop_items.dart';
 import '../models/ultimate_skill.dart';
 import '../models/shot_mechanics.dart';
+import '../models/match_foundation.dart';
 import '../game/score_controller.dart';
 import '../game/ball_controller.dart';
 import '../game/player_controller.dart';
@@ -21,6 +22,7 @@ import '../game/shot/contact_timing_offset.dart';
 import '../game/shot/shot_quality.dart';
 import '../game/shot/player_aim_calculator.dart';
 import '../game/shot/player_shot_trajectory_solver.dart';
+import '../game/rally_phase_classifier.dart';
 import '../services/audio_service.dart';
 
 /// ─────────────────────────────────────────────────────────────
@@ -85,6 +87,7 @@ class PickleballGame extends ChangeNotifier {
   // ── Mode ─────────────────────────────────────────────────────
   final GameMode gameMode;
   final bool isLocalMultiplayer;
+  final MatchBalanceProfile balanceProfile;
 
   // ── Game objects ─────────────────────────────────────────────
   final Player player;
@@ -176,6 +179,13 @@ class PickleballGame extends ChangeNotifier {
   double? opponentBufferedTimingIntent;
   ContactFeedback? contactFeedback;
   int contactFeedbackRevision = 0;
+  final MatchEventLog matchEvents = MatchEventLog();
+  final MatchStats matchStats = MatchStats();
+  RallyPhase rallyPhase = RallyPhase.opening;
+  bool _matchEndPublished = false;
+
+  Stream<MatchEvent> get onMatchEvent => matchEvents.events;
+  int get matchEventRevision => matchEvents.revision;
 
   // ── Ultimate Skill System ─────────────────────────────────────
   double ultimateCharge = 0.45; // 0.0 .. 1.0
@@ -187,11 +197,15 @@ class PickleballGame extends ChangeNotifier {
 
   UltimateType get equippedUltimate => settings.equippedUltimate;
   UltimateSkill get currentUltimate => getUltimateByType(equippedUltimate);
+  bool get specialSkillsEnabled =>
+      balanceProfile == MatchBalanceProfile.standard;
   bool get isUltimateReady =>
-      settings.hasEquippedPaddleSkill && ultimateCharge >= 1.0;
+      specialSkillsEnabled &&
+      settings.hasEquippedPaddleSkill &&
+      ultimateCharge >= 1.0;
 
   void addUltimateCharge(double amount) {
-    if (!settings.hasEquippedPaddleSkill) return;
+    if (!specialSkillsEnabled || !settings.hasEquippedPaddleSkill) return;
     final oldVal = ultimateCharge;
     ultimateCharge = (ultimateCharge + amount).clamp(0.0, 1.0);
     if (oldVal < 1.0 && ultimateCharge >= 1.0) {
@@ -208,6 +222,8 @@ class PickleballGame extends ChangeNotifier {
 
   final GameSettings settings;
   PaddleItem get currentPaddle => getPaddleById(settings.equippedPaddleId);
+  PaddleItem get _standardGameplayPaddle =>
+      getPaddleById('paddle_standard');
   late final PaddleItem aiPaddle;
   late final PaddleItem? playerPartnerPaddle;
   late final PaddleItem? aiPartnerPaddle;
@@ -228,8 +244,25 @@ class PickleballGame extends ChangeNotifier {
     return currentPaddle;
   }
 
+  /// Returns normalized stats in competitive matches while [paddleFor]
+  /// continues returning the equipped item for rendering.
+  PaddleItem gameplayPaddleFor(Player matchPlayer) {
+    if (balanceProfile == MatchBalanceProfile.competitive) {
+      return _standardGameplayPaddle;
+    }
+    return paddleFor(matchPlayer);
+  }
+
   PlayerSkinItem get currentPlayerSkin =>
       getPlayerSkinById(settings.equippedPlayerId);
+  double get gameplayMoveSpeedMultiplier =>
+      balanceProfile == MatchBalanceProfile.competitive
+          ? 1.0
+          : currentPlayerSkin.speedMultiplier;
+  double get gameplayStaminaRegenMultiplier =>
+      balanceProfile == MatchBalanceProfile.competitive
+          ? 1.0
+          : currentPlayerSkin.staminaRegenMultiplier;
 
   final String? drillType;
   final AudioService? audioService;
@@ -245,6 +278,7 @@ class PickleballGame extends ChangeNotifier {
     this.drillType,
     this.gameMode = GameMode.singles,
     this.isLocalMultiplayer = false,
+    this.balanceProfile = MatchBalanceProfile.standard,
     required this.settings,
     this.difficultyOverride,
     this.audioService,
@@ -317,7 +351,7 @@ class PickleballGame extends ChangeNotifier {
       teammate: aiPartner,
       hasCoverageClaim: _hasDoublesCoverageClaim,
       preferredTargetX: () => farTeamSuggestedTargetX,
-      paddleSpin: aiPaddle.spin,
+      paddleSpin: gameplayPaddleFor(ai).spin,
       onHit: (isPower) {
         _lastRallyHitter = ai;
         _onAIHit(isPower);
@@ -337,7 +371,7 @@ class PickleballGame extends ChangeNotifier {
         teammate: player,
         hasCoverageClaim: _hasDoublesCoverageClaim,
         preferredTargetX: () => nearTeamSuggestedTargetX,
-        paddleSpin: playerPartnerPaddle!.spin,
+        paddleSpin: gameplayPaddleFor(playerPartner!).spin,
         onHit: (isPower) {
           _lastRallyHitter = playerPartner;
           _onAIHit(isPower);
@@ -355,7 +389,7 @@ class PickleballGame extends ChangeNotifier {
         teammate: ai,
         hasCoverageClaim: _hasDoublesCoverageClaim,
         preferredTargetX: () => farTeamSuggestedTargetX,
-        paddleSpin: aiPartnerPaddle!.spin,
+        paddleSpin: gameplayPaddleFor(aiPartner!).spin,
         onHit: (isPower) {
           _lastRallyHitter = aiPartner;
           _onAIHit(isPower);
@@ -386,6 +420,8 @@ class PickleballGame extends ChangeNotifier {
   // ── Main update loop ──────────────────────────────────────────
   void update(double dt) {
     if (state == GameState.paused || state == GameState.gameOver) return;
+
+    matchStats.advanceTime(dt);
 
     // Bullet-time slow motion & cinematic cut-in decay
     if (slowMoTimer > 0) {
@@ -436,7 +472,7 @@ class PickleballGame extends ChangeNotifier {
     }
 
     // Stamina regeneration
-    player.regenStamina(dt * currentPlayerSkin.staminaRegenMultiplier);
+    player.regenStamina(dt * gameplayStaminaRegenMultiplier);
     ai.regenStamina(dt);
     playerPartner?.regenStamina(dt);
 
@@ -487,6 +523,7 @@ class PickleballGame extends ChangeNotifier {
     _lastFarTeamCoverageOwner = null;
     _lastRallyHitter = null;
     _coverageRevision = -1;
+    _setRallyPhase(RallyPhase.opening);
 
     if (scoreController.isPlayerServing) {
       final server = activeServer;
@@ -958,6 +995,8 @@ class PickleballGame extends ChangeNotifier {
       return;
     }
 
+    _refreshRallyPhase();
+
     // ── Special Ultimate Ball Trajectory Logic ──────────────────
     if (ball.isUltimate && ball.isInPlay) {
       ball.ultimateAnimTimer += effectiveDt;
@@ -1029,7 +1068,7 @@ class PickleballGame extends ChangeNotifier {
       dt,
       joystickX,
       joystickY,
-      speedMultiplier: currentPlayerSkin.speedMultiplier,
+      speedMultiplier: gameplayMoveSpeedMultiplier,
     );
     player.clampToCourt();
     if (isLocalMultiplayer) {
@@ -1136,7 +1175,8 @@ class PickleballGame extends ChangeNotifier {
         player.position.x,
         player.position.z,
       );
-      final hitRadius = 30.0 + (currentPaddle.control - 0.50) * 12.0;
+      final hitRadius =
+          30.0 + (gameplayPaddleFor(player).control - 0.50) * 12.0;
       if (distToBall < hitRadius &&
           ball.position.y < 42 &&
           ball.position.z > -8 &&
@@ -1261,14 +1301,17 @@ class PickleballGame extends ChangeNotifier {
       player.kitchenMomentumFlag = true;
     }
 
-    final paddle = currentPaddle;
+    final paddle = gameplayPaddleFor(player);
     final staminaDiscount =
         (1.0 - (paddle.staminaEfficiency - 0.50) * 0.35).clamp(0.65, 1.0);
 
     // ── Check if executing Ultimate ────────────────────────────
-    final isExecutingUltimate =
-        isUltimateArmed || shotType == ShotType.ultimate;
     ShotType activeShot = shotType;
+    final isExecutingUltimate = specialSkillsEnabled &&
+        (isUltimateArmed || shotType == ShotType.ultimate);
+    if (!specialSkillsEnabled && activeShot == ShotType.ultimate) {
+      activeShot = ShotType.normal;
+    }
 
     if (isExecutingUltimate) {
       activeShot = ShotType.ultimate;
@@ -1415,6 +1458,13 @@ class PickleballGame extends ChangeNotifier {
     ball.rallyHitCount++;
     _lastRallyHitter = player;
     _publishContactFeedback(player, timingGrade, playerSlot: 0);
+    _publishContactEvent(
+      hitter: player,
+      playerSlot: 0,
+      shotType: activeShot,
+      timingGrade: timingGrade,
+      spin: appliedSpin,
+    );
 
     final isPowerHit = solution.isPowerHit;
     audioService?.playTimingHit(
@@ -1471,7 +1521,9 @@ class PickleballGame extends ChangeNotifier {
       ai.kitchenMomentumFlag = true;
     }
 
-    var activeShot = shotType == ShotType.ultimate ? ShotType.power : shotType;
+    var activeShot = shotType == ShotType.ultimate
+        ? (specialSkillsEnabled ? ShotType.power : ShotType.normal)
+        : shotType;
     final timingGrade = gradeSwingTiming(
       timeToIdealContact: timingIntent,
       isSweetSpot: true,
@@ -1566,7 +1618,7 @@ class PickleballGame extends ChangeNotifier {
     ball.hasBounced = false;
     ball.isServe = false;
     ball.impactFlash = activeShot == ShotType.power ? 1.0 : 0.7;
-    final paddle = paddleFor(ai);
+    final paddle = gameplayPaddleFor(ai);
     final appliedSpin = activeShot == ShotType.normal ||
             activeShot == ShotType.power
         ? requestedSpin
@@ -1597,6 +1649,20 @@ class PickleballGame extends ChangeNotifier {
     bool isPower, {
     SwingTimingGrade timingGrade = SwingTimingGrade.good,
   }) {
+    final hitter = _lastRallyHitter ?? ai;
+    _publishContactEvent(
+      hitter: hitter,
+      playerSlot: identical(hitter, playerPartner)
+          ? 2
+          : identical(hitter, aiPartner)
+              ? 3
+              : identical(hitter, player)
+                  ? 0
+                  : 1,
+      shotType: ball.shotType,
+      timingGrade: timingGrade,
+      spin: ball.shotSpin,
+    );
     audioService?.playTimingHit(isPower: isPower, grade: timingGrade);
     effects.spawnHitSparks(
       ball.position,
@@ -1607,6 +1673,15 @@ class PickleballGame extends ChangeNotifier {
   }
 
   void _onBallBounce() {
+    _recordEvent((revision) => MatchEvent(
+          type: MatchEventType.bounce,
+          revision: revision,
+          elapsedSeconds: matchStats.elapsedSeconds,
+          nearTeam: ball.playerSideBounce,
+          position: ball.position.copy(),
+          rallyPhase: rallyPhase,
+          rallyHits: ball.rallyHitCount,
+        ));
     final theme = settings.courtTheme;
     final dust = Color.lerp(theme.surfaceColorLight, Colors.white, 0.55)!;
     final intensity = (ball.speed / 140.0).clamp(0.0, 1.0);
@@ -1716,6 +1791,22 @@ class PickleballGame extends ChangeNotifier {
         return;
     }
 
+    final detail = scoreController.lastFaultDetail.toUpperCase();
+    final isExplicitFault = result != PointResult.playerPoint &&
+        result != PointResult.aiPoint &&
+        result != PointResult.none;
+    _recordEvent((revision) => MatchEvent(
+          type: MatchEventType.pointResult,
+          revision: revision,
+          elapsedSeconds: matchStats.elapsedSeconds,
+          nearTeam: result == PointResult.playerPoint,
+          result: result.name,
+          rallyPhase: rallyPhase,
+          rallyHits: ball.rallyHitCount,
+          isFault: isExplicitFault || detail.contains('FAULT'),
+          isWinner: detail.contains('WINNER'),
+        ));
+
     lastMessage = msg;
     messageTimer = isPracticeMode ? 1.4 : 2.2;
     ball.state = BallState.dead;
@@ -1754,7 +1845,7 @@ class PickleballGame extends ChangeNotifier {
       dt,
       0,
       0,
-      speedMultiplier: currentPlayerSkin.speedMultiplier,
+      speedMultiplier: gameplayMoveSpeedMultiplier,
     );
     player.clampToCourt();
     player.updateKitchenStatus(dt);
@@ -1811,6 +1902,17 @@ class PickleballGame extends ChangeNotifier {
         (!momentumPending || stateTimer >= 0.75)) {
       state = GameState.gameOver;
       stateTimer = 0;
+      if (!_matchEndPublished) {
+        _matchEndPublished = true;
+        _recordEvent((revision) => MatchEvent(
+              type: MatchEventType.matchEnded,
+              revision: revision,
+              elapsedSeconds: matchStats.elapsedSeconds,
+              nearTeam: player.score > ai.score,
+              result: player.score > ai.score ? 'playerWin' : 'opponentWin',
+              rallyHits: ball.rallyHitCount,
+            ));
+      }
       return;
     }
 
@@ -1855,6 +1957,9 @@ class PickleballGame extends ChangeNotifier {
     ultimateCutinTimer = 0;
     timeDilation = 1.0;
     slowMoTimer = 0;
+    matchStats.reset();
+    rallyPhase = RallyPhase.opening;
+    _matchEndPublished = false;
     ai.speedMultiplier = 1.0;
     effects.clear();
     notifyListeners();
@@ -1929,6 +2034,75 @@ class PickleballGame extends ChangeNotifier {
     if (feedback.revision < contactFeedbackRevision) return;
     contactFeedbackRevision = feedback.revision;
     contactFeedback = feedback;
+  }
+
+  void applySyncedFoundation({
+    required RallyPhase phase,
+    required int eventRevision,
+    Map<String, dynamic>? stats,
+  }) {
+    rallyPhase = phase;
+    matchEvents.adoptRevision(eventRevision);
+    if (stats != null) matchStats.applyJson(stats);
+  }
+
+  void _refreshRallyPhase() {
+    _setRallyPhase(RallyPhaseClassifier.classify(
+      ball: ball,
+      nearTeam: [player, if (playerPartner != null) playerPartner!],
+      farTeam: [ai, if (aiPartner != null) aiPartner!],
+    ));
+  }
+
+  void _setRallyPhase(RallyPhase next) {
+    if (rallyPhase == next) return;
+    rallyPhase = next;
+    _recordEvent((revision) => MatchEvent(
+          type: MatchEventType.rallyPhaseChanged,
+          revision: revision,
+          elapsedSeconds: matchStats.elapsedSeconds,
+          rallyPhase: next,
+          position: ball.position.copy(),
+          rallyHits: ball.rallyHitCount,
+        ));
+    if (next == RallyPhase.attackable) {
+      _recordEvent((revision) => MatchEvent(
+            type: MatchEventType.attackableBall,
+            revision: revision,
+            elapsedSeconds: matchStats.elapsedSeconds,
+            nearTeam: !ball.lastHitByPlayer,
+            rallyPhase: next,
+            position: ball.position.copy(),
+            rallyHits: ball.rallyHitCount,
+          ));
+    }
+  }
+
+  void _publishContactEvent({
+    required Player hitter,
+    required int playerSlot,
+    required ShotType shotType,
+    required SwingTimingGrade timingGrade,
+    required ShotSpin spin,
+  }) {
+    _recordEvent((revision) => MatchEvent(
+          type: MatchEventType.contact,
+          revision: revision,
+          elapsedSeconds: matchStats.elapsedSeconds,
+          playerSlot: playerSlot,
+          nearTeam: hitter.isNearSide,
+          position: hitter.position.copy(),
+          shotType: shotType,
+          timingGrade: timingGrade,
+          spin: spin,
+          rallyPhase: rallyPhase,
+          rallyHits: ball.rallyHitCount,
+        ));
+  }
+
+  void _recordEvent(MatchEvent Function(int revision) create) {
+    final event = matchEvents.publish(create);
+    matchStats.record(event);
   }
 
   void queueOpponentShot(
@@ -2010,6 +2184,12 @@ class PickleballGame extends ChangeNotifier {
   bool get isGameOver => state == GameState.gameOver;
   bool get isPaused => state == GameState.paused;
   bool get playerWon => player.score > ai.score && isGameOver;
+
+  @override
+  void dispose() {
+    matchEvents.dispose();
+    super.dispose();
+  }
 }
 
 // Extend Offset with normalize helper

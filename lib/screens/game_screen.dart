@@ -17,6 +17,7 @@ import '../game/pickleball_game.dart';
 import '../game/panorama/court_backdrop_view.dart';
 import '../models/game_settings.dart';
 import '../models/shot_mechanics.dart';
+import '../models/match_foundation.dart';
 import '../models/ultimate_skill.dart';
 import '../utils/constants.dart';
 import '../widgets/virtual_joystick.dart';
@@ -149,6 +150,8 @@ class _GameScreenState extends State<GameScreen>
     final gameMode = modeArg == 'doubles' || args?['gameMode'] == 'doubles'
         ? GameMode.doubles
         : GameMode.singles;
+    final balanceProfile =
+        MatchBalanceProfileX.fromName(args?['balanceProfile']);
 
     AIDifficulty? diffOverride;
     final diffArg = args?['difficulty'];
@@ -170,6 +173,7 @@ class _GameScreenState extends State<GameScreen>
       drillType: drillType,
       gameMode: gameMode,
       isLocalMultiplayer: _isLocalMultiplayer || _isBotVsBot,
+      balanceProfile: balanceProfile,
       settings: settings,
       difficultyOverride: diffOverride,
       audioService: _audioService,
@@ -1653,7 +1657,8 @@ class _GameScreenState extends State<GameScreen>
 
   // ── Ultimate Action Button ────────────────────────────────────
   Widget _buildUltimateButton(PickleballGame game, {double size = 54.0}) {
-    if (!game.settings.hasEquippedPaddleSkill) {
+    if (!game.specialSkillsEnabled ||
+        !game.settings.hasEquippedPaddleSkill) {
       return const SizedBox.shrink();
     }
     return _UltimateButtonWidget(

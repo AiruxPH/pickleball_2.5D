@@ -31,6 +31,7 @@ class WebDiscoveryBeacon implements LanDiscoveryBeacon {
         hostAddress: _currentRoom!.hostAddress,
         port: _currentRoom!.port,
         format: _currentRoom!.format,
+        balanceProfile: _currentRoom!.balanceProfile,
         createdAt: DateTime.now().millisecondsSinceEpoch,
         name: _currentRoom!.name,
       );

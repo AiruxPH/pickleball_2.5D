@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../models/game_settings.dart';
 import '../models/match_lobby.dart';
+import '../models/match_foundation.dart';
 import '../services/online/online_multiplayer_service.dart';
 import '../widgets/menu_backdrop.dart';
 import '../widgets/menu_ui.dart';
@@ -186,6 +187,30 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               ],
               onChanged: _service.setFormat,
             ),
+          if (_service.isHost) ...[
+            SizedBox(height: 10 * ui),
+            MenuSegmented<MatchBalanceProfile>(
+              current: lobby.balanceProfile,
+              segments: const [
+                MenuSegment(MatchBalanceProfile.standard, 'STANDARD'),
+                MenuSegment(
+                  MatchBalanceProfile.competitive,
+                  'COMPETITIVE',
+                ),
+              ],
+              onChanged: _service.setBalanceProfile,
+            ),
+          ],
+          SizedBox(height: 6 * ui),
+          Text(
+            lobby.balanceProfile.description,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: kMenuMuted,
+              fontSize: 10 * ui,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           SizedBox(height: 14 * ui),
           for (var i = 0; i < humanSlots.length; i++) ...[
             Builder(builder: (context) {

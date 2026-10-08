@@ -1,4 +1,5 @@
 import '../../models/match_lobby.dart';
+import '../../models/match_foundation.dart';
 
 /// Metadata describing a discoverable LAN or web multiplayer room.
 class LanRoomInfo {
@@ -9,6 +10,7 @@ class LanRoomInfo {
     required this.format,
     required this.createdAt,
     this.name = 'Pickleball Room',
+    this.balanceProfile = MatchBalanceProfile.standard,
   });
 
   final String roomCode;
@@ -17,6 +19,7 @@ class LanRoomInfo {
   final LobbyFormat format;
   final int createdAt;
   final String name;
+  final MatchBalanceProfile balanceProfile;
 
   Map<String, dynamic> toJson() => {
         'roomCode': roomCode,
@@ -25,6 +28,7 @@ class LanRoomInfo {
         'format': format.name,
         'createdAt': createdAt,
         'name': name,
+        'balanceProfile': balanceProfile.name,
       };
 
   factory LanRoomInfo.fromJson(Map<String, dynamic> json) {
@@ -38,6 +42,8 @@ class LanRoomInfo {
       createdAt: (json['createdAt'] as num?)?.toInt() ??
           DateTime.now().millisecondsSinceEpoch,
       name: json['name'] as String? ?? 'Pickleball Room',
+      balanceProfile:
+          MatchBalanceProfileX.fromName(json['balanceProfile']),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../game/match_command_controller.dart';
 import '../../models/match_lobby.dart';
+import '../../models/match_foundation.dart';
 import '../lan/lan_state_snapshot.dart';
 import 'firebase_bootstrap.dart';
 import 'webrtc_game_transport.dart';
@@ -110,7 +111,10 @@ class OnlineMultiplayerService extends ChangeNotifier {
     }
   }
 
-  Future<void> createRoom({LobbyFormat format = LobbyFormat.singles}) async {
+  Future<void> createRoom({
+    LobbyFormat format = LobbyFormat.singles,
+    MatchBalanceProfile balanceProfile = MatchBalanceProfile.standard,
+  }) async {
     await leaveRoom();
     if (!await initialize()) return;
     _role = OnlineRole.host;
@@ -118,7 +122,11 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _snapshotWritesInFlight = 0;
     _status = OnlineStatus.creating;
     _roomCode = _generateRoomCode();
-    _lobby = MatchLobby.online(_roomCode, format: format);
+    _lobby = MatchLobby.online(
+      _roomCode,
+      format: format,
+      balanceProfile: balanceProfile,
+    );
     _lobby!.addListener(_writeLobby);
     _room = FirebaseDatabase.instance.ref('onlineRooms/$_roomCode');
     try {
@@ -127,6 +135,7 @@ class OnlineMultiplayerService extends ChangeNotifier {
         'status': 'lobby',
         'sessionId': _roomCode,
         'format': format.name,
+        'balanceProfile': balanceProfile.name,
         'createdAt': ServerValue.timestamp,
         'updatedAt': ServerValue.timestamp,
       });
@@ -337,6 +346,11 @@ class OnlineMultiplayerService extends ChangeNotifier {
     _lobby?.setFormat(format);
   }
 
+  void setBalanceProfile(MatchBalanceProfile profile) {
+    if (!isHost) return;
+    _lobby?.setBalanceProfile(profile);
+  }
+
   Future<void> toggleReady(String slotId) async {
     if (isHost) {
       _lobby?.toggleReady(slotId);
@@ -370,6 +384,8 @@ class OnlineMultiplayerService extends ChangeNotifier {
   Future<void> startMatch(Map<String, dynamic> arguments) async {
     if (!isHost || _room == null || !allPlayersPresent) return;
     final payload = Map<String, dynamic>.from(arguments)
+      ..['balanceProfile'] =
+          (_lobby?.balanceProfile ?? MatchBalanceProfile.standard).name
       ..['startedAt'] = ServerValue.timestamp
       ..['sessionId'] = _roomCode;
     await _room!.update({'start': payload, 'meta/status': 'inGame'});

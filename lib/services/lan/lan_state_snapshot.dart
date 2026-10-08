@@ -2,6 +2,7 @@ import '../../game/pickleball_game.dart';
 import '../../models/pickleball.dart';
 import '../../models/player.dart';
 import '../../models/shot_mechanics.dart';
+import '../../models/match_foundation.dart';
 import '../../utils/game_math.dart';
 
 class LanEntityState {
@@ -55,6 +56,8 @@ class LanEntityState {
 }
 
 class LanStateSnapshot {
+  static const int currentProtocolRevision = 2;
+
   const LanStateSnapshot({
     required this.ball,
     required this.ballState,
@@ -76,6 +79,11 @@ class LanStateSnapshot {
     this.timingPlayerSlot = 0,
     this.timingRevision = 0,
     this.timingRemaining = 0,
+    this.protocolRevision = 1,
+    this.rallyPhase = 'opening',
+    this.balanceProfile = 'standard',
+    this.matchEventRevision = 0,
+    this.matchStats,
     required this.timestamp,
   });
 
@@ -99,6 +107,11 @@ class LanStateSnapshot {
   final int timingPlayerSlot;
   final int timingRevision;
   final double timingRemaining;
+  final int protocolRevision;
+  final String rallyPhase;
+  final String balanceProfile;
+  final int matchEventRevision;
+  final Map<String, dynamic>? matchStats;
   final int timestamp;
 
   Map<String, dynamic> toJson() => {
@@ -122,6 +135,11 @@ class LanStateSnapshot {
         if (timingRevision != 0) 'timingRev': timingRevision,
         if (timingRevision != 0) 'timingSlot': timingPlayerSlot,
         if (timingRemaining > 0) 'timingLeft': timingRemaining,
+        if (protocolRevision > 1) 'proto': protocolRevision,
+        if (rallyPhase != 'opening') 'phase': rallyPhase,
+        if (balanceProfile != 'standard') 'balance': balanceProfile,
+        if (matchEventRevision != 0) 'eventRev': matchEventRevision,
+        if (matchStats != null) 'stats': matchStats,
         'ts': timestamp,
       };
 
@@ -161,6 +179,13 @@ class LanStateSnapshot {
       timingPlayerSlot: (json['timingSlot'] as num?)?.toInt() ?? 0,
       timingRevision: (json['timingRev'] as num?)?.toInt() ?? 0,
       timingRemaining: (json['timingLeft'] as num?)?.toDouble() ?? 0,
+      protocolRevision: (json['proto'] as num?)?.toInt() ?? 1,
+      rallyPhase: json['phase'] as String? ?? 'opening',
+      balanceProfile: json['balance'] as String? ?? 'standard',
+      matchEventRevision: (json['eventRev'] as num?)?.toInt() ?? 0,
+      matchStats: json['stats'] is Map
+          ? Map<String, dynamic>.from(json['stats'] as Map)
+          : null,
       timestamp: (json['ts'] as num?)?.toInt() ?? 0,
     );
   }
@@ -244,6 +269,11 @@ class LanStateSnapshot {
       timingPlayerSlot: game.contactFeedback?.playerSlot ?? 0,
       timingRevision: game.contactFeedbackRevision,
       timingRemaining: game.contactFeedback?.remaining ?? 0,
+      protocolRevision: currentProtocolRevision,
+      rallyPhase: game.rallyPhase.name,
+      balanceProfile: game.balanceProfile.name,
+      matchEventRevision: game.matchEventRevision,
+      matchStats: game.matchStats.toJson(),
       timestamp: DateTime.now().millisecondsSinceEpoch,
     );
   }
@@ -394,5 +424,13 @@ class LanStateSnapshot {
       game.contactFeedbackRevision = timingRevision;
       game.contactFeedback = null;
     }
+    game.applySyncedFoundation(
+      phase: RallyPhase.values.firstWhere(
+        (value) => value.name == rallyPhase,
+        orElse: () => RallyPhase.opening,
+      ),
+      eventRevision: matchEventRevision,
+      stats: matchStats,
+    );
   }
 }
