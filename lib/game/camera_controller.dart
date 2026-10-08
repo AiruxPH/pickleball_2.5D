@@ -123,11 +123,12 @@ class CameraController {
     switch (view) {
       case CameraView.playerFollow:
         final extraBack = (ball.position.y / 30).clamp(0.0, 1.0) * 20;
+        final baseZ = math.max(CourtDimensions.playerStartZ, player.position.z);
         return _CameraPose(
           position: Vec3(
-            player.position.x * 0.3,
+            player.position.x * 0.5,
             CameraConstants.cameraHeight,
-            CourtDimensions.playerStartZ +
+            baseZ +
                 CameraConstants.cameraDistanceBehind * zoomFactor +
                 extraBack,
           ),
