@@ -53,6 +53,19 @@ class BallController {
     };
     ball.velocity.y -= PhysicsConstants.gravity * gravityScale * dt;
 
+    // ── Magnus Effect (Horizontal Curve) ─────────────────────
+    double lateralCurve = 0;
+    if (ball.shotSpin == ShotSpin.topspin) {
+      lateralCurve = 15.0 * ball.spinStrength;
+    } else if (ball.shotSpin == ShotSpin.slice) {
+      lateralCurve = -15.0 * ball.spinStrength;
+    }
+
+    if (lateralCurve != 0) {
+      final directionSign = ball.velocity.z > 0 ? 1.0 : -1.0;
+      ball.velocity.x += lateralCurve * directionSign * dt;
+    }
+
     // ── Air Drag ─────────────────────────────────────────────
     // F_drag ∝ v² for a perforated ball (Cd ≈ 0.45).
     // Simplified as linear drag for stability: scale velocity by (1 - Cd * |v| * dt)
