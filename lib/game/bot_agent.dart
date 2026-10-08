@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import '../models/game_settings.dart';
 import '../models/player.dart';
+import '../models/shot_mechanics.dart';
 import '../utils/constants.dart';
 import 'match_command_controller.dart';
 import 'match_observation.dart';
@@ -73,11 +74,13 @@ class BotAgent {
   double _thinkTimer = 0;
   double _shotCooldown = 0;
   ShotType _plannedShot = ShotType.normal;
+  ShotSpin _plannedSpin = ShotSpin.flat;
   Offset _plannedAim = const Offset(0, -1);
   bool _hasShotPlan = false;
   GameState? _previousState;
 
   ShotType get plannedShot => _plannedShot;
+  ShotSpin get plannedSpin => _plannedSpin;
   Offset get plannedAim => _plannedAim;
 
   double get aggression {
@@ -219,7 +222,7 @@ class BotAgent {
 
     if (!_hasShotPlan) _planReturn(observation);
     commands.aim(_plannedAim);
-    commands.shot(_plannedShot);
+    commands.shot(_plannedShot, spin: _plannedSpin);
     _shotCooldown = 0.48;
     _hasShotPlan = false;
     return true;
@@ -228,6 +231,7 @@ class BotAgent {
   void _planReturn(MatchObservation observation) {
     final opponent = _opponentPlayer(observation);
     _plannedShot = _chooseShot(observation);
+    _plannedSpin = _chooseSpin(observation, _plannedShot);
     final coordinatedTargetX = side == BotCourtSide.near
         ? observation.nearSuggestedTargetX
         : observation.farSuggestedTargetX;
@@ -276,6 +280,26 @@ class BotAgent {
       return ShotType.power;
     }
     return ShotType.normal;
+  }
+
+  ShotSpin _chooseSpin(MatchObservation observation, ShotType shot) {
+    if (shot != ShotType.normal && shot != ShotType.power) {
+      return ShotSpin.flat;
+    }
+    return switch (difficulty) {
+      AIDifficulty.easy => _random.nextDouble() < 0.12
+          ? ShotSpin.topspin
+          : ShotSpin.flat,
+      AIDifficulty.medium => shot == ShotType.power
+          ? ShotSpin.topspin
+          : (_random.nextDouble() < 0.22
+              ? ShotSpin.slice
+              : ShotSpin.topspin),
+      AIDifficulty.hard => shot == ShotType.power ||
+              observation.ball.position.y > CourtDimensions.netHeight + 2
+          ? ShotSpin.topspin
+          : ShotSpin.slice,
+    };
   }
 
   Offset _predictLanding(BallObservation ball) {

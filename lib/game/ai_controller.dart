@@ -3,6 +3,7 @@ import '../models/player.dart';
 import '../models/pickleball.dart';
 import '../models/court.dart';
 import '../models/game_settings.dart';
+import '../models/shot_mechanics.dart';
 import '../utils/constants.dart';
 import '../utils/game_math.dart';
 import 'ai_shot_planner.dart';
@@ -40,6 +41,7 @@ class AIController {
   final bool Function(Player player)? hasCoverageClaim;
   final double? Function()? preferredTargetX;
   final void Function(bool isPower)? onHit;
+  final double paddleSpin;
 
   AIState _state = AIState.idle;
   double _reactionTimer = 0;
@@ -71,6 +73,7 @@ class AIController {
     this.hasCoverageClaim,
     this.preferredTargetX,
     this.onHit,
+    this.paddleSpin = 0.5,
   });
 
   /// Active difficulty for this AI instance (respects match override)
@@ -361,15 +364,11 @@ class AIController {
     final forward = ai.isPartner
         ? ai.position.z - ball.position.z
         : ball.position.z - ai.position.z;
-    // While honoring the post-bounce delay, a fast groundstroke can travel
-    // beyond the normal backswing reach. Keep volley reach strict, but allow
-    // bots to recover a legally bounced ball just behind their body.
-    final effectiveReachBack = ball.hasBounced ? 16.0 : contactReachBack;
     final movingTowardPlayer =
         ai.isPartner ? ball.velocity.z > 0 : ball.velocity.z < 0;
     return movingTowardPlayer &&
         lateral <= contactRadiusX &&
-        forward >= -effectiveReachBack &&
+        forward >= -contactReachBack &&
         forward <= contactReachForward &&
         ball.position.y >= PhysicsConstants.ballRadius &&
         ball.position.y <= maximumContactHeight;
@@ -682,6 +681,11 @@ class AIController {
     }
     lastShotPlan = shotPlan;
 
+    final selectedSpin = _chooseSpin(chosenShot);
+    final spinStrength = selectedSpin == ShotSpin.flat
+        ? 0.0
+        : (0.75 + paddleSpin * 0.50).clamp(0.0, 1.25).toDouble();
+
     // Launch the exact trajectory that was validated against drag and net sag.
     ball.velocity = shotPlan.launchVelocity.copy();
     ball.state = BallState.inFlight;
@@ -694,7 +698,13 @@ class AIController {
         chosenShot == ShotType.power || chosenShot == ShotType.smash
             ? 1.0
             : 0.7;
-    ball.spinRate = chosenShot == ShotType.drop ? -400 : 400;
+    ball.shotSpin = selectedSpin;
+    ball.spinStrength = spinStrength;
+    ball.spinRate = switch (selectedSpin) {
+      ShotSpin.topspin => 720.0 * spinStrength,
+      ShotSpin.slice => -540.0 * spinStrength,
+      ShotSpin.flat => chosenShot == ShotType.drop ? -400 : 400,
+    };
     ball.shotType = chosenShot;
     ball.rallyHitCount++;
 
@@ -814,6 +824,26 @@ class AIController {
         lerp(ai.velocity.x, dirX * effectiveSpeedWithMultiplier, dt * 6);
     ai.velocity.z =
         lerp(ai.velocity.z, dirZ * effectiveSpeedWithMultiplier, dt * 6);
+  }
+
+  ShotSpin _chooseSpin(ShotType shot) {
+    if (shot != ShotType.normal && shot != ShotType.power) {
+      return ShotSpin.flat;
+    }
+    if (isPracticeMode) return ShotSpin.topspin;
+    return switch (difficulty) {
+      AIDifficulty.easy => _rng.nextDouble() < 0.12
+          ? ShotSpin.topspin
+          : ShotSpin.flat,
+      AIDifficulty.medium => shot == ShotType.power
+          ? ShotSpin.topspin
+          : (_rng.nextDouble() < 0.22
+              ? ShotSpin.slice
+              : ShotSpin.topspin),
+      AIDifficulty.hard => shot == ShotType.power || ball.position.y > 15
+          ? ShotSpin.topspin
+          : ShotSpin.slice,
+    };
   }
 
   void _updateAnimation(double dt) {

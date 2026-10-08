@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'sfx_pool.dart';
 import 'bgm_coordinator.dart';
+import '../models/shot_mechanics.dart';
 
 /// ─────────────────────────────────────────────────────────────
 /// AudioService — manages game background music and sound effects
@@ -187,6 +188,21 @@ class AudioService {
     if (!_initialized || _sfxVolume <= 0) return;
     final file = isPower ? 'smash.wav' : 'hit.wav';
     _sfxPool.play(file, _sfxVolume);
+  }
+
+  void playTimingHit({
+    bool isPower = false,
+    required SwingTimingGrade grade,
+  }) {
+    if (!_initialized || _sfxVolume <= 0) return;
+    final file = isPower ? 'smash.wav' : 'hit.wav';
+    final pitch = switch (grade) {
+      SwingTimingGrade.perfect => 1.12,
+      SwingTimingGrade.good => 1.0,
+      SwingTimingGrade.early => 0.93,
+      SwingTimingGrade.late => 0.86,
+    };
+    _sfxPool.play(file, _sfxVolume, playbackRate: pitch);
   }
 
   void playBounce() {

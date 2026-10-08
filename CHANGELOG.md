@@ -1,5 +1,27 @@
 # Change Log
 
+## 2026-10-08
+
+### Timing and spin gameplay enhancement
+- **Reason of Change:** Add a forgiving contact-timing reward system and persistent Flat/Topspin/Slice choices without changing official rules, paddle-bound specials, or host-authoritative multiplayer.
+- **Changes Applied:**
+  1. Added shared `SwingTimingGrade` and `ShotSpin` gameplay models. Button press timing is captured as normalized time-to-contact, then combined with actual-contact sweet-spot quality to produce Perfect, Good, Early, or Late.
+  2. Applied the requested timing tuning: Perfect gains 6% pace, 15% spin, and a small special-meter reward; Early loses 4% pace, floats higher, and loses 15% spin; Late loses 6% pace, gains safety lift, and loses 25% spin. Timing never creates a forced miss and all existing two-bounce, receiver, collision, and kitchen validation still runs first.
+  3. Added paddle-scaled physical spin to rally Hit and Power only. Topspin increases downward flight force and forward bounce kick with a lower bounce; Slice floats longer, loses forward pace on contact with the court, and skids lower; Flat retains the original ball behavior. Serve, Drop, Lob, Smash, Ultimate, and paddle-special behavior remain unchanged.
+  4. Added a compact, responsive three-option spin selector above the rally action cluster, hidden while serving. Player 1 and Player 2 keep independent selections, with keyboard cycling on `R` and `O` respectively; a new match defaults both to Flat.
+  5. Added camera-projected 0.65-second timing labels beside the hitter, grade-colored particles, distinct contact-sound pitch, and local haptic strength while leaving the permanent HUD uncluttered.
+  6. Extended shot-command JSON with optional `spin` and normalized `timing` fields. Legacy commands default to Flat/Good, the originating client records timing intent, and the host still decides whether contact is legal and applies the authoritative trajectory.
+  7. Extended LAN/Firebase/WebRTC snapshots with physical ball spin plus revisioned authoritative timing feedback, preserving backward-compatible defaults for older snapshots.
+  8. Added difficulty-aware bot spin selection: Easy remains mostly Flat, Medium uses attacking Topspin and occasional Slice, and Hard chooses tactically. Bot paddle spin scales the result, and strict behind-body reach prevents delayed AI swings after the ball has already passed.
+  9. Added timing-threshold/modifier, spin-flight/bounce, command compatibility, authoritative snapshot, client-intent, bot, and compact mobile selector coverage. Stabilized the selector widget test by clearing the shared panorama cache between game-screen cases.
+- **Verification:**
+  - `flutter analyze` completed with no issues.
+  - Focused timing, spin, command, LAN, bot, and widget suites passed (52/52 tests).
+  - Focused AI trajectory/rally/context and widget suites passed (31/31 tests).
+  - Complete Flutter suite passed (197/197 tests); the existing compact-Shop `PLAYERS` hit-test warning remains non-fatal.
+  - The standalone `dart format` process did not complete in this environment and was stopped; `flutter analyze` confirms the edited Dart sources are syntactically valid and lint-clean.
+  - No Dart DTD/MCP application-discovery or hot-restart tool was available in this session, so no running app could be restarted automatically.
+
 ## 2026-10-06
 
 ### Firebase online multiplayer foundation and LAN hardening

@@ -8,6 +8,7 @@ import '../models/court.dart';
 import '../models/game_settings.dart';
 import '../models/shop_items.dart';
 import '../models/ultimate_skill.dart';
+import '../models/shot_mechanics.dart';
 import '../game/score_controller.dart';
 import '../game/ball_controller.dart';
 import '../game/player_controller.dart';
@@ -62,6 +63,22 @@ class ServeTrajectoryPreview {
   final double targetZ;
   final bool serverOnRight;
   final bool isLegal;
+}
+
+class ContactFeedback {
+  const ContactFeedback({
+    required this.grade,
+    required this.position,
+    required this.playerSlot,
+    required this.revision,
+    required this.remaining,
+  });
+
+  final SwingTimingGrade grade;
+  final Vec3 position;
+  final int playerSlot;
+  final int revision;
+  final double remaining;
 }
 
 class PickleballGame extends ChangeNotifier {
@@ -147,12 +164,18 @@ class PickleballGame extends ChangeNotifier {
   Offset? swipeDirection;
   double swingBufferTimer = 0;
   ShotType? bufferedShot;
+  ShotSpin bufferedSpin = ShotSpin.flat;
+  double? bufferedTimingIntent;
   double opponentJoystickX = 0;
   double opponentJoystickY = 0;
   bool opponentServePressed = false;
   Offset? opponentSwipeDirection;
   double opponentSwingBufferTimer = 0;
   ShotType? opponentBufferedShot;
+  ShotSpin opponentBufferedSpin = ShotSpin.flat;
+  double? opponentBufferedTimingIntent;
+  ContactFeedback? contactFeedback;
+  int contactFeedbackRevision = 0;
 
   // ── Ultimate Skill System ─────────────────────────────────────
   double ultimateCharge = 0.45; // 0.0 .. 1.0
@@ -294,6 +317,7 @@ class PickleballGame extends ChangeNotifier {
       teammate: aiPartner,
       hasCoverageClaim: _hasDoublesCoverageClaim,
       preferredTargetX: () => farTeamSuggestedTargetX,
+      paddleSpin: aiPaddle.spin,
       onHit: (isPower) {
         _lastRallyHitter = ai;
         _onAIHit(isPower);
@@ -313,6 +337,7 @@ class PickleballGame extends ChangeNotifier {
         teammate: player,
         hasCoverageClaim: _hasDoublesCoverageClaim,
         preferredTargetX: () => nearTeamSuggestedTargetX,
+        paddleSpin: playerPartnerPaddle!.spin,
         onHit: (isPower) {
           _lastRallyHitter = playerPartner;
           _onAIHit(isPower);
@@ -330,6 +355,7 @@ class PickleballGame extends ChangeNotifier {
         teammate: ai,
         hasCoverageClaim: _hasDoublesCoverageClaim,
         preferredTargetX: () => farTeamSuggestedTargetX,
+        paddleSpin: aiPartnerPaddle!.spin,
         onHit: (isPower) {
           _lastRallyHitter = aiPartner;
           _onAIHit(isPower);
@@ -381,11 +407,32 @@ class PickleballGame extends ChangeNotifier {
     // Tick swing buffer timer
     if (swingBufferTimer > 0) {
       swingBufferTimer -= dt;
-      if (swingBufferTimer <= 0) bufferedShot = null;
+      if (swingBufferTimer <= 0) {
+        bufferedShot = null;
+        bufferedSpin = ShotSpin.flat;
+        bufferedTimingIntent = null;
+      }
     }
     if (opponentSwingBufferTimer > 0) {
       opponentSwingBufferTimer -= dt;
-      if (opponentSwingBufferTimer <= 0) opponentBufferedShot = null;
+      if (opponentSwingBufferTimer <= 0) {
+        opponentBufferedShot = null;
+        opponentBufferedSpin = ShotSpin.flat;
+        opponentBufferedTimingIntent = null;
+      }
+    }
+    final feedback = contactFeedback;
+    if (feedback != null) {
+      final remaining = feedback.remaining - dt;
+      contactFeedback = remaining > 0
+          ? ContactFeedback(
+              grade: feedback.grade,
+              position: feedback.position,
+              playerSlot: feedback.playerSlot,
+              revision: feedback.revision,
+              remaining: remaining,
+            )
+          : null;
     }
 
     // Stamina regeneration
@@ -1038,20 +1085,20 @@ class PickleballGame extends ChangeNotifier {
     if (ultimatePressed) {
       if (isUltimateReady) {
         isUltimateArmed = true;
-        queueShot(ShotType.ultimate);
+        if (bufferedShot == null) queueShot(ShotType.ultimate);
       }
       ultimatePressed = false;
     } else if (powerPressed) {
-      queueShot(ShotType.power);
+      if (bufferedShot == null) queueShot(ShotType.power);
       powerPressed = false;
     } else if (lobPressed) {
-      queueShot(ShotType.lob);
+      if (bufferedShot == null) queueShot(ShotType.lob);
       lobPressed = false;
     } else if (dropPressed) {
-      queueShot(ShotType.drop);
+      if (bufferedShot == null) queueShot(ShotType.drop);
       dropPressed = false;
     } else if (hitPressed) {
-      queueShot(ShotType.normal);
+      if (bufferedShot == null) queueShot(ShotType.normal);
       hitPressed = false;
     }
 
@@ -1094,9 +1141,15 @@ class PickleballGame extends ChangeNotifier {
           ball.position.y < 42 &&
           ball.position.z > -8 &&
           ball.canBeHitAfterBounce) {
-        _executePlayerHit(bufferedShot ??
-            (isUltimateArmed ? ShotType.ultimate : ShotType.normal));
+        _executePlayerHit(
+          bufferedShot ??
+              (isUltimateArmed ? ShotType.ultimate : ShotType.normal),
+          requestedSpin: bufferedSpin,
+          timingIntent: bufferedTimingIntent,
+        );
         bufferedShot = null;
+        bufferedSpin = ShotSpin.flat;
+        bufferedTimingIntent = null;
         swingBufferTimer = 0;
       }
     }
@@ -1115,8 +1168,14 @@ class PickleballGame extends ChangeNotifier {
           ball.position.y < 42 &&
           ball.position.z < 8 &&
           ball.canBeHitAfterBounce) {
-        _executeOpponentHit(opponentBufferedShot ?? ShotType.normal);
+        _executeOpponentHit(
+          opponentBufferedShot ?? ShotType.normal,
+          requestedSpin: opponentBufferedSpin,
+          timingIntent: opponentBufferedTimingIntent,
+        );
         opponentBufferedShot = null;
+        opponentBufferedSpin = ShotSpin.flat;
+        opponentBufferedTimingIntent = null;
         opponentSwingBufferTimer = 0;
       }
     }
@@ -1155,7 +1214,11 @@ class PickleballGame extends ChangeNotifier {
     }
   }
 
-  void _executePlayerHit(ShotType shotType) {
+  void _executePlayerHit(
+    ShotType shotType, {
+    ShotSpin requestedSpin = ShotSpin.flat,
+    double? timingIntent,
+  }) {
     if (gameMode == GameMode.doubles &&
         ball.rallyHitCount == 0 &&
         !identical(activeReceiver, player)) {
@@ -1252,6 +1315,11 @@ class PickleballGame extends ChangeNotifier {
       ball: ball,
       hitRadius: hitRadius,
     );
+    final timingGrade = gradeSwingTiming(
+      timeToIdealContact: timingIntent,
+      isSweetSpot: quality.isSweetSpot,
+    );
+    final timing = timingModifiersFor(timingGrade);
 
     final dir = _getAimDirection();
     final solution = solvePlayerShotTrajectory(
@@ -1263,6 +1331,7 @@ class PickleballGame extends ChangeNotifier {
       paddle: paddle,
       joystickY: joystickY,
       isNearSide: true,
+      timingGrade: timingGrade,
     );
 
     switch (activeShot) {
@@ -1311,6 +1380,9 @@ class PickleballGame extends ChangeNotifier {
     if (quality.isSweetSpot && activeShot != ShotType.ultimate) {
       effects.pulseCamera(shake: 0.20, zoom: 0.96);
     }
+    if (timing.chargeBonus > 0 && activeShot != ShotType.ultimate) {
+      addUltimateCharge(timing.chargeBonus);
+    }
 
     final spinBonus = 1.0 + (paddle.spin - 0.50) * 0.35;
     final baseSpin = activeShot == ShotType.drop ? -500.0 : 500.0;
@@ -1323,13 +1395,32 @@ class PickleballGame extends ChangeNotifier {
     ball.hasBounced = false;
     ball.isServe = false;
     ball.impactFlash = activeShot == ShotType.power ? 1.0 : 0.7;
-    ball.spinRate = baseSpin * spinBonus;
+    final appliedSpin = activeShot == ShotType.normal ||
+            activeShot == ShotType.power
+        ? requestedSpin
+        : ShotSpin.flat;
+    final physicalSpinStrength = appliedSpin == ShotSpin.flat
+        ? 0.0
+        : ((0.75 + paddle.spin * 0.50) * timing.spinMultiplier)
+            .clamp(0.0, 1.35)
+            .toDouble();
+    ball.shotSpin = appliedSpin;
+    ball.spinStrength = physicalSpinStrength;
+    ball.spinRate = switch (appliedSpin) {
+      ShotSpin.topspin => 720.0 * physicalSpinStrength,
+      ShotSpin.slice => -540.0 * physicalSpinStrength,
+      ShotSpin.flat => baseSpin * spinBonus,
+    };
     ball.shotType = activeShot;
     ball.rallyHitCount++;
     _lastRallyHitter = player;
+    _publishContactFeedback(player, timingGrade, playerSlot: 0);
 
     final isPowerHit = solution.isPowerHit;
-    audioService?.playHit(isPower: isPowerHit);
+    audioService?.playTimingHit(
+      isPower: isPowerHit,
+      grade: timingGrade,
+    );
 
     final sparkColor = activeShot == ShotType.ultimate
         ? getUltimateByType(ball.ultimateType ?? equippedUltimate).primaryColor
@@ -1337,11 +1428,18 @@ class PickleballGame extends ChangeNotifier {
     effects.spawnHitSparks(
       ball.position,
       sparkColor,
-      power: activeShot == ShotType.ultimate ? 1.0 : (isPowerHit ? 0.8 : 0.4),
+      power: activeShot == ShotType.ultimate
+          ? 1.0
+          : (isPowerHit ? 0.8 : 0.4) +
+              (timingGrade == SwingTimingGrade.perfect ? 0.15 : 0),
     );
   }
 
-  void _executeOpponentHit(ShotType shotType) {
+  void _executeOpponentHit(
+    ShotType shotType, {
+    ShotSpin requestedSpin = ShotSpin.flat,
+    double? timingIntent,
+  }) {
     if (gameMode == GameMode.doubles &&
         ball.rallyHitCount == 0 &&
         !identical(activeReceiver, ai)) {
@@ -1374,6 +1472,11 @@ class PickleballGame extends ChangeNotifier {
     }
 
     var activeShot = shotType == ShotType.ultimate ? ShotType.power : shotType;
+    final timingGrade = gradeSwingTiming(
+      timeToIdealContact: timingIntent,
+      isSweetSpot: true,
+    );
+    final timing = timingModifiersFor(timingGrade);
     double forwardSpeed;
     double upSpeed;
     switch (activeShot) {
@@ -1422,6 +1525,8 @@ class PickleballGame extends ChangeNotifier {
               deepRecoveryFactor;
       upSpeed += (activeShot == ShotType.lob ? 8 : 15) * deepRecoveryFactor;
     }
+    forwardSpeed *= timing.speedMultiplier;
+    upSpeed += timing.liftAssist;
 
     final dir = _getOpponentAimDirection();
     final aimDirX = dir.dx.clamp(-0.85, 0.85);
@@ -1461,18 +1566,38 @@ class PickleballGame extends ChangeNotifier {
     ball.hasBounced = false;
     ball.isServe = false;
     ball.impactFlash = activeShot == ShotType.power ? 1.0 : 0.7;
-    ball.spinRate = activeShot == ShotType.drop ? -500 : 500;
+    final paddle = paddleFor(ai);
+    final appliedSpin = activeShot == ShotType.normal ||
+            activeShot == ShotType.power
+        ? requestedSpin
+        : ShotSpin.flat;
+    final physicalSpinStrength = appliedSpin == ShotSpin.flat
+        ? 0.0
+        : ((0.75 + paddle.spin * 0.50) * timing.spinMultiplier)
+            .clamp(0.0, 1.35)
+            .toDouble();
+    ball.shotSpin = appliedSpin;
+    ball.spinStrength = physicalSpinStrength;
+    ball.spinRate = switch (appliedSpin) {
+      ShotSpin.topspin => 720.0 * physicalSpinStrength,
+      ShotSpin.slice => -540.0 * physicalSpinStrength,
+      ShotSpin.flat => activeShot == ShotType.drop ? -500 : 500,
+    };
     ball.shotType = activeShot;
     ball.rallyHitCount++;
     _lastRallyHitter = ai;
+    _publishContactFeedback(ai, timingGrade, playerSlot: 1);
     final isPower =
         activeShot == ShotType.power || activeShot == ShotType.smash;
-    _onAIHit(isPower);
+    _onAIHit(isPower, timingGrade: timingGrade);
   }
 
   // ── VFX event hooks ────────────────────────────────────────────
-  void _onAIHit(bool isPower) {
-    audioService?.playHit(isPower: isPower);
+  void _onAIHit(
+    bool isPower, {
+    SwingTimingGrade timingGrade = SwingTimingGrade.good,
+  }) {
+    audioService?.playTimingHit(isPower: isPower, grade: timingGrade);
     effects.spawnHitSparks(
       ball.position,
       isPower ? AppColors.power : AppColors.ballColor,
@@ -1771,34 +1896,89 @@ class PickleballGame extends ChangeNotifier {
     }
   }
 
-  void queueOpponentShot(ShotType type) {
+  double? captureSwingTimingIntent({required int playerSlot}) {
+    final hitter = playerSlot == 1 ? ai : player;
+    final forwardSign = hitter.isNearSide ? -1.0 : 1.0;
+    final idealContactZ = hitter.position.z + forwardSign * 3.5;
+    final relativeVelocityZ = ball.velocity.z - hitter.velocity.z;
+    if (!relativeVelocityZ.isFinite || relativeVelocityZ.abs() < 2.0) {
+      return null;
+    }
+    return ((idealContactZ - ball.position.z) / relativeVelocityZ)
+        .clamp(-0.35, 0.60)
+        .toDouble();
+  }
+
+  void _publishContactFeedback(
+    Player hitter,
+    SwingTimingGrade grade, {
+    required int playerSlot,
+  }) {
+    contactFeedbackRevision++;
+    contactFeedback = ContactFeedback(
+      grade: grade,
+      position:
+          Vec3(hitter.position.x, hitter.position.y + 28, hitter.position.z),
+      playerSlot: playerSlot,
+      revision: contactFeedbackRevision,
+      remaining: 0.65,
+    );
+  }
+
+  void applySyncedContactFeedback(ContactFeedback feedback) {
+    if (feedback.revision < contactFeedbackRevision) return;
+    contactFeedbackRevision = feedback.revision;
+    contactFeedback = feedback;
+  }
+
+  void queueOpponentShot(
+    ShotType type, {
+    ShotSpin spin = ShotSpin.flat,
+    double? timingIntent,
+  }) {
     if (!isLocalMultiplayer) return;
     opponentBufferedShot = type;
+    opponentBufferedSpin = spin;
+    opponentBufferedTimingIntent = timingIntent;
     opponentSwingBufferTimer = 0.35;
   }
 
-  void queueShot(ShotType type) {
+  void queueShot(
+    ShotType type, {
+    ShotSpin spin = ShotSpin.flat,
+    double? timingIntent,
+  }) {
     bufferedShot = type;
+    bufferedSpin = spin;
+    bufferedTimingIntent = timingIntent;
     swingBufferTimer = 0.35;
   }
 
-  void setHitPressed(bool v) {
-    if (v) queueShot(ShotType.normal);
+  void setHitPressed(
+    bool v, {
+    ShotSpin spin = ShotSpin.flat,
+    double? timingIntent,
+  }) {
+    if (v) queueShot(ShotType.normal, spin: spin, timingIntent: timingIntent);
     hitPressed = v;
   }
 
-  void setPowerPressed(bool v) {
-    if (v) queueShot(ShotType.power);
+  void setPowerPressed(
+    bool v, {
+    ShotSpin spin = ShotSpin.flat,
+    double? timingIntent,
+  }) {
+    if (v) queueShot(ShotType.power, spin: spin, timingIntent: timingIntent);
     powerPressed = v;
   }
 
-  void setLobPressed(bool v) {
-    if (v) queueShot(ShotType.lob);
+  void setLobPressed(bool v, {double? timingIntent}) {
+    if (v) queueShot(ShotType.lob, timingIntent: timingIntent);
     lobPressed = v;
   }
 
-  void setDropPressed(bool v) {
-    if (v) queueShot(ShotType.drop);
+  void setDropPressed(bool v, {double? timingIntent}) {
+    if (v) queueShot(ShotType.drop, timingIntent: timingIntent);
     dropPressed = v;
   }
 

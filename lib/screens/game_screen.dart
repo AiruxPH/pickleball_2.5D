@@ -16,6 +16,7 @@ import '../game/match_observation.dart';
 import '../game/pickleball_game.dart';
 import '../game/panorama/court_backdrop_view.dart';
 import '../models/game_settings.dart';
+import '../models/shot_mechanics.dart';
 import '../models/ultimate_skill.dart';
 import '../utils/constants.dart';
 import '../widgets/virtual_joystick.dart';
@@ -108,6 +109,9 @@ class _GameScreenState extends State<GameScreen>
   double _matchDuration = 0;
   bool _wasDown09 = false;
   bool _customizingControls = false;
+  ShotSpin _playerSpin = ShotSpin.flat;
+  ShotSpin _opponentSpin = ShotSpin.flat;
+  int _lastFeedbackRevision = 0;
 
   @override
   void didChangeDependencies() {
@@ -476,6 +480,26 @@ class _GameScreenState extends State<GameScreen>
         _scoreNotifier.value++;
       }
 
+      final feedback = game.contactFeedback;
+      if (feedback != null && feedback.revision != _lastFeedbackRevision) {
+        _lastFeedbackRevision = feedback.revision;
+        final localSlot = _isRemoteClient ? 1 : 0;
+        if (!_isLocalMultiplayer || feedback.playerSlot == localSlot) {
+          switch (feedback.grade) {
+            case SwingTimingGrade.perfect:
+              HapticFeedback.mediumImpact();
+              break;
+            case SwingTimingGrade.good:
+              HapticFeedback.lightImpact();
+              break;
+            case SwingTimingGrade.early:
+            case SwingTimingGrade.late:
+              HapticFeedback.selectionClick();
+              break;
+          }
+        }
+      }
+
       // Check for game state update (serves, rally transitions)
       if (game.state != _lastState) {
         _lastState = game.state;
@@ -569,6 +593,31 @@ class _GameScreenState extends State<GameScreen>
 
   bool get _controlsFarSide => _activeTouchCommands == _opponentCommands;
 
+  ShotSpin get _activeSpin =>
+      _controlsFarSide ? _opponentSpin : _playerSpin;
+
+  void _setActiveSpin(ShotSpin spin) {
+    setState(() {
+      if (_controlsFarSide) {
+        _opponentSpin = spin;
+      } else {
+        _playerSpin = spin;
+      }
+    });
+  }
+
+  void _cycleSpin({required bool opponent}) {
+    final current = opponent ? _opponentSpin : _playerSpin;
+    final next = ShotSpin.values[(current.index + 1) % ShotSpin.values.length];
+    setState(() {
+      if (opponent) {
+        _opponentSpin = next;
+      } else {
+        _playerSpin = next;
+      }
+    });
+  }
+
   CourtInputMapper? get _inputMapper {
     final presentation = _presentation;
     return presentation == null ? null : CourtInputMapper(presentation.camera);
@@ -638,6 +687,14 @@ class _GameScreenState extends State<GameScreen>
     }
 
     if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.keyR) {
+        _cycleSpin(opponent: false);
+        return;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyO) {
+        _cycleSpin(opponent: true);
+        return;
+      }
       if (_isRemoteClient) {
         if (event.logicalKey == LogicalKeyboardKey.space ||
             event.logicalKey == LogicalKeyboardKey.enter) {
@@ -645,14 +702,17 @@ class _GameScreenState extends State<GameScreen>
               _game!.isOpponentHumanServing) {
             _opponentCommands?.serve();
           } else {
-            _opponentCommands?.shot(ShotType.normal);
+            _opponentCommands?.shot(
+              ShotType.normal,
+              spin: _opponentSpin,
+            );
           }
         } else if (event.logicalKey == LogicalKeyboardKey.keyJ ||
             event.logicalKey == LogicalKeyboardKey.keyM) {
-          _opponentCommands?.shot(ShotType.normal);
+          _opponentCommands?.shot(ShotType.normal, spin: _opponentSpin);
         } else if (event.logicalKey == LogicalKeyboardKey.keyK ||
             event.logicalKey == LogicalKeyboardKey.keyN) {
-          _opponentCommands?.shot(ShotType.power);
+          _opponentCommands?.shot(ShotType.power, spin: _opponentSpin);
         } else if (event.logicalKey == LogicalKeyboardKey.keyL ||
             event.logicalKey == LogicalKeyboardKey.keyB) {
           _opponentCommands?.shot(ShotType.lob);
@@ -677,12 +737,12 @@ class _GameScreenState extends State<GameScreen>
             identical(_game!.activeServer, _game!.player)) {
           _commands!.serve();
         } else {
-          _commands!.shot(ShotType.normal);
+          _commands!.shot(ShotType.normal, spin: _playerSpin);
         }
       } else if (event.logicalKey == LogicalKeyboardKey.keyJ) {
-        _commands!.shot(ShotType.normal);
+        _commands!.shot(ShotType.normal, spin: _playerSpin);
       } else if (event.logicalKey == LogicalKeyboardKey.keyK) {
-        _commands!.shot(ShotType.power);
+        _commands!.shot(ShotType.power, spin: _playerSpin);
       } else if (event.logicalKey == LogicalKeyboardKey.keyL) {
         _commands!.shot(ShotType.lob);
       } else if (event.logicalKey == LogicalKeyboardKey.keyU) {
@@ -694,16 +754,16 @@ class _GameScreenState extends State<GameScreen>
             _game!.isOpponentHumanServing) {
           _opponentCommands!.serve();
         } else {
-          _opponentCommands!.shot(ShotType.normal);
+          _opponentCommands!.shot(ShotType.normal, spin: _opponentSpin);
         }
       } else if (_isLocalMultiplayer &&
           !_isLanMultiplayer &&
           event.logicalKey == LogicalKeyboardKey.keyM) {
-        _opponentCommands!.shot(ShotType.normal);
+        _opponentCommands!.shot(ShotType.normal, spin: _opponentSpin);
       } else if (_isLocalMultiplayer &&
           !_isLanMultiplayer &&
           event.logicalKey == LogicalKeyboardKey.keyN) {
-        _opponentCommands!.shot(ShotType.power);
+        _opponentCommands!.shot(ShotType.power, spin: _opponentSpin);
       } else if (_isLocalMultiplayer &&
           !_isLanMultiplayer &&
           event.logicalKey == LogicalKeyboardKey.keyB) {
@@ -920,6 +980,11 @@ class _GameScreenState extends State<GameScreen>
 
                 // ── HUD overlay ─────────────────────────────────────
                 _buildHUD(game, isLandscape: isLandscape),
+
+                ValueListenableBuilder<int>(
+                  valueListenable: _tickNotifier,
+                  builder: (_, __, ___) => _buildTimingFeedback(game, size),
+                ),
 
                 // ── Pause menu overlay ──────────────────────────────
                 if (game.isPaused) _buildPauseMenu(game),
@@ -1471,6 +1536,12 @@ class _GameScreenState extends State<GameScreen>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
+        _SpinSelector(
+          selected: _activeSpin,
+          compact: isLandscape && screenHeight < 390,
+          onSelected: _setActiveSpin,
+        ),
+        SizedBox(height: rowSpacing),
         // Top row: Shot Modifiers (DROP, LOB, POWER/SMASH)
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -1499,7 +1570,10 @@ class _GameScreenState extends State<GameScreen>
               size: powerBtnSize,
               color: AppColors.power,
               glowColor: AppColors.powerGlow,
-              onTap: () => _activeTouchCommands?.shot(ShotType.power),
+              onTap: () => _activeTouchCommands?.shot(
+                ShotType.power,
+                spin: _activeSpin,
+              ),
             ),
           ],
         ),
@@ -1518,11 +1592,62 @@ class _GameScreenState extends State<GameScreen>
               size: hitBtnSize,
               color: AppColors.primary,
               glowColor: AppColors.primaryGlow,
-              onTap: () => _activeTouchCommands?.shot(ShotType.normal),
+              onTap: () => _activeTouchCommands?.shot(
+                ShotType.normal,
+                spin: _activeSpin,
+              ),
             ),
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildTimingFeedback(PickleballGame game, Size size) {
+    final feedback = game.contactFeedback;
+    if (feedback == null || feedback.remaining <= 0) {
+      return const SizedBox.shrink();
+    }
+    final point = _presentation?.camera.project(feedback.position);
+    if (point == null) return const SizedBox.shrink();
+    final color = switch (feedback.grade) {
+      SwingTimingGrade.perfect => const Color(0xFFFFD54F),
+      SwingTimingGrade.good => const Color(0xFF4ADE80),
+      SwingTimingGrade.early => const Color(0xFFFBBF24),
+      SwingTimingGrade.late => const Color(0xFFFB7185),
+    };
+    final opacity = (feedback.remaining / 0.18).clamp(0.0, 1.0).toDouble();
+    final left = (point.dx - 42).clamp(4.0, size.width - 88).toDouble();
+    final top = (point.dy - 22).clamp(4.0, size.height - 34).toDouble();
+    return Positioned(
+      left: left,
+      top: top,
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: opacity,
+          child: Container(
+            key: const ValueKey('swing-timing-feedback'),
+            width: 84,
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xDD081426),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color, width: 1.2),
+              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8)],
+            ),
+            child: Text(
+              feedback.grade.label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1916,6 +2041,72 @@ class _GameScreenState extends State<GameScreen>
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SpinSelector extends StatelessWidget {
+  const _SpinSelector({
+    required this.selected,
+    required this.compact,
+    required this.onSelected,
+  });
+
+  final ShotSpin selected;
+  final bool compact;
+  final ValueChanged<ShotSpin> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Shot spin',
+      child: Container(
+        key: const ValueKey('shot-spin-selector'),
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xDD071426),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0x6647BFFF)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: ShotSpin.values.map((spin) {
+            final active = spin == selected;
+            return Semantics(
+              button: true,
+              selected: active,
+              label: '${spin.label} spin',
+              child: InkWell(
+                key: ValueKey('shot-spin-${spin.name}'),
+                borderRadius: BorderRadius.circular(11),
+                onTap: () => onSelected(spin),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 7 : 10,
+                    vertical: compact ? 4 : 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? const Color(0xFF087FB5)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Text(
+                    spin.label,
+                    style: TextStyle(
+                      color: active ? Colors.white : const Color(0xFFAFC5D9),
+                      fontSize: compact ? 8 : 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(growable: false),
         ),
       ),
     );

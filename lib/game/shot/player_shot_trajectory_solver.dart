@@ -4,6 +4,7 @@ import '../../models/pickleball.dart';
 import '../../models/player.dart';
 import '../../models/shop_items.dart';
 import '../../models/ultimate_skill.dart';
+import '../../models/shot_mechanics.dart';
 import '../../utils/constants.dart';
 import '../../utils/game_math.dart';
 import 'shot_quality.dart';
@@ -33,6 +34,7 @@ TrajectorySolution solvePlayerShotTrajectory({
   required PaddleItem paddle,
   required double joystickY,
   required bool isNearSide,
+  SwingTimingGrade timingGrade = SwingTimingGrade.good,
 }) {
   double forwardSpeed;
   double upSpeed;
@@ -98,6 +100,10 @@ TrajectorySolution solvePlayerShotTrajectory({
   // 2. Shot quality scaling (rewards sweet spot, softens stretched reach)
   forwardSpeed *= quality.speedMultiplier;
   upSpeed += quality.liftAssist;
+
+  final timing = timingModifiersFor(timingGrade);
+  forwardSpeed *= timing.speedMultiplier;
+  upSpeed += timing.liftAssist;
 
   // 3. Joystick Y depth steering
   if (joystickY < -0.2) {

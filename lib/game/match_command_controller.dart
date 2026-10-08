@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import '../utils/constants.dart';
+import '../models/shot_mechanics.dart';
 import 'pickleball_game.dart';
 
 /// A source-neutral command that can come from touch controls, a keyboard,
@@ -13,6 +14,8 @@ class MatchCommand {
     this.x,
     this.y,
     this.shotType,
+    this.spin = ShotSpin.flat,
+    this.timingIntent,
   });
 
   const MatchCommand.movement(double x, double y)
@@ -25,8 +28,16 @@ class MatchCommand {
 
   const MatchCommand.serve() : this._(type: MatchCommandType.serve);
 
-  const MatchCommand.shot(ShotType shotType)
-      : this._(type: MatchCommandType.shot, shotType: shotType);
+  const MatchCommand.shot(
+    ShotType shotType, {
+    ShotSpin spin = ShotSpin.flat,
+    double? timingIntent,
+  }) : this._(
+          type: MatchCommandType.shot,
+          shotType: shotType,
+          spin: spin,
+          timingIntent: timingIntent,
+        );
 
   const MatchCommand.toggleUltimate()
       : this._(type: MatchCommandType.toggleUltimate);
@@ -35,12 +46,16 @@ class MatchCommand {
   final double? x;
   final double? y;
   final ShotType? shotType;
+  final ShotSpin spin;
+  final double? timingIntent;
 
   Map<String, dynamic> toJson() => {
         'type': type.name,
         if (x != null) 'x': x,
         if (y != null) 'y': y,
         if (shotType != null) 'shotType': shotType!.name,
+        if (spin != ShotSpin.flat) 'spin': spin.name,
+        if (timingIntent != null) 'timing': timingIntent,
       };
 
   factory MatchCommand.fromJson(Map<String, dynamic> json) {
@@ -56,11 +71,19 @@ class MatchCommand {
             orElse: () => ShotType.normal,
           )
         : null;
+    final spinName = json['spin'] as String?;
+    final spin = ShotSpin.values.firstWhere(
+      (value) => value.name == spinName,
+      orElse: () => ShotSpin.flat,
+    );
+    final rawTiming = (json['timing'] as num?)?.toDouble();
     return MatchCommand._(
       type: type,
       x: (json['x'] as num?)?.toDouble(),
       y: (json['y'] as num?)?.toDouble(),
       shotType: shotType,
+      spin: spin,
+      timingIntent: rawTiming?.clamp(-0.35, 0.60).toDouble(),
     );
   }
 }
@@ -75,7 +98,7 @@ abstract interface class MatchCommandSink {
   void aim(Offset direction);
   void clearAim();
   void serve();
-  void shot(ShotType type);
+  void shot(ShotType type, {ShotSpin spin = ShotSpin.flat});
   void toggleUltimate();
 }
 
@@ -130,7 +153,11 @@ class MatchCommandController implements MatchCommandSink {
             : game.setServePressed(true);
         break;
       case MatchCommandType.shot:
-        _dispatchShot(command.shotType ?? ShotType.normal);
+        _dispatchShot(
+          command.shotType ?? ShotType.normal,
+          spin: command.spin,
+          timingIntent: command.timingIntent,
+        );
         break;
       case MatchCommandType.toggleUltimate:
         if (!_isOpponent) game.toggleArmUltimate();
@@ -156,7 +183,13 @@ class MatchCommandController implements MatchCommandSink {
   void serve() => dispatch(const MatchCommand.serve());
 
   @override
-  void shot(ShotType type) => dispatch(MatchCommand.shot(type));
+  void shot(ShotType type, {ShotSpin spin = ShotSpin.flat}) => dispatch(
+        MatchCommand.shot(
+          type,
+          spin: spin,
+          timingIntent: game.captureSwingTimingIntent(playerSlot: playerSlot),
+        ),
+      );
 
   @override
   void toggleUltimate() => dispatch(const MatchCommand.toggleUltimate());
@@ -168,26 +201,45 @@ class MatchCommandController implements MatchCommandSink {
     return value.clamp(-1.0, 1.0).toDouble();
   }
 
-  void _dispatchShot(ShotType type) {
+  void _dispatchShot(
+    ShotType type, {
+    required ShotSpin spin,
+    required double? timingIntent,
+  }) {
     if (_isOpponent) {
-      game.queueOpponentShot(type == ShotType.ultimate ? ShotType.power : type);
+      game.queueOpponentShot(
+        type == ShotType.ultimate ? ShotType.power : type,
+        spin: spin,
+        timingIntent: timingIntent,
+      );
       return;
     }
     switch (type) {
       case ShotType.normal:
-        game.setHitPressed(true);
+        game.setHitPressed(
+          true,
+          spin: spin,
+          timingIntent: timingIntent,
+        );
         break;
       case ShotType.power:
-        game.setPowerPressed(true);
+        game.setPowerPressed(
+          true,
+          spin: spin,
+          timingIntent: timingIntent,
+        );
         break;
       case ShotType.smash:
-        game.queueShot(ShotType.smash);
+        game.queueShot(
+          ShotType.smash,
+          timingIntent: timingIntent,
+        );
         break;
       case ShotType.lob:
-        game.setLobPressed(true);
+        game.setLobPressed(true, timingIntent: timingIntent);
         break;
       case ShotType.drop:
-        game.setDropPressed(true);
+        game.setDropPressed(true, timingIntent: timingIntent);
         break;
       case ShotType.ultimate:
         game.setUltimatePressed(true);

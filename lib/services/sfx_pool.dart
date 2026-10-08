@@ -41,17 +41,25 @@ class SfxPool {
   }
 
   /// Plays a short sound effect file (from assets/audio/) with volume control.
-  void play(String filename, double volume) {
+  void play(
+    String filename,
+    double volume, {
+    double playbackRate = 1.0,
+  }) {
     if (!_initialized || _players.isEmpty || volume <= 0) return;
 
     final player = _players[_currentIndex];
     _currentIndex = (_currentIndex + 1) % _players.length;
 
-    unawaited(_playInternal(player, filename, volume));
+    unawaited(_playInternal(player, filename, volume, playbackRate));
   }
 
   Future<void> _playInternal(
-      AudioPlayer player, String filename, double volume) async {
+    AudioPlayer player,
+    String filename,
+    double volume,
+    double playbackRate,
+  ) async {
     try {
       // Safely stop any previous playback on this recycled slot
       try {
@@ -60,6 +68,8 @@ class SfxPool {
 
       final cleanFile =
           filename.startsWith('audio/') ? filename : 'audio/$filename';
+
+      await player.setPlaybackRate(playbackRate.clamp(0.75, 1.25).toDouble());
 
       await player.play(
         AssetSource(cleanFile),

@@ -1,6 +1,7 @@
 import '../../game/pickleball_game.dart';
 import '../../models/pickleball.dart';
 import '../../models/player.dart';
+import '../../models/shot_mechanics.dart';
 import '../../utils/game_math.dart';
 
 class LanEntityState {
@@ -57,6 +58,8 @@ class LanStateSnapshot {
   const LanStateSnapshot({
     required this.ball,
     required this.ballState,
+    this.ballSpin = 'flat',
+    this.ballSpinStrength = 0,
     required this.player1,
     required this.player2,
     this.partner1,
@@ -68,11 +71,18 @@ class LanStateSnapshot {
     required this.servingPrimary,
     required this.gameState,
     this.lastMessage,
+    this.timingGrade,
+    this.timingPosition,
+    this.timingPlayerSlot = 0,
+    this.timingRevision = 0,
+    this.timingRemaining = 0,
     required this.timestamp,
   });
 
   final LanEntityState ball;
   final String ballState;
+  final String ballSpin;
+  final double ballSpinStrength;
   final LanEntityState player1;
   final LanEntityState player2;
   final LanEntityState? partner1;
@@ -84,11 +94,18 @@ class LanStateSnapshot {
   final bool servingPrimary;
   final String gameState;
   final String? lastMessage;
+  final String? timingGrade;
+  final LanEntityState? timingPosition;
+  final int timingPlayerSlot;
+  final int timingRevision;
+  final double timingRemaining;
   final int timestamp;
 
   Map<String, dynamic> toJson() => {
         'ball': ball.toJson(),
         'bState': ballState,
+        if (ballSpin != 'flat') 'bSpin': ballSpin,
+        if (ballSpinStrength != 0) 'bSpinS': ballSpinStrength,
         'p1': player1.toJson(),
         'p2': player2.toJson(),
         if (partner1 != null) 'part1': partner1!.toJson(),
@@ -100,6 +117,11 @@ class LanStateSnapshot {
         'srvPri': servingPrimary,
         'gState': gameState,
         if (lastMessage != null && lastMessage!.isNotEmpty) 'msg': lastMessage,
+        if (timingGrade != null) 'timingGrade': timingGrade,
+        if (timingPosition != null) 'timingPos': timingPosition!.toJson(),
+        if (timingRevision != 0) 'timingRev': timingRevision,
+        if (timingRevision != 0) 'timingSlot': timingPlayerSlot,
+        if (timingRemaining > 0) 'timingLeft': timingRemaining,
         'ts': timestamp,
       };
 
@@ -109,6 +131,8 @@ class LanStateSnapshot {
         Map<String, dynamic>.from(json['ball'] as Map? ?? {}),
       ),
       ballState: json['bState'] as String? ?? 'inFlight',
+      ballSpin: json['bSpin'] as String? ?? 'flat',
+      ballSpinStrength: (json['bSpinS'] as num?)?.toDouble() ?? 0,
       player1: LanEntityState.fromJson(
         Map<String, dynamic>.from(json['p1'] as Map? ?? {}),
       ),
@@ -128,6 +152,15 @@ class LanStateSnapshot {
       servingPrimary: json['srvPri'] == true,
       gameState: json['gState'] as String? ?? 'rally',
       lastMessage: json['msg'] as String?,
+      timingGrade: json['timingGrade'] as String?,
+      timingPosition: json['timingPos'] is Map
+          ? LanEntityState.fromJson(
+              Map<String, dynamic>.from(json['timingPos'] as Map),
+            )
+          : null,
+      timingPlayerSlot: (json['timingSlot'] as num?)?.toInt() ?? 0,
+      timingRevision: (json['timingRev'] as num?)?.toInt() ?? 0,
+      timingRemaining: (json['timingLeft'] as num?)?.toDouble() ?? 0,
       timestamp: (json['ts'] as num?)?.toInt() ?? 0,
     );
   }
@@ -143,6 +176,8 @@ class LanStateSnapshot {
         vz: game.ball.velocity.z,
       ),
       ballState: game.ball.state.name,
+      ballSpin: game.ball.shotSpin.name,
+      ballSpinStrength: game.ball.spinStrength,
       player1: LanEntityState(
         x: game.player.position.x,
         y: game.player.position.y,
@@ -198,6 +233,17 @@ class LanStateSnapshot {
       servingPrimary: game.scoreController.servingPrimary,
       gameState: game.state.name,
       lastMessage: game.lastMessage,
+      timingGrade: game.contactFeedback?.grade.name,
+      timingPosition: game.contactFeedback == null
+          ? null
+          : LanEntityState(
+              x: game.contactFeedback!.position.x,
+              y: game.contactFeedback!.position.y,
+              z: game.contactFeedback!.position.z,
+            ),
+      timingPlayerSlot: game.contactFeedback?.playerSlot ?? 0,
+      timingRevision: game.contactFeedbackRevision,
+      timingRemaining: game.contactFeedback?.remaining ?? 0,
       timestamp: DateTime.now().millisecondsSinceEpoch,
     );
   }
@@ -236,6 +282,11 @@ class LanStateSnapshot {
       (e) => e.name == ballState,
       orElse: () => BallState.inFlight,
     );
+    game.ball.shotSpin = ShotSpin.values.firstWhere(
+      (value) => value.name == ballSpin,
+      orElse: () => ShotSpin.flat,
+    );
+    game.ball.spinStrength = ballSpinStrength.clamp(0.0, 1.35).toDouble();
 
     // Synchronize players
     game.player.position = blended(
@@ -315,6 +366,33 @@ class LanStateSnapshot {
     );
     if (lastMessage != null && lastMessage!.isNotEmpty) {
       game.lastMessage = lastMessage!;
+    }
+    final feedbackPosition = timingPosition;
+    final gradeName = timingGrade;
+    if (feedbackPosition != null &&
+        gradeName != null &&
+        timingRevision > game.contactFeedbackRevision) {
+      final grade = SwingTimingGrade.values.firstWhere(
+        (value) => value.name == gradeName,
+        orElse: () => SwingTimingGrade.good,
+      );
+      game.applySyncedContactFeedback(
+        ContactFeedback(
+          grade: grade,
+          position: Vec3(
+            feedbackPosition.x,
+            feedbackPosition.y,
+            feedbackPosition.z,
+          ),
+          playerSlot: timingPlayerSlot,
+          revision: timingRevision,
+          remaining: timingRemaining.clamp(0.0, 0.65).toDouble(),
+        ),
+      );
+    } else if (timingRevision != 0 &&
+        timingRevision >= game.contactFeedbackRevision) {
+      game.contactFeedbackRevision = timingRevision;
+      game.contactFeedback = null;
     }
   }
 }

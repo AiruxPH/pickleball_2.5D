@@ -2,6 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pickleball_3d/models/pickleball.dart';
 import 'package:pickleball_3d/models/player.dart';
 import 'package:pickleball_3d/models/shop_items.dart';
+import 'package:pickleball_3d/models/shot_mechanics.dart';
+import 'package:pickleball_3d/models/court.dart';
+import 'package:pickleball_3d/models/game_settings.dart';
+import 'package:pickleball_3d/game/ball_controller.dart';
 import 'package:pickleball_3d/utils/constants.dart';
 import 'package:pickleball_3d/utils/game_math.dart';
 import 'package:pickleball_3d/game/shot/contextual_shot_type.dart';
@@ -11,6 +15,80 @@ import 'package:pickleball_3d/game/shot/player_aim_calculator.dart';
 import 'package:pickleball_3d/game/shot/player_shot_trajectory_solver.dart';
 
 void main() {
+  group('Swing Timing', () {
+    test('grades the complete forgiving timing window', () {
+      expect(
+        gradeSwingTiming(timeToIdealContact: 0.30, isSweetSpot: true),
+        SwingTimingGrade.early,
+      );
+      expect(
+        gradeSwingTiming(timeToIdealContact: 0.18, isSweetSpot: true),
+        SwingTimingGrade.perfect,
+      );
+      expect(
+        gradeSwingTiming(timeToIdealContact: 0.18, isSweetSpot: false),
+        SwingTimingGrade.good,
+      );
+      expect(
+        gradeSwingTiming(timeToIdealContact: 0.01, isSweetSpot: true),
+        SwingTimingGrade.late,
+      );
+      expect(
+        gradeSwingTiming(timeToIdealContact: null, isSweetSpot: true),
+        SwingTimingGrade.good,
+      );
+    });
+
+    test('exposes the specified pace, lift, spin, and meter modifiers', () {
+      final perfect = timingModifiersFor(SwingTimingGrade.perfect);
+      final early = timingModifiersFor(SwingTimingGrade.early);
+      final late = timingModifiersFor(SwingTimingGrade.late);
+
+      expect(perfect.speedMultiplier, 1.06);
+      expect(perfect.spinMultiplier, 1.15);
+      expect(perfect.chargeBonus, greaterThan(0));
+      expect(early.speedMultiplier, 0.96);
+      expect(early.liftAssist, greaterThan(0));
+      expect(early.spinMultiplier, 0.85);
+      expect(late.speedMultiplier, 0.94);
+      expect(late.liftAssist, greaterThan(0));
+      expect(late.spinMultiplier, 0.75);
+    });
+  });
+
+  group('Physical Spin', () {
+    Pickleball simulateBounce(ShotSpin spin) {
+      final ball = Pickleball()
+        ..state = BallState.inFlight
+        ..position = Vec3(0, PhysicsConstants.ballRadius, 10)
+        ..velocity = Vec3(0, -20, -80)
+        ..shotSpin = spin
+        ..spinStrength = spin == ShotSpin.flat ? 0 : 1;
+      BallController(
+        ball: ball,
+        court: Court(),
+        settings: GameSettings(),
+      ).update(1 / 120);
+      return ball;
+    }
+
+    test('topspin dips, kicks forward, and bounces lower than flat', () {
+      final flat = simulateBounce(ShotSpin.flat);
+      final top = simulateBounce(ShotSpin.topspin);
+
+      expect(top.velocity.z.abs(), greaterThan(flat.velocity.z.abs()));
+      expect(top.velocity.y, lessThan(flat.velocity.y));
+    });
+
+    test('slice skids lower and loses forward speed after bouncing', () {
+      final flat = simulateBounce(ShotSpin.flat);
+      final slice = simulateBounce(ShotSpin.slice);
+
+      expect(slice.velocity.z.abs(), lessThan(flat.velocity.z.abs()));
+      expect(slice.velocity.y, lessThan(flat.velocity.y));
+    });
+  });
+
   group('Contextual Shot Type Adaptation', () {
     test('High floater adapts normal and power hits to smash', () {
       final player = Player(

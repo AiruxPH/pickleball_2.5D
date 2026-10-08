@@ -8,6 +8,7 @@ import 'package:pickleball_3d/game/match_observation.dart';
 import 'package:pickleball_3d/game/pickleball_game.dart';
 import 'package:pickleball_3d/models/game_settings.dart';
 import 'package:pickleball_3d/models/pickleball.dart';
+import 'package:pickleball_3d/models/shot_mechanics.dart';
 import 'package:pickleball_3d/utils/constants.dart';
 import 'package:pickleball_3d/utils/game_math.dart';
 
@@ -457,6 +458,7 @@ void main() {
 final class _RecordingCommandSink implements MatchCommandSink {
   Offset? aimDirection;
   ShotType? lastShot;
+  ShotSpin lastSpin = ShotSpin.flat;
 
   @override
   void aim(Offset direction) => aimDirection = direction;
@@ -471,7 +473,10 @@ final class _RecordingCommandSink implements MatchCommandSink {
   void serve() {}
 
   @override
-  void shot(ShotType type) => lastShot = type;
+  void shot(ShotType type, {ShotSpin spin = ShotSpin.flat}) {
+    lastShot = type;
+    lastSpin = spin;
+  }
 
   @override
   void stopMoving() {}

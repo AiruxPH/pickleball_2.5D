@@ -2,12 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pickleball_3d/game/match_command_controller.dart';
 import 'package:pickleball_3d/models/game_settings.dart';
 import 'package:pickleball_3d/models/match_lobby.dart';
+import 'package:pickleball_3d/models/shot_mechanics.dart';
 import 'package:pickleball_3d/services/lan/lan_message.dart';
 import 'package:pickleball_3d/services/lan/lan_multiplayer_service.dart';
 import 'package:pickleball_3d/services/lan/lan_room_code.dart';
 import 'package:pickleball_3d/services/lan/lan_room_info.dart';
 import 'package:pickleball_3d/services/lan/lan_state_snapshot.dart';
 import 'package:pickleball_3d/utils/constants.dart';
+import 'package:pickleball_3d/utils/game_math.dart';
 import 'package:pickleball_3d/game/pickleball_game.dart';
 import 'dart:ui';
 
@@ -39,6 +41,28 @@ void main() {
       final restored = MatchCommand.fromJson(json);
       expect(restored.type, MatchCommandType.shot);
       expect(restored.shotType, ShotType.power);
+    });
+
+    test('serializes spin and normalized timing intent', () {
+      const cmd = MatchCommand.shot(
+        ShotType.power,
+        spin: ShotSpin.topspin,
+        timingIntent: 0.14,
+      );
+      final restored = MatchCommand.fromJson(cmd.toJson());
+
+      expect(restored.spin, ShotSpin.topspin);
+      expect(restored.timingIntent, 0.14);
+    });
+
+    test('legacy shot payload defaults to flat and good-compatible intent', () {
+      final restored = MatchCommand.fromJson({
+        'type': 'shot',
+        'shotType': 'normal',
+      });
+
+      expect(restored.spin, ShotSpin.flat);
+      expect(restored.timingIntent, isNull);
     });
 
     test('serializes serve command correctly', () {
@@ -186,6 +210,38 @@ void main() {
       snapshot.applyToGame(game, player2PositionBlend: 0);
 
       expect(game.ai.position.x, predictedX);
+    });
+
+    test('synchronizes physical spin and revisioned timing feedback', () {
+      final host = PickleballGame(settings: GameSettings());
+      host.ball.shotSpin = ShotSpin.slice;
+      host.ball.spinStrength = 1.1;
+      host.applySyncedContactFeedback(
+        ContactFeedback(
+          grade: SwingTimingGrade.perfect,
+          position: Vec3(4, 28, -12),
+          playerSlot: 1,
+          revision: 7,
+          remaining: 0.5,
+        ),
+      );
+      final snapshot = LanStateSnapshot.fromJson(
+        LanStateSnapshot.fromGame(host).toJson(),
+      );
+      final client = PickleballGame(settings: GameSettings());
+
+      snapshot.applyToGame(client);
+
+      expect(client.ball.shotSpin, ShotSpin.slice);
+      expect(client.ball.spinStrength, closeTo(1.1, 1e-9));
+      expect(client.contactFeedback?.grade, SwingTimingGrade.perfect);
+      expect(client.contactFeedback?.playerSlot, 1);
+      expect(client.contactFeedbackRevision, 7);
+
+      host.contactFeedback = null;
+      LanStateSnapshot.fromGame(host).applyToGame(client);
+      expect(client.contactFeedback, isNull);
+      expect(client.contactFeedbackRevision, 7);
     });
   });
 

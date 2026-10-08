@@ -1,6 +1,7 @@
 import '../utils/game_math.dart';
 import '../utils/constants.dart';
 import 'ultimate_skill.dart';
+import 'shot_mechanics.dart';
 
 /// ─────────────────────────────────────────────────────────────
 /// Pickleball model — physics state of the ball
@@ -54,6 +55,8 @@ class Pickleball {
   List<Vec3> trail;      // recent positions for ball trail
   double spinRate;       // degrees per second (visual spin)
   double spinAngle;      // current spin display angle
+  ShotSpin shotSpin;     // physical spin behavior for the current flight
+  double spinStrength;   // normalized physical effect, typically 0.75..1.35
 
   // ── Bounce detection ───────────────────────────────────────
   bool hasBounced;       // has ball bounced on the CURRENT side since last hit
@@ -91,6 +94,8 @@ class Pickleball {
         trail = [],
         spinRate = 0,
         spinAngle = 0,
+        shotSpin = ShotSpin.flat,
+        spinStrength = 0,
         hasBounced = false,
         lastBounceZ = 0,
         playerSideBounce = false,
@@ -172,6 +177,8 @@ class Pickleball {
     impactFlash = 0;
     spinRate = 0;
     spinAngle = 0;
+    shotSpin = ShotSpin.flat;
+    spinStrength = 0;
     trail.clear();
     hasBounced = false;
     playerSideBounce = false;

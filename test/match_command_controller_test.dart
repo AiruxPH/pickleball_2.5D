@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pickleball_3d/game/match_command_controller.dart';
 import 'package:pickleball_3d/game/pickleball_game.dart';
 import 'package:pickleball_3d/models/game_settings.dart';
+import 'package:pickleball_3d/models/shot_mechanics.dart';
 import 'package:pickleball_3d/utils/constants.dart';
 
 void main() {
@@ -55,6 +56,18 @@ void main() {
         MatchCommandType.serve,
         MatchCommandType.shot,
       ]);
+    });
+
+    test('captures client timing intent and preserves selected spin', () {
+      game.ball.position.z = 34;
+      game.ball.velocity.z = 80;
+
+      commands.shot(ShotType.power, spin: ShotSpin.topspin);
+
+      expect(game.bufferedSpin, ShotSpin.topspin);
+      expect(game.bufferedTimingIntent, isNotNull);
+      expect(observed.single.spin, ShotSpin.topspin);
+      expect(observed.single.timingIntent, game.bufferedTimingIntent);
     });
 
     test('routes player two commands to the far-side local player', () {

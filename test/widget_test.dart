@@ -9,6 +9,7 @@ import 'package:pickleball_3d/screens/game_screen.dart';
 import 'package:pickleball_3d/widgets/scoreboard.dart';
 import 'package:pickleball_3d/widgets/game_button.dart';
 import 'package:pickleball_3d/services/audio_service.dart';
+import 'package:pickleball_3d/game/panorama/court_panorama_manager.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
@@ -99,6 +100,45 @@ void main() {
     expect(find.text('PAUSED'), findsOneWidget);
   });
 
+  testWidgets('rally spin selector stays on-screen at mobile landscape size',
+      (WidgetTester tester) async {
+    CourtPanoramaManager.instance.clear();
+    tester.view.physicalSize = const Size(640, 360);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({});
+    final settingsService = SettingsService();
+    await settingsService.init();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: GameSettings()),
+          Provider<SettingsService>.value(value: settingsService),
+        ],
+        child: const MaterialApp(home: GameScreen()),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('SERVE').last);
+    await tester.pump(const Duration(milliseconds: 150));
+
+    final selector = find.byKey(const ValueKey('shot-spin-selector'));
+    expect(selector, findsOneWidget);
+    final rect = tester.getRect(selector);
+    expect(rect.left, greaterThanOrEqualTo(0));
+    expect(rect.right, lessThanOrEqualTo(640));
+    expect(rect.bottom, lessThanOrEqualTo(360));
+    expect(find.byKey(const ValueKey('shot-spin-flat')), findsOneWidget);
+    expect(find.byKey(const ValueKey('shot-spin-topspin')), findsOneWidget);
+    expect(find.byKey(const ValueKey('shot-spin-slice')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    CourtPanoramaManager.instance.clear();
+    await tester.pump(const Duration(milliseconds: 100));
+  });
+
   testWidgets('GameButton features clickable pointer cursor and button click audio trigger',
       (WidgetTester tester) async {
     final fakeAudio = _WidgetTestFakeAudio();
@@ -148,4 +188,3 @@ class _WidgetTestFakeAudio extends AudioService {
     clickCount++;
   }
 }
-

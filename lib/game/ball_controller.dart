@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/pickleball.dart';
 import '../models/court.dart';
 import '../models/game_settings.dart';
+import '../models/shot_mechanics.dart';
 import '../utils/constants.dart';
 
 /// ─────────────────────────────────────────────────────────────
@@ -45,7 +46,12 @@ class BallController {
     ball.prevPosition = ball.position.copy();
 
     // ── Gravity ─────────────────────────────────────────────
-    ball.velocity.y -= PhysicsConstants.gravity * dt;
+    final gravityScale = switch (ball.shotSpin) {
+      ShotSpin.topspin => 1.0 + 0.18 * ball.spinStrength,
+      ShotSpin.slice => 1.0 - 0.10 * ball.spinStrength,
+      ShotSpin.flat => 1.0,
+    };
+    ball.velocity.y -= PhysicsConstants.gravity * gravityScale * dt;
 
     // ── Air Drag ─────────────────────────────────────────────
     // F_drag ∝ v² for a perforated ball (Cd ≈ 0.45).
@@ -82,6 +88,25 @@ class BallController {
       // Horizontal friction on bounce (energy lost to court surface)
       ball.velocity.x *= PhysicsConstants.ballFriction;
       ball.velocity.z *= PhysicsConstants.ballFriction;
+
+      switch (ball.shotSpin) {
+        case ShotSpin.topspin:
+          final kick = 1.0 + 0.08 * ball.spinStrength;
+          ball.velocity.x *= kick;
+          ball.velocity.z *= kick;
+          newVy *= 1.0 - 0.12 * ball.spinStrength;
+          ball.velocity.y = newVy;
+          break;
+        case ShotSpin.slice:
+          final skid = 1.0 - 0.18 * ball.spinStrength;
+          ball.velocity.x *= skid;
+          ball.velocity.z *= skid;
+          newVy *= 1.0 - 0.25 * ball.spinStrength;
+          ball.velocity.y = newVy;
+          break;
+        case ShotSpin.flat:
+          break;
+      }
 
       // Trigger court bounce audio for noticeable impacts
       if (incomingVy > 5.0 && ball.bounceCount <= 2) {
