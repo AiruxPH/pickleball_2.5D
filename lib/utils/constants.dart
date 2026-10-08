@@ -286,22 +286,7 @@ extension CourtThemeExtension on CourtTheme {
 
   /// Optional 360-degree equirectangular panorama backdrop for dynamic camera rendering
   String? get panoramaAssetPath {
-    switch (this) {
-      case CourtTheme.tournament:
-        return 'assets/images/courts/court_7_panorama.png';
-      case CourtTheme.beach:
-        return 'assets/images/courts/court_1_panorama.jpg';
-      case CourtTheme.indoor:
-        return 'assets/images/courts/court_2_panorama.jpg';
-      case CourtTheme.outdoor:
-        return 'assets/images/courts/grassland_panorama.jpg';
-      case CourtTheme.midnight:
-        return 'assets/images/courts/starry_night_panorama.jpg';
-      case CourtTheme.volcano:
-        return 'assets/images/courts/court_5_panorama.jpg';
-      case CourtTheme.canyon:
-        return null;
-    }
+    return null;
   }
 
   // Court surface color (primary tone)
