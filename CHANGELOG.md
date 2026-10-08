@@ -844,3 +844,15 @@
 - Added widget regression coverage for live difficulty and court selection repainting.
 - Validation: 72 combined mode-selection, rules, difficulty, and AI rally tests passed.
 - A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.
+
+### 2026-10-06 - Easy bot rebalance and doubles coverage coordination
+
+- Raised Easy bot movement speed from 75 to 90 world units per second so it reaches legal contacts promptly while retaining Easy accuracy, tactics, and unforced-error tuning.
+- Standardized the command-driven `BotAgent` decision interval at 120 ms too; it had still been using the old difficulty-specific 280/160/80 ms intervals after the simulation AI was standardized.
+- Fixed incoming-ball detection for both AI systems: a bot now requires opponent ownership and velocity toward its team, so it cannot chase or re-hit a ball that its teammate just sent away while the ball is still physically on their half.
+- Added a sticky doubles coverage coordinator. The serve return is reserved for the official diagonal receiver; later incoming shots are assigned once to the teammate closest to the projected first-bounce location.
+- Exposed the current near/far coverage owner through immutable match observations so command-driven primary bots hold formation when an AI teammate owns the ball.
+- Added regressions for outgoing-ball rejection, teammate-owned coverage, official serve-receiver ownership, and an Easy 2v2 opening exchange without wrong-receiver conflicts.
+- Validation: all 82 focused targeting, bot, AI, difficulty, and rules tests passed.
+- Confirmed the `Intl.v8BreakIterator` browser warning originates only from Flutter-generated `build/web/main.dart.js`, not application source. It is a non-fatal Flutter web runtime feature check and generated output was not patched.
+- A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.

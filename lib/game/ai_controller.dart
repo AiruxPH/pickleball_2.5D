@@ -37,6 +37,7 @@ class AIController {
   final String? drillType;
   final Player? humanPlayer;
   final Player? teammate;
+  final bool Function(Player player)? hasCoverageClaim;
   final void Function(bool isPower)? onHit;
 
   AIState _state = AIState.idle;
@@ -66,6 +67,7 @@ class AIController {
     this.drillType,
     this.humanPlayer,
     this.teammate,
+    this.hasCoverageClaim,
     this.onHit,
   });
 
@@ -77,7 +79,7 @@ class AIController {
     if (isPracticeMode) return 145.0;
     switch (difficulty) {
       case AIDifficulty.easy:
-        return 75.0;
+        return 90.0;
       case AIDifficulty.medium:
         return 100.0;
       case AIDifficulty.hard:
@@ -128,9 +130,13 @@ class AIController {
 
     // Only act when ball is on this player's side or coming toward it
     final isPartner = ai.isPartner;
-    final arrivingOnTeamSide = isPartner
-        ? (ball.position.z > 0 || ball.velocity.z > 2.0)
-        : (ball.position.z < 0 || ball.velocity.z < -2.0);
+    final opponentHitBall = isPartner
+        ? !ball.lastHitByPlayer
+        : ball.lastHitByPlayer;
+    final movingTowardTeam = isPartner
+        ? ball.velocity.z > 2.0
+        : ball.velocity.z < -2.0;
+    final arrivingOnTeamSide = opponentHitBall && movingTowardTeam;
     final ballComing = arrivingOnTeamSide && shouldCoverIncomingBall();
     final ballOnOwnHalf = isPartner ? ball.position.z > 0 : ball.position.z < 0;
     if (ballComing && ballOnOwnHalf) {
@@ -181,6 +187,8 @@ class AIController {
   bool shouldCoverIncomingBall() {
     final partner = teammate;
     if (partner == null) return true;
+    final claim = hasCoverageClaim;
+    if (claim != null) return claim(ai);
 
     final homeX = ai.assignedRightSide
         ? (ai.isPartner ? 16.0 : -16.0)

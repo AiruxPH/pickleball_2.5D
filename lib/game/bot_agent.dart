@@ -90,14 +90,7 @@ class BotAgent {
   }
 
   double get reactionTime {
-    switch (difficulty) {
-      case AIDifficulty.easy:
-        return 0.28;
-      case AIDifficulty.medium:
-        return 0.16;
-      case AIDifficulty.hard:
-        return 0.08;
-    }
+    return 0.12;
   }
 
   void update(double dt) {
@@ -161,7 +154,7 @@ class BotAgent {
   void _updateRally(MatchObservation observation) {
     final ball = observation.ball;
     final opponent = _opponentPlayer(observation);
-    final ballIncoming = _isBallIncoming(ball);
+    final ballIncoming = _isBallIncoming(observation);
 
     if (!ballIncoming) {
       final recoveryX = opponent.position.x >= 0 ? -12.0 : 12.0;
@@ -195,7 +188,7 @@ class BotAgent {
   bool _tryReturnBall(MatchObservation observation) {
     final ball = observation.ball;
     final player = _controlledPlayer(observation);
-    final ballIncoming = _isBallIncoming(ball);
+    final ballIncoming = _isBallIncoming(observation);
     if (!ballIncoming) return false;
 
     final localBallZ = _localZ(ball.position.z);
@@ -338,13 +331,17 @@ class BotAgent {
           ? observation.controlledPlayerServing
           : !observation.controlledPlayerServing;
 
-  bool _isBallIncoming(BallObservation ball) {
+  bool _isBallIncoming(MatchObservation observation) {
+    final ball = observation.ball;
+    final ownsCoverage = side == BotCourtSide.near
+        ? observation.nearPrimaryHasCoverage
+        : observation.farPrimaryHasCoverage;
+    if (!ownsCoverage) return false;
     final lastHitByControlled = side == BotCourtSide.near
         ? ball.lastHitByNearSide
         : !ball.lastHitByNearSide;
-    final z = _localZ(ball.position.z);
     final vz = _localZ(ball.velocity.z);
-    return !lastHitByControlled && (z > 0 || vz > 0);
+    return !lastHitByControlled && vz > 2.0;
   }
 
   double _localZ(double worldZ) => side == BotCourtSide.near ? worldZ : -worldZ;

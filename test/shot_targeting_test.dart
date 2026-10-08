@@ -1,11 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pickleball_3d/game/ai_controller.dart';
+import 'package:pickleball_3d/game/pickleball_game.dart';
 import 'package:pickleball_3d/game/shot_targeting.dart';
 import 'package:pickleball_3d/models/court.dart';
 import 'package:pickleball_3d/models/game_settings.dart';
 import 'package:pickleball_3d/models/pickleball.dart';
 import 'package:pickleball_3d/models/player.dart';
 import 'package:pickleball_3d/utils/game_math.dart';
+import 'package:pickleball_3d/utils/constants.dart';
 
 void main() {
   group('Sideline return targeting', () {
@@ -33,6 +35,23 @@ void main() {
   });
 
   group('Doubles coverage ownership', () {
+    test('serve return is reserved for the official diagonal receiver', () {
+      final game = PickleballGame(
+        settings: GameSettings(),
+        gameMode: GameMode.doubles,
+        difficultyOverride: AIDifficulty.easy,
+      );
+      final designatedReceiver = game.activeReceiver;
+
+      game.setServePressed(true);
+      game.update(1 / 60);
+      game.update(1 / 60);
+
+      expect(game.farTeamCoverageOwner, same(designatedReceiver));
+      expect(game.nearTeamCoverageOwner, isNull);
+      game.dispose();
+    });
+
     test('near-side ally holds its lane instead of chasing the human lane', () {
       final ball = Pickleball()..position = Vec3(16, 8, 45);
       final human = Player(

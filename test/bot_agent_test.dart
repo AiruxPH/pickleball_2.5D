@@ -114,6 +114,89 @@ void main() {
       expect(commands.aimDirection, isNotNull);
     });
 
+    test('ignores an outgoing ball that its own team just hit', () {
+      final commands = _RecordingCommandSink();
+      const observation = MatchObservation(
+        state: GameState.rally,
+        nearPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, 50),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        farPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, -50),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        ball: BallObservation(
+          position: ObservedVector(0, 12, 35),
+          velocity: ObservedVector(0, -2, -30),
+          lastHitByNearSide: true,
+          rallyHitCount: 3,
+          hasBounced: false,
+          isInPlay: true,
+        ),
+        controlledPlayerServing: false,
+        serverShouldBeOnRight: true,
+      );
+      final nearAgent = BotAgent(
+        observe: () => observation,
+        commands: commands,
+        difficulty: AIDifficulty.easy,
+      );
+
+      nearAgent.update(0.2);
+
+      expect(commands.lastShot, isNull);
+      expect(commands.aimDirection, isNull);
+    });
+
+    test('holds position when its doubles teammate owns coverage', () {
+      final commands = _RecordingCommandSink();
+      const observation = MatchObservation(
+        state: GameState.rally,
+        nearPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, 50),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        farPlayer: PlayerObservation(
+          position: ObservedVector(0, 0, -50),
+          velocity: ObservedVector(0, 0, 0),
+          canSwing: true,
+          stamina: 1,
+          score: 0,
+        ),
+        ball: BallObservation(
+          position: ObservedVector(0, 12, 35),
+          velocity: ObservedVector(0, -2, 30),
+          lastHitByNearSide: false,
+          rallyHitCount: 3,
+          hasBounced: false,
+          isInPlay: true,
+        ),
+        controlledPlayerServing: false,
+        serverShouldBeOnRight: true,
+        nearPrimaryHasCoverage: false,
+      );
+      final nearAgent = BotAgent(
+        observe: () => observation,
+        commands: commands,
+        difficulty: AIDifficulty.easy,
+      );
+
+      nearAgent.update(0.2);
+
+      expect(commands.lastShot, isNull);
+      expect(commands.aimDirection, isNull);
+    });
+
     test('returns an AI serve at the production 120 Hz step', () {
       final returnGame = PickleballGame(
         screenSize: const Size(800, 600),
@@ -273,6 +356,47 @@ void main() {
               'ball=${versusGame.ball.position}, '
               'near=${versusGame.player.position}, '
               'far=${versusGame.ai.position}');
+    });
+
+    test('easy doubles bots coordinate without wrong-receiver conflicts', () {
+      final doublesGame = PickleballGame(
+        settings: GameSettings(),
+        gameMode: GameMode.doubles,
+        isLocalMultiplayer: true,
+        difficultyOverride: AIDifficulty.easy,
+      );
+      final nearAgent = BotAgent(
+        observe: () => MatchObservation.fromGame(doublesGame),
+        commands: MatchCommandController(game: doublesGame),
+        difficulty: AIDifficulty.easy,
+        randomSeed: 31,
+      );
+      final farAgent = BotAgent(
+        observe: () => MatchObservation.fromGame(doublesGame),
+        commands: MatchCommandController(game: doublesGame, playerSlot: 1),
+        difficulty: AIDifficulty.easy,
+        side: BotCourtSide.far,
+        randomSeed: 47,
+      );
+
+      var longestRally = 0;
+      var wrongReceiverFault = false;
+      for (var i = 0; i < 3600 && longestRally < 2; i++) {
+        nearAgent.update(1 / 120);
+        farAgent.update(1 / 120);
+        doublesGame.update(1 / 120);
+        longestRally = math.max(longestRally, doublesGame.ball.rallyHitCount);
+        wrongReceiverFault = wrongReceiverFault ||
+            doublesGame.scoreController.lastFaultDetail
+                .contains('WRONG RECEIVER');
+        if (wrongReceiverFault) break;
+      }
+
+      expect(wrongReceiverFault, isFalse);
+      expect(longestRally, greaterThanOrEqualTo(2),
+          reason: 'The designated receiver and its teammate must coordinate '
+              'the opening two-bounce exchange on Easy.');
+      doublesGame.dispose();
     });
   });
 }

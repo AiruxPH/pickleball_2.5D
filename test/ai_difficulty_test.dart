@@ -27,7 +27,7 @@ void main() {
 
       // Switch to Easy
       settings.difficulty = AIDifficulty.easy;
-      expect(settings.aiSpeed, 75.0);
+      expect(settings.aiSpeed, 90.0);
       expect(settings.aiReactionTime, 0.12);
       expect(settings.aiAccuracy, 0.65);
       expect(settings.aiErrorChance, 0.15);
@@ -40,7 +40,7 @@ void main() {
       expect(settings.aiErrorChance, 0.02);
 
       // aiSpeedForDifficulty helper
-      expect(settings.aiSpeedForDifficulty(1), 75.0);
+      expect(settings.aiSpeedForDifficulty(1), 90.0);
       expect(settings.aiSpeedForDifficulty(2), 100.0);
       expect(settings.aiSpeedForDifficulty(3), 130.0);
     });
@@ -65,7 +65,7 @@ void main() {
       );
 
       expect(aiController.difficulty, AIDifficulty.easy);
-      expect(aiController.effectiveSpeed, 75.0);
+      expect(aiController.effectiveSpeed, 90.0);
       expect(aiController.effectiveReactionTime, 0.12);
       expect(aiController.effectiveAccuracy, 0.65);
       expect(aiController.effectiveErrorChance, 0.15);

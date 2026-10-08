@@ -86,6 +86,12 @@ class PickleballGame extends ChangeNotifier {
   AIController? aiPartnerController;
   late PhysicsController physicsController;
   late ScoreController scoreController;
+  Player? _nearTeamCoverageOwner;
+  Player? _farTeamCoverageOwner;
+  int _coverageRevision = -1;
+
+  Player? get nearTeamCoverageOwner => _nearTeamCoverageOwner;
+  Player? get farTeamCoverageOwner => _farTeamCoverageOwner;
 
   Player get activeServer {
     if (scoreController.isPlayerServing) {
@@ -277,6 +283,7 @@ class PickleballGame extends ChangeNotifier {
       drillType: drillType,
       humanPlayer: player,
       teammate: aiPartner,
+      hasCoverageClaim: _hasDoublesCoverageClaim,
       onHit: _onAIHit,
     );
 
@@ -291,6 +298,7 @@ class PickleballGame extends ChangeNotifier {
         drillType: drillType,
         humanPlayer: ai,
         teammate: player,
+        hasCoverageClaim: _hasDoublesCoverageClaim,
         onHit: _onAIHit,
       );
       aiPartnerController = AIController(
@@ -303,6 +311,7 @@ class PickleballGame extends ChangeNotifier {
         drillType: drillType,
         humanPlayer: player,
         teammate: ai,
+        hasCoverageClaim: _hasDoublesCoverageClaim,
         onHit: _onAIHit,
       );
     }
@@ -404,6 +413,9 @@ class PickleballGame extends ChangeNotifier {
     aiController.resetForRally();
     partnerController?.resetForRally();
     aiPartnerController?.resetForRally();
+    _nearTeamCoverageOwner = null;
+    _farTeamCoverageOwner = null;
+    _coverageRevision = -1;
 
     if (scoreController.isPlayerServing) {
       final server = activeServer;
@@ -459,6 +471,90 @@ class PickleballGame extends ChangeNotifier {
   double _formationX(Player member, {required bool nearSide}) {
     if (nearSide) return member.assignedRightSide ? 16.0 : -16.0;
     return member.assignedRightSide ? -16.0 : 16.0;
+  }
+
+  bool _hasDoublesCoverageClaim(Player candidate) {
+    if (gameMode != GameMode.doubles) return true;
+    return candidate.isNearSide
+        ? identical(candidate, _nearTeamCoverageOwner)
+        : identical(candidate, _farTeamCoverageOwner);
+  }
+
+  void _updateDoublesCoverageOwner() {
+    if (gameMode != GameMode.doubles || !ball.isInPlay) return;
+
+    final revision = ball.rallyHitCount * 2 + (ball.lastHitByPlayer ? 1 : 0);
+    if (revision == _coverageRevision) return;
+    _coverageRevision = revision;
+
+    final incomingNear = !ball.lastHitByPlayer && ball.velocity.z > 2.0;
+    final incomingFar = ball.lastHitByPlayer && ball.velocity.z < -2.0;
+    if (!incomingNear && !incomingFar) return;
+
+    // The diagonal receiver owns the serve return. Later balls are assigned
+    // once per incoming shot from their projected first-bounce location.
+    if (ball.rallyHitCount == 0) {
+      final receiver = activeReceiver;
+      if (receiver.isNearSide) {
+        _nearTeamCoverageOwner = receiver;
+        _farTeamCoverageOwner = null;
+      } else {
+        _farTeamCoverageOwner = receiver;
+        _nearTeamCoverageOwner = null;
+      }
+      return;
+    }
+
+    final target = _predictCoverageTarget();
+    if (incomingNear && playerPartner != null) {
+      _nearTeamCoverageOwner = _closerPlayer(player, playerPartner!, target);
+      _farTeamCoverageOwner = null;
+    } else if (incomingFar && aiPartner != null) {
+      _farTeamCoverageOwner = _closerPlayer(ai, aiPartner!, target);
+      _nearTeamCoverageOwner = null;
+    }
+  }
+
+  Player _closerPlayer(Player first, Player second, Vec3 target) {
+    double distanceSquared(Player member) {
+      final dx = member.position.x - target.x;
+      final dz = member.position.z - target.z;
+      return dx * dx + dz * dz;
+    }
+
+    return distanceSquared(first) <= distanceSquared(second) ? first : second;
+  }
+
+  Vec3 _predictCoverageTarget() {
+    if (ball.hasBounced) return ball.position.copy();
+
+    var x = ball.position.x;
+    var y = ball.position.y;
+    var z = ball.position.z;
+    var vx = ball.velocity.x;
+    var vy = ball.velocity.y;
+    var vz = ball.velocity.z;
+    const step = 0.025;
+
+    for (var i = 0; i < 160; i++) {
+      vy -= PhysicsConstants.gravity * step;
+      final speed = math.sqrt(vx * vx + vy * vy + vz * vz);
+      if (speed > 0.1) {
+        final drag =
+            (1.0 - PhysicsConstants.ballDragCoefficient * speed * step)
+                .clamp(0.0, 1.0);
+        vx *= drag;
+        vy *= drag;
+        vz *= drag;
+      }
+      x += vx * step;
+      y += vy * step;
+      z += vz * step;
+      if (y <= PhysicsConstants.ballRadius) {
+        return Vec3(x, PhysicsConstants.ballRadius, z);
+      }
+    }
+    return Vec3(x, y, z);
   }
 
   // ── State: Waiting for serve ───────────────────────────────────
@@ -956,6 +1052,7 @@ class PickleballGame extends ChangeNotifier {
     if (isLocalMultiplayer) opponentPlayerController.updateAnimation(dt);
 
     // Update AI controllers
+    _updateDoublesCoverageOwner();
     if (!isLocalMultiplayer) aiController.update(effectiveDt);
     partnerController?.update(effectiveDt);
     aiPartnerController?.update(effectiveDt);

@@ -623,7 +623,7 @@ class GameSettings extends ChangeNotifier {
   // ── Difficulty helpers ─────────────────────────────────────
   double get aiSpeed {
     switch (_difficulty) {
-      case AIDifficulty.easy:   return 75.0;  // steady pace, forgiving rallies
+      case AIDifficulty.easy:   return 90.0;  // responsive but still forgiving
       case AIDifficulty.medium: return 100.0; // agile club player
       case AIDifficulty.hard:   return 130.0; // fast and aggressive pro
     }
@@ -631,7 +631,7 @@ class GameSettings extends ChangeNotifier {
 
   double aiSpeedForDifficulty(int level) {
     switch (level) {
-      case 1: return 75.0;
+      case 1: return 90.0;
       case 2: return 100.0;
       case 3: return 130.0;
       default: return 100.0;

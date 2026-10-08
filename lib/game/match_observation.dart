@@ -1,4 +1,5 @@
 import 'pickleball_game.dart';
+import '../utils/constants.dart';
 
 /// Immutable world-space position or velocity exposed to decision systems.
 final class ObservedVector {
@@ -65,6 +66,8 @@ final class MatchObservation {
     required this.ball,
     required this.controlledPlayerServing,
     required this.serverShouldBeOnRight,
+    this.nearPrimaryHasCoverage = true,
+    this.farPrimaryHasCoverage = true,
   });
 
   factory MatchObservation.fromGame(PickleballGame game) {
@@ -127,6 +130,10 @@ final class MatchObservation {
       ),
       controlledPlayerServing: identical(game.activeServer, game.player),
       serverShouldBeOnRight: game.scoreController.serverShouldBeOnRight,
+      nearPrimaryHasCoverage: game.gameMode != GameMode.doubles ||
+          identical(game.nearTeamCoverageOwner, game.player),
+      farPrimaryHasCoverage: game.gameMode != GameMode.doubles ||
+          identical(game.farTeamCoverageOwner, game.ai),
     );
   }
 
@@ -136,6 +143,8 @@ final class MatchObservation {
   final BallObservation ball;
   final bool controlledPlayerServing;
   final bool serverShouldBeOnRight;
+  final bool nearPrimaryHasCoverage;
+  final bool farPrimaryHasCoverage;
 }
 
 typedef MatchObserver = MatchObservation Function();
