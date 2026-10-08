@@ -38,6 +38,7 @@ class AIController {
   final Player? humanPlayer;
   final Player? teammate;
   final bool Function(Player player)? hasCoverageClaim;
+  final double? Function()? preferredTargetX;
   final void Function(bool isPower)? onHit;
 
   AIState _state = AIState.idle;
@@ -68,6 +69,7 @@ class AIController {
     this.humanPlayer,
     this.teammate,
     this.hasCoverageClaim,
+    this.preferredTargetX,
     this.onHit,
   });
 
@@ -130,12 +132,10 @@ class AIController {
 
     // Only act when ball is on this player's side or coming toward it
     final isPartner = ai.isPartner;
-    final opponentHitBall = isPartner
-        ? !ball.lastHitByPlayer
-        : ball.lastHitByPlayer;
-    final movingTowardTeam = isPartner
-        ? ball.velocity.z > 2.0
-        : ball.velocity.z < -2.0;
+    final opponentHitBall =
+        isPartner ? !ball.lastHitByPlayer : ball.lastHitByPlayer;
+    final movingTowardTeam =
+        isPartner ? ball.velocity.z > 2.0 : ball.velocity.z < -2.0;
     final arrivingOnTeamSide = opponentHitBall && movingTowardTeam;
     final ballComing = arrivingOnTeamSide && shouldCoverIncomingBall();
     final ballOnOwnHalf = isPartner ? ball.position.z > 0 : ball.position.z < 0;
@@ -630,6 +630,15 @@ class AIController {
         aimX = (_rng.nextDouble() - 0.5) *
             12.0; // Centered directly into player's court
       }
+    }
+
+    // In doubles, deliberately change the receiving lane between exchanges.
+    // This keeps both defenders involved while the coverage coordinator still
+    // decides whether an emergency poach is necessary.
+    final coordinatedTargetX = preferredTargetX?.call();
+    if (coordinatedTargetX != null && !isUnforcedError) {
+      final spread = (1.0 - effectiveAccuracy) * 5.0;
+      aimX = coordinatedTargetX + (_rng.nextDouble() - 0.5) * 2 * spread;
     }
 
     // Errors reduce tactical quality but never deliberately target outside.

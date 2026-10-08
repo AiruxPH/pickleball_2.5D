@@ -88,10 +88,18 @@ class PickleballGame extends ChangeNotifier {
   late ScoreController scoreController;
   Player? _nearTeamCoverageOwner;
   Player? _farTeamCoverageOwner;
+  Player? _lastNearTeamCoverageOwner;
+  Player? _lastFarTeamCoverageOwner;
+  Player? _lastRallyHitter;
   int _coverageRevision = -1;
 
   Player? get nearTeamCoverageOwner => _nearTeamCoverageOwner;
   Player? get farTeamCoverageOwner => _farTeamCoverageOwner;
+  Player? get lastRallyHitter => _lastRallyHitter;
+  double? get nearTeamSuggestedTargetX =>
+      gameMode == GameMode.doubles ? _doublesTargetX(nearTeam: true) : null;
+  double? get farTeamSuggestedTargetX =>
+      gameMode == GameMode.doubles ? _doublesTargetX(nearTeam: false) : null;
 
   Player get activeServer {
     if (scoreController.isPlayerServing) {
@@ -196,6 +204,7 @@ class PickleballGame extends ChangeNotifier {
     }
     return currentPaddle;
   }
+
   PlayerSkinItem get currentPlayerSkin =>
       getPlayerSkinById(settings.equippedPlayerId);
 
@@ -284,7 +293,11 @@ class PickleballGame extends ChangeNotifier {
       humanPlayer: player,
       teammate: aiPartner,
       hasCoverageClaim: _hasDoublesCoverageClaim,
-      onHit: _onAIHit,
+      preferredTargetX: () => farTeamSuggestedTargetX,
+      onHit: (isPower) {
+        _lastRallyHitter = ai;
+        _onAIHit(isPower);
+      },
     );
 
     if (gameMode == GameMode.doubles) {
@@ -299,7 +312,11 @@ class PickleballGame extends ChangeNotifier {
         humanPlayer: ai,
         teammate: player,
         hasCoverageClaim: _hasDoublesCoverageClaim,
-        onHit: _onAIHit,
+        preferredTargetX: () => nearTeamSuggestedTargetX,
+        onHit: (isPower) {
+          _lastRallyHitter = playerPartner;
+          _onAIHit(isPower);
+        },
       );
       aiPartnerController = AIController(
         ai: aiPartner!,
@@ -312,7 +329,11 @@ class PickleballGame extends ChangeNotifier {
         humanPlayer: player,
         teammate: ai,
         hasCoverageClaim: _hasDoublesCoverageClaim,
-        onHit: _onAIHit,
+        preferredTargetX: () => farTeamSuggestedTargetX,
+        onHit: (isPower) {
+          _lastRallyHitter = aiPartner;
+          _onAIHit(isPower);
+        },
       );
     }
 
@@ -415,6 +436,9 @@ class PickleballGame extends ChangeNotifier {
     aiPartnerController?.resetForRally();
     _nearTeamCoverageOwner = null;
     _farTeamCoverageOwner = null;
+    _lastNearTeamCoverageOwner = null;
+    _lastFarTeamCoverageOwner = null;
+    _lastRallyHitter = null;
     _coverageRevision = -1;
 
     if (scoreController.isPlayerServing) {
@@ -480,6 +504,15 @@ class PickleballGame extends ChangeNotifier {
         : identical(candidate, _farTeamCoverageOwner);
   }
 
+  double _doublesTargetX({required bool nearTeam}) {
+    // Alternate the intended lane once per exchange. Near and far teams use
+    // opposite lanes within an exchange, producing real cross-court changes
+    // instead of feeding the same receiver forever.
+    final exchange = ball.rallyHitCount ~/ 2;
+    final targetRight = (exchange + (nearTeam ? 0 : 1)).isEven;
+    return targetRight ? 16.0 : -16.0;
+  }
+
   void _updateDoublesCoverageOwner() {
     if (gameMode != GameMode.doubles || !ball.isInPlay) return;
 
@@ -497,9 +530,11 @@ class PickleballGame extends ChangeNotifier {
       final receiver = activeReceiver;
       if (receiver.isNearSide) {
         _nearTeamCoverageOwner = receiver;
+        _lastNearTeamCoverageOwner = receiver;
         _farTeamCoverageOwner = null;
       } else {
         _farTeamCoverageOwner = receiver;
+        _lastFarTeamCoverageOwner = receiver;
         _nearTeamCoverageOwner = null;
       }
       return;
@@ -507,22 +542,62 @@ class PickleballGame extends ChangeNotifier {
 
     final target = _predictCoverageTarget();
     if (incomingNear && playerPartner != null) {
-      _nearTeamCoverageOwner = _closerPlayer(player, playerPartner!, target);
+      _nearTeamCoverageOwner = _selectDoublesCoverageOwner(
+        player,
+        playerPartner!,
+        target,
+        previousOwner: _lastNearTeamCoverageOwner,
+      );
+      _lastNearTeamCoverageOwner = _nearTeamCoverageOwner;
       _farTeamCoverageOwner = null;
     } else if (incomingFar && aiPartner != null) {
-      _farTeamCoverageOwner = _closerPlayer(ai, aiPartner!, target);
+      _farTeamCoverageOwner = _selectDoublesCoverageOwner(
+        ai,
+        aiPartner!,
+        target,
+        previousOwner: _lastFarTeamCoverageOwner,
+      );
+      _lastFarTeamCoverageOwner = _farTeamCoverageOwner;
       _nearTeamCoverageOwner = null;
     }
   }
 
-  Player _closerPlayer(Player first, Player second, Vec3 target) {
-    double distanceSquared(Player member) {
-      final dx = member.position.x - target.x;
-      final dz = member.position.z - target.z;
-      return dx * dx + dz * dz;
+  Player _selectDoublesCoverageOwner(
+    Player first,
+    Player second,
+    Vec3 target, {
+    required Player? previousOwner,
+  }) {
+    double distance(Player member) {
+      return dist2D(
+        member.position.x,
+        member.position.z,
+        target.x,
+        target.z,
+      );
     }
 
-    return distanceSquared(first) <= distanceSquared(second) ? first : second;
+    // A ball through the middle is genuinely shared territory. Give it to
+    // the teammate who did not own the previous incoming shot, preventing a
+    // center-positioned bot from monopolizing an entire rally.
+    if (target.x.abs() < 5.0) {
+      return identical(previousOwner, first) ? second : first;
+    }
+
+    // Normal doubles coverage starts with the official left/right formation,
+    // not whichever bot happened to drift closest during the previous shot.
+    final nearSide = first.isNearSide;
+    final firstHomeX = _formationX(first, nearSide: nearSide);
+    final firstOwnsLane = target.x * firstHomeX >= 0;
+    final laneOwner = firstOwnsLane ? first : second;
+    final teammate = firstOwnsLane ? second : first;
+
+    // Preserve a realistic emergency poach when the lane owner is badly out
+    // of position, while keeping ordinary shots assigned to both lanes.
+    const poachAdvantage = 14.0;
+    return distance(teammate) + poachAdvantage < distance(laneOwner)
+        ? teammate
+        : laneOwner;
   }
 
   Vec3 _predictCoverageTarget() {
@@ -540,9 +615,8 @@ class PickleballGame extends ChangeNotifier {
       vy -= PhysicsConstants.gravity * step;
       final speed = math.sqrt(vx * vx + vy * vy + vz * vz);
       if (speed > 0.1) {
-        final drag =
-            (1.0 - PhysicsConstants.ballDragCoefficient * speed * step)
-                .clamp(0.0, 1.0);
+        final drag = (1.0 - PhysicsConstants.ballDragCoefficient * speed * step)
+            .clamp(0.0, 1.0);
         vx *= drag;
         vy *= drag;
         vz *= drag;
@@ -1252,6 +1326,7 @@ class PickleballGame extends ChangeNotifier {
     ball.spinRate = baseSpin * spinBonus;
     ball.shotType = activeShot;
     ball.rallyHitCount++;
+    _lastRallyHitter = player;
 
     final isPowerHit = solution.isPowerHit;
     audioService?.playHit(isPower: isPowerHit);
@@ -1389,6 +1464,7 @@ class PickleballGame extends ChangeNotifier {
     ball.spinRate = activeShot == ShotType.drop ? -500 : 500;
     ball.shotType = activeShot;
     ball.rallyHitCount++;
+    _lastRallyHitter = ai;
     final isPower =
         activeShot == ShotType.power || activeShot == ShotType.smash;
     _onAIHit(isPower);

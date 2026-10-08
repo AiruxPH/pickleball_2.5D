@@ -867,3 +867,13 @@
 - Added a role-aware `remotePlayerPresent` service signal so host and challenger use the same disconnect flow.
 - Validation: Flutter analysis passed with no issues; all 17 widget and LAN/network regression tests passed.
 - A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.
+
+### 2026-10-08 - Four-player doubles rally routing
+
+- Reproduced the Bot-vs-Bot 2v2 loop where one diagonal pair monopolized a sustained rally while the other two bots never touched the ball.
+- Replaced position-only receiver selection with formation-aware lane ownership: the teammate assigned to the projected landing lane owns ordinary balls, center balls alternate owners, and a teammate poaches only with a clear distance advantage.
+- Added coordinated doubles shot placement that alternates the intended left/right landing lane per exchange for both command-driven primary bots and simulation-controlled partners.
+- Exposed the simulation's exact last rally hitter so tests and future diagnostics identify real paddle contacts instead of inferring them after coverage transfers.
+- Added a long-rally regression proving both teammates on both sides receive and hit playable balls without removing official serve-receiver ownership.
+- Validation: all 83 focused targeting, bot, AI, difficulty, and rules tests passed; Flutter analysis passed with no issues.
+- A connected Dart Tooling Daemon was unavailable, so the required hot restart could not be triggered automatically.

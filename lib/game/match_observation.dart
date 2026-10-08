@@ -68,6 +68,8 @@ final class MatchObservation {
     required this.serverShouldBeOnRight,
     this.nearPrimaryHasCoverage = true,
     this.farPrimaryHasCoverage = true,
+    this.nearSuggestedTargetX,
+    this.farSuggestedTargetX,
   });
 
   factory MatchObservation.fromGame(PickleballGame game) {
@@ -134,6 +136,8 @@ final class MatchObservation {
           identical(game.nearTeamCoverageOwner, game.player),
       farPrimaryHasCoverage: game.gameMode != GameMode.doubles ||
           identical(game.farTeamCoverageOwner, game.ai),
+      nearSuggestedTargetX: game.nearTeamSuggestedTargetX,
+      farSuggestedTargetX: game.farTeamSuggestedTargetX,
     );
   }
 
@@ -145,6 +149,8 @@ final class MatchObservation {
   final bool serverShouldBeOnRight;
   final bool nearPrimaryHasCoverage;
   final bool farPrimaryHasCoverage;
+  final double? nearSuggestedTargetX;
+  final double? farSuggestedTargetX;
 }
 
 typedef MatchObserver = MatchObservation Function();

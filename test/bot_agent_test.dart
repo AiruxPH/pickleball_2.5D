@@ -398,6 +398,59 @@ void main() {
               'the opening two-bounce exchange on Easy.');
       doublesGame.dispose();
     });
+
+    test('doubles coverage lets both teammates participate in long rallies',
+        () {
+      final doublesGame = PickleballGame(
+        settings: GameSettings(),
+        gameMode: GameMode.doubles,
+        isLocalMultiplayer: true,
+        difficultyOverride: AIDifficulty.easy,
+        paddleRandom: math.Random(19),
+      );
+      final nearAgent = BotAgent(
+        observe: () => MatchObservation.fromGame(doublesGame),
+        commands: MatchCommandController(game: doublesGame),
+        difficulty: AIDifficulty.easy,
+        randomSeed: 31,
+      );
+      final farAgent = BotAgent(
+        observe: () => MatchObservation.fromGame(doublesGame),
+        commands: MatchCommandController(game: doublesGame, playerSlot: 1),
+        difficulty: AIDifficulty.easy,
+        side: BotCourtSide.far,
+        randomSeed: 47,
+      );
+      final nearReceivers = <Object>{};
+      final farReceivers = <Object>{};
+      var previousHitCount = 0;
+
+      for (var i = 0; i < 12000; i++) {
+        nearAgent.update(1 / 120);
+        farAgent.update(1 / 120);
+        doublesGame.update(1 / 120);
+        final hitCount = doublesGame.ball.rallyHitCount;
+        if (hitCount > previousHitCount) {
+          final hitter = doublesGame.lastRallyHitter;
+          if (hitter != null) {
+            (doublesGame.ball.lastHitByPlayer ? nearReceivers : farReceivers)
+                .add(hitter);
+          }
+        }
+        previousHitCount = hitCount;
+        if (nearReceivers.length == 2 && farReceivers.length == 2) break;
+      }
+
+      expect(nearReceivers, hasLength(2),
+          reason: 'Both near-side teammates should receive playable shots; '
+              'far=${farReceivers.length}, state=${doublesGame.state}, '
+              'hits=${doublesGame.ball.rallyHitCount}, '
+              'message=${doublesGame.lastMessage}, '
+              'fault=${doublesGame.scoreController.lastFaultDetail}.');
+      expect(farReceivers, hasLength(2),
+          reason: 'Both far-side teammates should receive playable shots.');
+      doublesGame.dispose();
+    });
   });
 }
 

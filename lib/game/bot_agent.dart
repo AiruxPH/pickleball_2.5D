@@ -228,8 +228,13 @@ class BotAgent {
   void _planReturn(MatchObservation observation) {
     final opponent = _opponentPlayer(observation);
     _plannedShot = _chooseShot(observation);
+    final coordinatedTargetX = side == BotCourtSide.near
+        ? observation.nearSuggestedTargetX
+        : observation.farSuggestedTargetX;
     final openDirection = opponent.position.x >= 0 ? -1.0 : 1.0;
-    final width = 0.38 + aggression * 0.36;
+    final width = coordinatedTargetX == null
+        ? 0.38 + aggression * 0.36
+        : coordinatedTargetX / (CourtDimensions.halfWidth * 0.88);
     final difficultySpread = switch (difficulty) {
       AIDifficulty.easy => 1.35,
       AIDifficulty.medium => 0.8,
@@ -239,7 +244,9 @@ class BotAgent {
         2 *
         personality.aimSpread *
         difficultySpread;
-    final aimX = (openDirection * width + variation).clamp(-0.82, 0.82);
+    final aimX =
+        ((coordinatedTargetX == null ? openDirection : 1.0) * width + variation)
+            .clamp(-0.82, 0.82);
     _plannedAim = Offset(aimX.toDouble(), -1);
     _hasShotPlan = true;
   }
