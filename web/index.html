@@ -18,11 +18,12 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="description" content="Pickleball Champions Mobile - Fast-paced 3D pickleball sports game.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Pickleball Champions">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -32,8 +33,61 @@
   <title>Pickleball Champions Mobile</title>
   <link rel="manifest" href="manifest.json">
   <script type="module" src="./assets/packages/model_viewer_plus/assets/model-viewer.min.js" defer></script>
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0B132B;
+      touch-action: none;
+    }
+
+    #portrait-warning {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #0B132B;
+      color: white;
+      z-index: 999999;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    @media screen and (orientation: portrait) and (max-width: 900px) {
+      #portrait-warning {
+        display: flex;
+      }
+    }
+  </style>
 </head>
+
 <body>
+  <div id="portrait-warning">
+    <div style="font-size: 64px; margin-bottom: 20px;">📱 ➡️ 📺</div>
+    <h2>Please Rotate Your Device</h2>
+    <p>The game is better when played on landscape.</p>
+  </div>
+
+  <script>
+    window.addEventListener('pointerdown', function() {
+      var docElm = document.documentElement;
+      if (!document.fullscreenElement) {
+        if (docElm.requestFullscreen) {
+          docElm.requestFullscreen();
+        } else if (docElm.webkitRequestFullscreen) {
+          docElm.webkitRequestFullscreen();
+        }
+      }
+    }, { once: false });
+  </script>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
