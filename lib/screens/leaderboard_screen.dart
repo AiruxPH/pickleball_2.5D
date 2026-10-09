@@ -64,7 +64,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       if (entries.length < 15) entries.add(bot);
     }
 
-    entries.sort((a, b) => (b['wins'] as int).compareTo(a['wins'] as int));
+    entries.sort((a, b) => ((b['wins'] as num).toInt()).compareTo((a['wins'] as num).toInt()));
     return entries;
   }
 
@@ -274,7 +274,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   Widget _buildRow(int rank, Map<String, dynamic> entry, {bool compact = false}) {
     final isPlayer = entry['isPlayer'] == true;
-    final wins = entry['wins'] as int;
+    final wins = (entry['wins'] as num).toInt();
     final winPct = (entry['winPct'] as num).toDouble();
     final name = entry['name'] as String;
 

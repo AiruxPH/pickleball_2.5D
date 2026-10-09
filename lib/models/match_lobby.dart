@@ -44,7 +44,7 @@ class LobbyPlayerSlot {
     return LobbyPlayerSlot(
       id: json['id'] as String? ?? 'slot',
       name: json['name'] as String? ?? 'PLAYER',
-      team: json['team'] as int? ?? 1,
+      team: (json['team'] as num?)?.toInt() ?? 1,
       type: LobbySlotType.values.firstWhere(
         (value) => value.name == json['type'],
         orElse: () => LobbySlotType.open,

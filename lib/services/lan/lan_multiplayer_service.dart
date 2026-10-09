@@ -354,7 +354,7 @@ class LanMultiplayerService extends ChangeNotifier {
         break;
 
       case LanMessageType.pong:
-        final sentAt = message.payload['sentAt'] as int? ?? _lastPingSentAt;
+        final sentAt = (message.payload['sentAt'] as num?)?.toInt() ?? _lastPingSentAt;
         if (sentAt != null) {
           _latencyMs = DateTime.now().millisecondsSinceEpoch - sentAt;
           notifyListeners();

@@ -488,7 +488,7 @@ class GameSettings extends ChangeNotifier {
 
   void addLeaderboardEntry(String name, int wins, double winPct) {
     _leaderboard.add({'name': name, 'wins': wins, 'winPct': winPct});
-    _leaderboard.sort((a, b) => (b['wins'] as int).compareTo(a['wins'] as int));
+    _leaderboard.sort((a, b) => ((b['wins'] as num).toInt()).compareTo((a['wins'] as num).toInt()));
     if (_leaderboard.length > 20) _leaderboard = _leaderboard.take(20).toList();
     notifyListeners();
   }
@@ -551,39 +551,39 @@ class GameSettings extends ChangeNotifier {
   }
 
   void fromJson(Map<String, dynamic> json) {
-    _difficulty = AIDifficulty.values[json['difficulty'] as int? ?? 1];
+    _difficulty = AIDifficulty.values[(json['difficulty'] as num?)?.toInt() ?? 1];
     _musicVolume = (json['musicVolume'] as double? ?? 0.7).clamp(0.0, 1.0);
     _sfxVolume = (json['sfxVolume'] as double? ?? 0.8).clamp(0.0, 1.0);
-    _graphicsQuality = GraphicsQuality.values[json['graphicsQuality'] as int? ?? 2];
-    _targetFps = (json['targetFps'] as int?) ?? 60;
+    _graphicsQuality = GraphicsQuality.values[(json['graphicsQuality'] as num?)?.toInt() ?? 2];
+    _targetFps = ((json['targetFps'] as num?)?.toInt()) ?? 60;
     _joystickSensitivity = (json['joystickSensitivity'] as double? ?? 1.0).clamp(0.5, 2.0);
     _dynamicJoystick = json['dynamicJoystick'] as bool? ?? true;
-    _preferredPOV = PreferredPOV.values[json['preferredPOV'] as int? ?? 0];
+    _preferredPOV = PreferredPOV.values[(json['preferredPOV'] as num?)?.toInt() ?? 0];
     _joystickX = (json['joystickHudX'] as num?)?.toDouble() ?? 0.13;
     _joystickY = (json['joystickHudY'] as num?)?.toDouble() ?? 0.78;
     _actionsX = (json['actionsHudX'] as num?)?.toDouble() ?? 0.84;
     _actionsY = (json['actionsHudY'] as num?)?.toDouble() ?? 0.76;
     _serveX = (json['serveHudX'] as num?)?.toDouble() ?? 0.84;
     _serveY = (json['serveHudY'] as num?)?.toDouble() ?? 0.76;
-    final courtIdx = (json['courtTheme'] as int?) ?? 0;
+    final courtIdx = ((json['courtTheme'] as num?)?.toInt()) ?? 0;
     _courtTheme = (courtIdx >= 0 && courtIdx < CourtTheme.values.length)
         ? CourtTheme.values[courtIdx]
         : CourtTheme.tournament;
     _playerName = (json['playerName'] as String?) ?? 'John Doe';
-    _playerLevel = (json['playerLevel'] as int?) ?? 5;
-    _playerXp = (json['playerXp'] as int?) ?? 580;
-    _playerMaxXp = (json['playerMaxXp'] as int?) ?? 750;
-    _coins = (json['coins'] as int?) ?? 10386;
-    _gems = (json['gems'] as int?) ?? 8161;
-    _avatarIndex = (json['avatarIndex'] as int?) ?? 0;
-    _matchesPlayed = (json['matchesPlayed'] as int?) ?? 48;
-    _matchesWon = (json['matchesWon'] as int?) ?? 39;
-    _winStreak = (json['winStreak'] as int?) ?? 7;
-    _aces = (json['aces'] as int?) ?? 18;
-    _totalSmashes = (json['totalSmashes'] as int?) ?? 0;
-    _longestRally = (json['longestRally'] as int?) ?? 0;
-    _tournamentWins = (json['tournamentWins'] as int?) ?? 0;
-    _totalCoinsSpent = (json['totalCoinsSpent'] as int?) ?? 0;
+    _playerLevel = ((json['playerLevel'] as num?)?.toInt()) ?? 5;
+    _playerXp = ((json['playerXp'] as num?)?.toInt()) ?? 580;
+    _playerMaxXp = ((json['playerMaxXp'] as num?)?.toInt()) ?? 750;
+    _coins = ((json['coins'] as num?)?.toInt()) ?? 10386;
+    _gems = ((json['gems'] as num?)?.toInt()) ?? 8161;
+    _avatarIndex = ((json['avatarIndex'] as num?)?.toInt()) ?? 0;
+    _matchesPlayed = ((json['matchesPlayed'] as num?)?.toInt()) ?? 48;
+    _matchesWon = ((json['matchesWon'] as num?)?.toInt()) ?? 39;
+    _winStreak = ((json['winStreak'] as num?)?.toInt()) ?? 7;
+    _aces = ((json['aces'] as num?)?.toInt()) ?? 18;
+    _totalSmashes = ((json['totalSmashes'] as num?)?.toInt()) ?? 0;
+    _longestRally = ((json['longestRally'] as num?)?.toInt()) ?? 0;
+    _tournamentWins = ((json['tournamentWins'] as num?)?.toInt()) ?? 0;
+    _totalCoinsSpent = ((json['totalCoinsSpent'] as num?)?.toInt()) ?? 0;
 
     _equippedPaddleId = (json['equippedPaddleId'] as String?) ?? 'paddle_standard';
     if (json['unlockedPaddleIds'] is List) {
@@ -603,13 +603,13 @@ class GameSettings extends ChangeNotifier {
       }
     }
     _lastBonusClaimDate = (json['lastBonusClaimDate'] as String?) ?? '';
-    _totalBonusClaims = (json['totalBonusClaims'] as int?) ?? 0;
+    _totalBonusClaims = ((json['totalBonusClaims'] as num?)?.toInt()) ?? 0;
 
     // Achievements
     if (json['achievementProgress'] is Map) {
       _achievementProgress = {};
       (json['achievementProgress'] as Map).forEach((k, v) {
-        _achievementProgress[k.toString()] = (v as int?) ?? 0;
+        _achievementProgress[k.toString()] = ((v as num?)?.toInt()) ?? 0;
       });
     }
     if (json['unlockedAchievements'] is List) {
@@ -622,8 +622,8 @@ class GameSettings extends ChangeNotifier {
     // Daily Challenge
     _dailyChallengeDate = (json['dailyChallengeDate'] as String?) ?? '';
     _dailyChallengeType = (json['dailyChallengeType'] as String?) ?? '';
-    _dailyChallengeProgress = (json['dailyChallengeProgress'] as int?) ?? 0;
-    _dailyChallengeTarget = (json['dailyChallengeTarget'] as int?) ?? 1;
+    _dailyChallengeProgress = ((json['dailyChallengeProgress'] as num?)?.toInt()) ?? 0;
+    _dailyChallengeTarget = ((json['dailyChallengeTarget'] as num?)?.toInt()) ?? 1;
     _dailyChallengeCompleted = (json['dailyChallengeCompleted'] as bool?) ?? false;
 
     // Tournament

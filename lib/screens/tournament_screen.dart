@@ -235,7 +235,7 @@ class _TournamentScreenState extends State<TournamentScreen>
 
     return Column(
       children: rounds.map((r) {
-        final idx = r['round'] as int;
+        final idx = (r['round'] as num).toInt();
         final result = tournament.results[idx];
         final isCurrent = tournament.currentRound == idx && !tournament.isComplete;
         final opp = idx == 0

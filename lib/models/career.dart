@@ -77,11 +77,11 @@ class CareerMatchResult {
   factory CareerMatchResult.fromJson(Map<String, dynamic> json) =>
       CareerMatchResult(
         opponentName: (json['opponentName'] as String?) ?? 'CPU',
-        playerScore: (json['playerScore'] as int?) ?? 0,
-        opponentScore: (json['opponentScore'] as int?) ?? 0,
+        playerScore: ((json['playerScore'] as num?)?.toInt()) ?? 0,
+        opponentScore: ((json['opponentScore'] as num?)?.toInt()) ?? 0,
         won: (json['won'] as bool?) ?? false,
-        xpEarned: (json['xpEarned'] as int?) ?? 0,
-        coinsEarned: (json['coinsEarned'] as int?) ?? 0,
+        xpEarned: ((json['xpEarned'] as num?)?.toInt()) ?? 0,
+        coinsEarned: ((json['coinsEarned'] as num?)?.toInt()) ?? 0,
       );
 }
 
@@ -157,9 +157,9 @@ class CareerState {
   };
 
   void fromJson(Map<String, dynamic> json) {
-    totalXp = (json['totalXp'] as int?) ?? 0;
-    currentSeason = (json['currentSeason'] as int?) ?? 1;
-    matchesInSeason = (json['matchesInSeason'] as int?) ?? 0;
+    totalXp = ((json['totalXp'] as num?)?.toInt()) ?? 0;
+    currentSeason = ((json['currentSeason'] as num?)?.toInt()) ?? 1;
+    matchesInSeason = ((json['matchesInSeason'] as num?)?.toInt()) ?? 0;
     if (json['matchHistory'] is List) {
       matchHistory = (json['matchHistory'] as List)
           .map((e) => CareerMatchResult.fromJson(e as Map<String, dynamic>))

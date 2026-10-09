@@ -71,8 +71,8 @@ class _GameOverScreenState extends State<GameOverScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
-    _playerScore = (args?['playerScore'] as int?) ?? 0;
-    _aiScore = (args?['aiScore'] as int?) ?? 0;
+    _playerScore = ((args?['playerScore'] as num?)?.toInt()) ?? 0;
+    _aiScore = ((args?['aiScore'] as num?)?.toInt()) ?? 0;
     _playerWon = (args?['playerWon'] as bool?) ?? false;
     final rematchArguments = args?['rematchArguments'];
     _rematchArguments = rematchArguments is Map
@@ -121,8 +121,8 @@ class _GameOverScreenState extends State<GameOverScreen>
     _statsRecorded = true;
 
     final settings = context.read<GameSettings>();
-    final smashes = (args?['smashes'] as int?) ?? 0;
-    final longestRally = (args?['longestRally'] as int?) ?? 0;
+    final smashes = ((args?['smashes'] as num?)?.toInt()) ?? 0;
+    final longestRally = ((args?['longestRally'] as num?)?.toInt()) ?? 0;
     final isTournament = (args?['isTournament'] as bool?) ?? false;
     final isCareer = (args?['isCareer'] as bool?) ?? false;
     final matchDuration = (args?['matchDuration'] as double?) ?? 0.0;

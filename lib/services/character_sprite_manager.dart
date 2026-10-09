@@ -47,7 +47,7 @@ class SpriteAtlas {
     final rows = <String, ({int row, int frames})>{};
     (j['rows'] as Map<String, dynamic>).forEach((k, v) {
       final m = v as Map<String, dynamic>;
-      rows[k] = (row: m['row'] as int, frames: m['frames'] as int);
+      rows[k] = (row: (m['row'] as num).toInt(), frames: (m['frames'] as num).toInt());
     });
     return SpriteAtlas(
       image: image,

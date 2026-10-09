@@ -94,7 +94,7 @@ class TournamentState {
   };
 
   void fromJson(Map<String, dynamic> json) {
-    currentRound = (json['currentRound'] as int?) ?? 0;
+    currentRound = ((json['currentRound'] as num?)?.toInt()) ?? 0;
     isComplete = (json['isComplete'] as bool?) ?? false;
     playerWon = (json['playerWon'] as bool?) ?? false;
     if (json['results'] is List) {
